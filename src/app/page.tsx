@@ -22,6 +22,7 @@ export default function Home() {
         <AboutSection />
         <ActivitySection />
         <RecruitSection />
+        <SupportSection />
         <FaqSection />
         <ContactSection />
       </main>
@@ -74,6 +75,7 @@ function Header() {
           <NavTab href="#about">チーム紹介</NavTab>
           <NavTab href="#activity">活動概要</NavTab>
           <NavTab href="#recruit">メンバー募集</NavTab>
+          <NavTab href="#support">支援</NavTab>
           <NavTab href="#faq">FAQ</NavTab>
           <NavTab href="#contact" highlight>お問い合わせ</NavTab>
         </nav>
@@ -582,6 +584,95 @@ function Step({ n, t, d }: { n: string; t: string; d: string }) {
         <p className="text-muted text-sm">{d}</p>
       </div>
     </li>
+  );
+}
+
+/* ───────────────────────────────────────── SUPPORT */
+
+function SupportSection() {
+  return (
+    <section id="support" className="bg-navy text-white border-b border-line relative overflow-hidden">
+      <div className="absolute inset-0 field-grid opacity-40" />
+      <div className="relative max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
+        <div className="mb-10 md:mb-14">
+          <p className="font-display text-xs md:text-sm tracking-[0.4em] text-gold mb-2 uppercase">
+            Support & Sponsor
+          </p>
+          <h2 className="text-3xl md:text-5xl font-black tracking-wide text-white leading-tight section-bar">
+            支援のお願い
+          </h2>
+          <p className="mt-4 text-white/80 leading-relaxed max-w-3xl text-[15px] md:text-base">
+            立ち上がったばかりのチームです。道具や活動資金、応援の輪、
+            どんな形でも支えていただけるとすごく助かります🙏
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+          {/* Sponsor card */}
+          <div className="bg-white/[0.04] border border-white/15 p-6 md:p-8 backdrop-blur">
+            <p className="font-display text-xs tracking-[0.3em] text-red mb-3">SPONSOR</p>
+            <h3 className="text-2xl md:text-3xl font-black text-white leading-tight mb-4">
+              スポンサー募集中 📣
+            </h3>
+            <p className="text-white/85 leading-relaxed text-[15px] mb-6">
+              福岡の地域店舗・個人スポンサー様を募集しています。
+              ユニフォームへのロゴ掲出、サイト・Xでの紹介、試合当日のPRなど、
+              予算感に合わせてご相談可能です。
+              初期のチームだからこそ、長く応援してもらえる関係を築きたいと思っています。
+            </p>
+            <ul className="space-y-2 mb-6 text-sm text-white/80">
+              <li>✅ サイトにロゴ＆リンク掲出</li>
+              <li>✅ 公式X（@SK_rookies_FK）で紹介</li>
+              <li>✅ ユニフォーム・備品へのロゴ掲出（相談）</li>
+              <li>✅ 活動報告での感謝紹介</li>
+            </ul>
+            <a
+              href="#contact"
+              className="inline-flex items-center gap-2 bg-red hover:bg-red-2 transition-colors px-5 py-3 font-bold tracking-wider text-sm"
+            >
+              <span>スポンサーのご相談はこちら</span>
+              <span>→</span>
+            </a>
+          </div>
+
+          {/* Equipment donation card */}
+          <div className="bg-white/[0.04] border border-white/15 p-6 md:p-8 backdrop-blur">
+            <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">EQUIPMENT</p>
+            <h3 className="text-2xl md:text-3xl font-black text-white leading-tight mb-4">
+              道具のお裾分け歓迎 🧤
+            </h3>
+            <p className="text-white/85 leading-relaxed text-[15px] mb-6">
+              参加メンバー＆地域の皆さんへ、お願いです。
+              もしご自宅に使っていないボール・バット・ベース・防具などがあれば、
+              チームに譲っていただけると大変助かります。
+              無理のない範囲でOK、「ちょうど処分しようと思ってた」くらいの気軽さで大丈夫です😊
+            </p>
+            <ul className="space-y-2 mb-6 text-sm text-white/80">
+              <li>⚾ 軟式ボール（使用済みでもOK）</li>
+              <li>🏏 バット（子ども用〜大人用まで）</li>
+              <li>🟫 ベース・塁間マーカー</li>
+              <li>🛡 ヘルメット・キャッチャー防具</li>
+              <li>🧤 古くなったグローブ（練習用に）</li>
+            </ul>
+            <p className="text-xs text-white/60 mb-4">
+              受け渡しは福岡市内ならお伺いします。送付いただく場合の送料は
+              チーム負担にします。
+            </p>
+            <a
+              href="#contact"
+              className="inline-flex items-center gap-2 border-2 border-white/40 hover:border-white transition-colors px-5 py-3 font-bold tracking-wider text-sm"
+            >
+              <span>道具支援のご相談はこちら</span>
+              <span>→</span>
+            </a>
+          </div>
+        </div>
+
+        <p className="mt-10 text-center text-white/60 text-sm">
+          ご支援いただいた方はサイト・Xで感謝とともにご紹介させていただきます🙏
+        </p>
+      </div>
+    </section>
   );
 }
 
