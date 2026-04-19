@@ -21,7 +21,7 @@ const rocknRoll = RocknRoll_One({
 });
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://hakata-sk-rookies.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://hakata-sk-rookies-v2y8.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -65,6 +65,9 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
     googleBot: { index: true, follow: true },
+  },
+  verification: {
+    google: "C3WLC75ZuuIE4u8H4A0U49vovHYyrsp-ksLv39LrkJs",
   },
 };
 
