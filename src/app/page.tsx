@@ -20,6 +20,7 @@ export default function Home() {
         <AboutSection />
         <ActivitySection />
         <RecruitSection />
+        <FaqSection />
         <ContactSection />
       </main>
       <Footer />
@@ -71,6 +72,7 @@ function Header() {
           <NavTab href="#about">チーム紹介</NavTab>
           <NavTab href="#activity">活動概要</NavTab>
           <NavTab href="#recruit">メンバー募集</NavTab>
+          <NavTab href="#faq">FAQ</NavTab>
           <NavTab href="#contact" highlight>お問い合わせ</NavTab>
         </nav>
         <a
@@ -578,6 +580,93 @@ function Step({ n, t, d }: { n: string; t: string; d: string }) {
         <p className="text-muted text-sm">{d}</p>
       </div>
     </li>
+  );
+}
+
+/* ───────────────────────────────────────── FAQ */
+
+const faqs = [
+  {
+    q: "本当に未経験・初心者でも大丈夫ですか？",
+    a: "大丈夫です。福岡市でもっとも初心者が始めやすい草野球チームを目指しています。代表自身も野球未経験からのスタートで、キャッチボールもまだ覚えている最中です。「経験者がゼロから教える」のではなく、みんなで少しずつ覚えながら楽しんでいくスタイルなので、ルールを知らない段階でも気後れなく参加できます。学生時代に少し触った程度、ブランク10年以上、完全にゼロ — どの段階の方でも歓迎します。",
+  },
+  {
+    q: "福岡市のどこで活動していますか？",
+    a: "福岡市内の公営グラウンド（雁の巣・西南杜の湖畔公園・美野島公園など）を中心に、その都度空いている場所を予約して活動します。市内・近郊からアクセスしやすい場所を選ぶので、福岡市中央区・博多区・早良区・南区・東区・西区・城南区、どこからでも通えます。糸島・春日・大野城・粕屋エリアからの参加もOKです。",
+  },
+  {
+    q: "費用はいくらかかりますか？",
+    a: "月額500円のチーム費と、活動日ごとのグラウンド代の実費シェア（1回あたり数百円程度）のみです。福岡市周辺の草野球チームの中でも、かなり安く始められる金額設定にしています。ユニフォーム購入や入会金、高い年会費などはありません。",
+  },
+  {
+    q: "道具は何が必要ですか？",
+    a: "まずは **グローブだけ** 用意してもらえればOKです。バット・ボール・ベースなどはチームで用意します。防具（ヘルメット・キャッチャー防具など）は現在整備中で、試合が本格化する段階で揃えていきます。グローブもこれから買う方は、スポーツ量販店で3,000〜5,000円の初心者用で十分です。",
+  },
+  {
+    q: "何歳まで参加できますか？10代や40代でも浮きませんか？",
+    a: "10代〜40代までの幅広い年齢を想定しています。代表は19歳ですが、社会人・主婦・学生など多様な年齢のメンバーを歓迎しています。野球は世代を超えて楽しめるスポーツなので、年齢差は全く気にしなくて大丈夫です。",
+  },
+  {
+    q: "女性も参加できますか？",
+    a: "もちろんです。男女問わず、野球を楽しみたい方はどなたでも歓迎します。女性の初心者メンバーも大歓迎です。",
+  },
+  {
+    q: "活動はどれくらいの頻度ですか？",
+    a: "月2〜3回、主に週末（土日祝）の活動を予定しています。仕事や学業と両立しやすいペースを意識しているので、毎週出られなくても問題ありません。活動日時はXアカウント（@SK_rookies_FK）と、このサイトのお知らせ欄でお知らせします。",
+  },
+  {
+    q: "経験者だけど入れますか？",
+    a: "大歓迎です。経験者がゼロから教える体制ではなく「みんなで教え合う」スタイルなので、経験者の方には得意なところを共有してもらえると助かります。本気で上手くなりたい方も、久しぶりに野球したい方も、どちらも居場所があります。",
+  },
+  {
+    q: "見学だけでもできますか？",
+    a: "もちろん可能です。応募フォームかX（@SK_rookies_FK）のDMで「見学希望」とお伝えください。次回の活動日時と場所をご案内します。実際の雰囲気を見てから判断してもらってOKです。",
+  },
+  {
+    q: "対戦相手（他のチーム）も募集していますか？",
+    a: "はい、対戦相手チームも同時に募集しています。福岡市内・近郊の草野球チームで練習試合・親善試合をしてくださるチームがあれば、ぜひお問い合わせください。初心者が多いチーム同士だと特に助かります。",
+  },
+];
+
+function FaqSection() {
+  return (
+    <section id="faq" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
+        <SectionTitle jp="よくある質問" en="FAQ" />
+        <p className="text-muted text-base md:text-lg leading-relaxed mb-10 max-w-3xl">
+          福岡市で草野球を始めたい初心者の方から、よくいただく質問をまとめました。
+          他に気になることがあれば、<a href="#contact" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">お問い合わせフォーム</a>
+          か X（<a href="https://x.com/SK_rookies_FK" target="_blank" rel="noopener noreferrer" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">@SK_rookies_FK</a>）
+          までお気軽にどうぞ。
+        </p>
+
+        <div className="border-t border-line">
+          {faqs.map((f, i) => (
+            <details
+              key={f.q}
+              className="group border-b border-line"
+            >
+              <summary className="flex items-start gap-4 md:gap-6 py-5 md:py-6 cursor-pointer list-none select-none hover:bg-base-2 transition-colors px-3 md:px-4">
+                <span className="font-display text-red text-xl md:text-2xl leading-none w-10 md:w-14 flex-shrink-0 pt-1">
+                  Q{String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="flex-1 text-base md:text-xl font-bold text-navy leading-snug pt-0.5">
+                  {f.q}
+                </span>
+                <span className="font-display text-navy text-2xl md:text-3xl flex-shrink-0 leading-none pt-1 transition-transform group-open:rotate-45">
+                  +
+                </span>
+              </summary>
+              <div className="px-3 md:px-4 pb-6 md:pb-8 pl-14 md:pl-20">
+                <p className="text-ink text-base leading-relaxed">
+                  {f.a}
+                </p>
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
