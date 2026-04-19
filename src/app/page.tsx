@@ -604,10 +604,10 @@ function ContactSection() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 font-bold text-navy hover:text-red transition-colors"
               >
-                <XIcon /> @hakata_sk_rookies (仮)
+                <XIcon /> @SK_rookies_FK
               </a>
               <p className="text-xs text-muted mt-2">
-                公式X開設後、ハンドル名は更新されます。
+                最新情報・活動報告はXで発信中。お気軽にフォロー&DMください。
               </p>
             </div>
 
