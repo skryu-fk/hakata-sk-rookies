@@ -778,7 +778,10 @@ function ContactSection() {
         <div className="grid md:grid-cols-12 gap-8 md:gap-12">
           <div className="md:col-span-4">
             <p className="text-ink leading-relaxed mb-4 text-[15px]">
-              下記フォームから、応募・質問・対戦相手の相談などを受け付けています。
+              下記フォームから、応募・質問・対戦相手の相談・
+              <a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">スポンサー</a>
+              ・<a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">道具の支援</a>
+              などを受け付けています。
               3日以内に返信します。X（Twitter）の DM でも結構です。
             </p>
             <div className="bg-base-2 border-l-4 border-red px-4 py-3 mb-6 text-[13px] leading-relaxed text-ink">

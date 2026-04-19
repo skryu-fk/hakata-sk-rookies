@@ -100,6 +100,8 @@ export default function RecruitForm() {
           options={[
             { value: "メンバー応募", label: "メンバーとして応募したい" },
             { value: "対戦相談", label: "対戦相手として連絡したい" },
+            { value: "スポンサー", label: "スポンサーの相談をしたい" },
+            { value: "道具支援", label: "道具を譲りたい・支援したい" },
             { value: "質問", label: "質問・その他" },
           ]}
         />
