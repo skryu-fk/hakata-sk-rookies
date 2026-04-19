@@ -2,12 +2,8 @@
 
 import { useState } from "react";
 
-// Formspree フォームID は環境変数から
-// .env.local に NEXT_PUBLIC_FORMSPREE_ID="xxxxxxxx" を設定（Formspree でフォームを作って取得）
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "";
-const ENDPOINT = FORMSPREE_ID
-  ? `https://formspree.io/f/${FORMSPREE_ID}`
-  : "";
+const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -46,7 +42,8 @@ export default function RecruitForm() {
         const data = await res.json().catch(() => ({}));
         setStatus("error");
         setErrorMsg(
-          data?.errors?.[0]?.message ?? "送信に失敗しました。時間をおいて再度お試しください。"
+          data?.errors?.[0]?.message ??
+            "送信に失敗しました。時間をおいて再度お試しください。"
         );
       }
     } catch {
@@ -57,78 +54,100 @@ export default function RecruitForm() {
 
   if (status === "success") {
     return (
-      <div className="bg-navy text-cream p-10 text-center">
-        <p className="font-display tracking-[0.3em] text-gold text-sm mb-3">
-          THANK YOU
+      <div className="bg-navy text-white p-10 md:p-14 text-center">
+        <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">THANK YOU</p>
+        <p className="text-3xl md:text-4xl font-black leading-tight mb-4">
+          ご応募ありがとうございました。
         </p>
-        <h3 className="text-3xl md:text-4xl font-black mb-4">
-          応募ありがとう！
-        </h3>
-        <p className="text-cream/80 leading-relaxed">
+        <p className="text-white/80 leading-relaxed text-[15px]">
           内容を確認のうえ、3日以内にご返信します。<br />
-          グラウンドで会いましょう。
+          グラウンドでお会いしましょう。
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 md:p-10 border border-ink/10 shadow-sm">
-      <Field label="お名前 / ニックネーム" name="name" required placeholder="例: 田中 太郎" />
-      <Field label="メールアドレス" name="email" type="email" required placeholder="example@mail.com" />
-      <Field label="年齢" name="age" type="number" required placeholder="例: 22" min={10} max={60} />
+    <form onSubmit={handleSubmit} className="bg-base-2 border border-line">
+      {/* Header bar */}
+      <div className="bg-navy text-white px-5 md:px-6 py-3 flex items-center justify-between">
+        <p className="font-bold tracking-wider text-sm">応募・お問い合わせフォーム</p>
+        <p className="font-display text-xs tracking-widest text-white/60">FORM</p>
+      </div>
 
-      <div>
-        <label className="block text-sm font-bold text-navy mb-2 tracking-wide">
-          野球経験 <span className="text-red">*</span>
-        </label>
-        <select
+      <div className="p-5 md:p-8 space-y-5">
+        <Field label="お名前 / ニックネーム" name="name" required placeholder="例: 田中 太郎" />
+        <Field label="メールアドレス" name="email" type="email" required placeholder="example@mail.com" />
+        <Field label="年齢" name="age" type="number" required placeholder="例: 22" min={10} max={60} />
+
+        <SelectField
+          label="野球経験"
           name="experience"
           required
-          defaultValue=""
-          className="w-full border border-ink/20 px-4 py-3 bg-cream focus:outline-none focus:border-red focus:ring-2 focus:ring-red/20"
-        >
-          <option value="" disabled>選択してください</option>
-          <option value="未経験">完全に未経験</option>
-          <option value="少し">学生時代に少しだけ</option>
-          <option value="経験あり">中学・高校で経験あり</option>
-          <option value="ブランクあり">経験あるけどブランク長め</option>
-          <option value="現役">今もどこかでプレー中</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-bold text-navy mb-2 tracking-wide">
-          メッセージ・質問など
-        </label>
-        <textarea
-          name="message"
-          rows={5}
-          placeholder="意気込み・聞きたいこと・自己紹介など、自由にどうぞ！"
-          className="w-full border border-ink/20 px-4 py-3 bg-cream focus:outline-none focus:border-red focus:ring-2 focus:ring-red/20 resize-y"
+          options={[
+            { value: "未経験", label: "完全に未経験" },
+            { value: "少し", label: "学生時代に少しだけ" },
+            { value: "経験あり", label: "中学・高校で経験あり" },
+            { value: "ブランクあり", label: "経験あるけどブランク長め" },
+            { value: "現役", label: "今もどこかでプレー中" },
+          ]}
         />
-      </div>
 
-      {/* Honeypot */}
-      <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" className="hidden" />
+        <SelectField
+          label="ご相談内容"
+          name="inquiry_type"
+          defaultValue="メンバー応募"
+          options={[
+            { value: "メンバー応募", label: "メンバーとして応募したい" },
+            { value: "対戦相談", label: "対戦相手として連絡したい" },
+            { value: "質問", label: "質問・その他" },
+          ]}
+        />
 
-      {status === "error" && (
-        <p className="text-red bg-red/5 border border-red/20 px-4 py-3 text-sm">
-          {errorMsg}
+        <div>
+          <label className="block text-sm font-bold text-navy mb-2 tracking-wide">
+            メッセージ
+          </label>
+          <textarea
+            name="message"
+            rows={5}
+            placeholder="意気込み・聞きたいこと・自己紹介など、自由にどうぞ。"
+            className="w-full border border-line bg-base px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:outline-none focus:border-red focus:ring-2 focus:ring-red/15 resize-y"
+          />
+        </div>
+
+        {/* Honeypot */}
+        <input
+          type="text"
+          name="_gotcha"
+          tabIndex={-1}
+          autoComplete="off"
+          className="hidden"
+        />
+
+        {status === "error" && (
+          <p className="border border-red/30 bg-red/5 text-red px-4 py-3 text-sm">
+            {errorMsg}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={status === "submitting"}
+          className="w-full bg-red hover:bg-red-2 disabled:opacity-60 disabled:cursor-not-allowed transition-colors text-white py-4 font-bold tracking-widest text-lg shadow-lg shadow-red/20 inline-flex items-center justify-center gap-2"
+        >
+          {status === "submitting" ? "送信中…" : (
+            <>
+              <span>送信する</span>
+              <span className="text-xl">→</span>
+            </>
+          )}
+        </button>
+
+        <p className="text-xs text-muted text-center">
+          送信内容はチーム代表者のみが確認します。3日以内に返信します。
         </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={status === "submitting"}
-        className="w-full bg-red hover:bg-red-2 disabled:opacity-60 disabled:cursor-not-allowed transition px-6 py-4 text-white font-bold tracking-widest text-lg shadow-lg shadow-red/20"
-      >
-        {status === "submitting" ? "送信中…" : "▶ 応募を送信する"}
-      </button>
-
-      <p className="text-xs text-ink/50 text-center">
-        送信内容はチーム代表者のみが確認します。3日以内に返信します。
-      </p>
+      </div>
     </form>
   );
 }
@@ -163,8 +182,48 @@ function Field({
         placeholder={placeholder}
         min={min}
         max={max}
-        className="w-full border border-ink/20 px-4 py-3 bg-cream focus:outline-none focus:border-red focus:ring-2 focus:ring-red/20"
+        className="w-full border border-line bg-base px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:outline-none focus:border-red focus:ring-2 focus:ring-red/15"
       />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  required,
+  defaultValue = "",
+  options,
+}: {
+  label: string;
+  name: string;
+  required?: boolean;
+  defaultValue?: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label htmlFor={name} className="block text-sm font-bold text-navy mb-2 tracking-wide">
+        {label} {required && <span className="text-red">*</span>}
+      </label>
+      <select
+        id={name}
+        name={name}
+        required={required}
+        defaultValue={defaultValue}
+        className="w-full border border-line bg-base px-4 py-3 text-base text-ink focus:outline-none focus:border-red focus:ring-2 focus:ring-red/15 cursor-pointer"
+      >
+        {!defaultValue && (
+          <option value="" disabled>
+            選択してください
+          </option>
+        )}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
-import { Noto_Sans_JP, Bebas_Neue } from "next/font/google";
+import { Zen_Kaku_Gothic_New, Oswald } from "next/font/google";
 import "./globals.css";
 
-const notoSansJp = Noto_Sans_JP({
-  variable: "--font-noto-jp",
+const zenKaku = Zen_Kaku_Gothic_New({
+  variable: "--font-zen",
   subsets: ["latin"],
   weight: ["400", "500", "700", "900"],
 });
 
-const bebas = Bebas_Neue({
-  variable: "--font-bebas",
+const oswald = Oswald({
+  variable: "--font-oswald",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "博多SKルーキーズ | HAKATA SK ROOKIES — 福岡市の草野球チーム メンバー募集",
+  title: "博多SKルーキーズ | HAKATA SK ROOKIES — 福岡市の草野球チーム",
   description:
     "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しむ仲間を募集中。",
   openGraph: {
@@ -34,9 +34,9 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${notoSansJp.variable} ${bebas.variable} h-full antialiased`}
+      className={`${zenKaku.variable} ${oswald.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-cream text-ink">
+      <body className="min-h-full flex flex-col bg-base text-ink">
         {children}
       </body>
     </html>

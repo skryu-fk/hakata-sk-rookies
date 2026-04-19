@@ -1,97 +1,100 @@
 @import "tailwindcss";
 
-:root {
-  --navy: #0d1b2a;
-  --navy-2: #102438;
-  --red: #c1121f;
-  --red-2: #8a0a14;
-  --cream: #f7f1e3;
-  --cream-2: #efe6d0;
-  --gold: #d4a017;
-  --ink: #14202b;
+@theme {
+  --color-navy: #0b1e3f;
+  --color-navy-2: #142a52;
+  --color-navy-3: #1c3866;
+  --color-red: #d10024;
+  --color-red-2: #a80019;
+  --color-gold: #d4a82a;
+  --color-base: #f5f2ec;
+  --color-base-2: #ffffff;
+  --color-ink: #131922;
+  --color-muted: #5b6373;
+  --color-line: #d8d4cb;
+  --color-line-2: #e8e4dc;
+  --font-sans: var(--font-zen);
+  --font-display: var(--font-oswald);
 }
 
-@theme inline {
-  --color-navy: var(--navy);
-  --color-navy-2: var(--navy-2);
-  --color-red: var(--red);
-  --color-red-2: var(--red-2);
-  --color-cream: var(--cream);
-  --color-cream-2: var(--cream-2);
-  --color-gold: var(--gold);
-  --color-ink: var(--ink);
-  --font-sans: var(--font-noto-jp);
-  --font-display: var(--font-bebas);
+:root {
+  --navy: #0b1e3f;
+  --red: #d10024;
+  --red-2: #a80019;
+  --base: #f5f2ec;
+  --line: #d8d4cb;
 }
 
 html, body {
-  background: var(--cream);
+  background: var(--base);
   color: var(--ink);
-  font-family: var(--font-noto-jp), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-zen), system-ui, -apple-system, sans-serif;
+  font-feature-settings: "palt";
 }
 
-/* Baseball stitching divider */
-.stitch {
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0 14px,
-    var(--red) 14px 22px,
-    transparent 22px 36px
+::selection {
+  background: var(--red);
+  color: #fff;
+}
+
+.font-display {
+  font-family: var(--font-oswald), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Diagonal red accent stripe */
+.diag-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--red) 0 12px,
+    var(--red-2) 12px 24px
   );
-  height: 4px;
 }
 
-/* Baseball ball with stitch */
-.ball {
-  background: #fff;
-  border-radius: 9999px;
-  position: relative;
-  box-shadow: inset -8px -8px 24px rgba(0, 0, 0, 0.18),
-    0 12px 40px rgba(0, 0, 0, 0.35);
-}
-.ball::before,
-.ball::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  border: 2px dashed var(--red);
-}
-.ball::before {
-  clip-path: polygon(0 0, 30% 0, 18% 100%, 0 100%);
-}
-.ball::after {
-  clip-path: polygon(70% 0, 100% 0, 100% 100%, 82% 100%);
-}
-
-/* Diamond shape */
-.diamond {
-  transform: rotate(45deg);
-  border: 3px solid var(--cream);
-}
-
-/* Subtle field grid */
+/* Subtle field grid (very faint) */
 .field-grid {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
+  background-size: 64px 64px;
 }
 
-/* Number badge */
-.num-badge {
-  font-family: var(--font-bebas), sans-serif;
-  letter-spacing: 0.02em;
-}
-
-/* Reveal on view */
+/* Reveal */
 @media (prefers-reduced-motion: no-preference) {
   .reveal {
     opacity: 0;
     transform: translateY(16px);
-    animation: reveal 0.8s ease forwards;
+    animation: reveal 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   }
   @keyframes reveal {
     to { opacity: 1; transform: none; }
   }
+}
+
+/* Marquee ticker */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-track {
+  display: inline-flex;
+  gap: 3rem;
+  animation: ticker 40s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* Section header bar */
+.section-bar {
+  position: relative;
+  padding-left: 1rem;
+}
+.section-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+  bottom: 0.2em;
+  width: 6px;
+  background: var(--red);
 }
