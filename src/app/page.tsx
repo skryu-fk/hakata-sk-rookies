@@ -607,8 +607,12 @@ const faqs = [
     a: "10代〜40代までの幅広い年齢を想定しています。代表は19歳ですが、社会人・主婦・学生など多様な年齢のメンバーを歓迎しています。野球は世代を超えて楽しめるスポーツなので、年齢差は全く気にしなくて大丈夫です。",
   },
   {
-    q: "女性も参加できますか？",
-    a: "もちろんです。男女問わず、野球を楽しみたい方はどなたでも歓迎します。女性の初心者メンバーも大歓迎です。",
+    q: "女性も参加できますか？マネージャー希望でもOK？",
+    a: "もちろんです。男女問わず、野球を楽しみたい方はどなたでも歓迎します。プレイヤーとしてだけでなく、スコア記録・撮影・練習サポートなどを担当してくれるマネージャーとしての参加も大歓迎です。「プレーは自信ないけど野球の雰囲気が好き」という方も、お気軽にご連絡ください。",
+  },
+  {
+    q: "代表が19歳（10代）と若いけど、20代〜40代でも大丈夫？",
+    a: "全く問題ありません。代表が10代だからといって遠慮する必要はないです。年上の方の参加は大歓迎ですし、こちらは年齢差をまったく気にしていません。むしろ社会人としての経験や、過去に野球をかじった知識をシェアしてもらえるとチームとして助かります。フラットに「野球を楽しむ仲間」として接するので、変に気を遣う必要はありません。",
   },
   {
     q: "活動はどれくらいの頻度ですか？",
@@ -680,10 +684,19 @@ function ContactSection() {
 
         <div className="grid md:grid-cols-12 gap-8 md:gap-12">
           <div className="md:col-span-4">
-            <p className="text-ink leading-relaxed mb-6 text-[15px]">
+            <p className="text-ink leading-relaxed mb-4 text-[15px]">
               下記フォームから、応募・質問・対戦相手の相談などを受け付けています。
               3日以内に返信します。X（Twitter）の DM でも結構です。
             </p>
+            <div className="bg-base-2 border-l-4 border-red px-4 py-3 mb-6 text-[13px] leading-relaxed text-ink">
+              <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
+              <p>
+                女性はプレイヤーでもマネージャーでも大歓迎です。<br />
+                20代〜40代の方へ：代表は19歳ですが、年齢差はこちらも
+                <span className="font-bold">まったく気にしていません</span>
+                。フラットに楽しみましょう。
+              </p>
+            </div>
 
             <div className="bg-base-2 border border-line p-5 mb-4">
               <p className="font-display text-xs tracking-[0.3em] text-red mb-2">SNS</p>
