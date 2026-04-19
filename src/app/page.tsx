@@ -4,7 +4,7 @@ import RecruitForm from "@/components/RecruitForm";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
-const X_URL = "https://x.com/"; // TODO: 公式X作成後に差し替え
+const X_URL = "https://x.com/SK_rookies_FK";
 const FOUNDED = "2026";
 
 export default function Home() {
