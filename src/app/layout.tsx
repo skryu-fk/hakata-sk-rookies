@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     "博多SKルーキーズ",
     "HAKATA SK ROOKIES",
     "社会人野球",
-    "対戦相手募集",
+    "スポンサー募集",
   ],
   alternates: {
     canonical: "/",

@@ -14,7 +14,6 @@
 export const NEWS_CATEGORIES = [
   "サイト",
   "募集",
-  "対戦",
   "活動",
   "試合",
   "告知",
@@ -30,14 +29,9 @@ export type NewsItem = {
 
 export const news: NewsItem[] = [
   {
-    {
-  date: "2026.04.19",
-  category: "募集",
-  title: "公式Xを開設しました！",
-},
-    date: "2026.04.19",
-    category: "対戦",
-    title: "対戦相手チーム・個人も同時募集中です。",
+    date: "2026.04.20",
+    category: "告知",
+    title: "公式X（@SK_rookies_FK）を開設しました！",
   },
   {
     date: "2026.04.19",
@@ -54,8 +48,7 @@ export const news: NewsItem[] = [
 export const CATEGORY_STYLES: Record<NewsCategory, string> = {
   サイト: "bg-navy text-white",
   募集: "bg-red text-white",
-  対戦: "bg-gold text-navy",
   活動: "bg-navy-3 text-white",
   試合: "bg-red-2 text-white",
-  告知: "bg-muted text-white",
+  告知: "bg-gold text-navy",
 };

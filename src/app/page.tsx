@@ -245,7 +245,7 @@ function Ticker() {
   const items = [
     "メンバー募集中",
     "初心者大歓迎",
-    "対戦相手も募集",
+    "道具・防具のご支援歓迎",
     "福岡市拠点",
     "経験者も歓迎",
     `EST. ${FOUNDED}`,
@@ -325,7 +325,7 @@ function ScheduleSection() {
   return (
     <section id="schedule" className="bg-base border-b border-line">
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="試合・対戦相手募集" en="Schedule & Wanted" />
+        <SectionTitle jp="試合情報" en="Schedule" />
 
         <div className="grid md:grid-cols-12 gap-6 md:gap-10">
           {/* Schedule placeholder */}
@@ -353,7 +353,7 @@ function ScheduleSection() {
             </div>
           </div>
 
-          {/* 対戦相手募集 */}
+          {/* 対戦相手募集は将来予定 */}
           <div className="md:col-span-5">
             <div className="bg-navy text-white p-6 md:p-8 h-full relative overflow-hidden">
               <div
@@ -361,25 +361,26 @@ function ScheduleSection() {
                 style={{ background: "#d10024" }}
               />
               <div className="relative">
-                <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">WANTED</p>
+                <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">COMING SOON</p>
                 <h3 className="text-2xl md:text-3xl font-black leading-snug mb-4">
-                  対戦相手、<br />
-                  募集してます。
+                  対戦相手募集は<br />
+                  準備中です。
                 </h3>
                 <p className="text-white/85 leading-relaxed mb-6 text-sm">
-                  福岡市内・近郊で練習試合をしてくださるチーム・個人を探しています。
-                  レベル不問、ゆるく楽しめる相手大歓迎。
+                  現在はメンバー集めと道具の準備に専念中。
+                  人数が集まり、装備が整ったタイミングで、
+                  他チーム様との練習試合もお願いしていく予定です。
                 </p>
                 <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex gap-2"><span className="text-red">●</span>福岡市内・近郊のチーム</li>
-                  <li className="flex gap-2"><span className="text-red">●</span>レベル・経験は不問</li>
-                  <li className="flex gap-2"><span className="text-red">●</span>個人参加も相談可能</li>
+                  <li className="flex gap-2"><span className="text-gold">●</span>まずはメンバー募集に注力</li>
+                  <li className="flex gap-2"><span className="text-gold">●</span>道具・防具が揃い次第、対戦募集再開</li>
+                  <li className="flex gap-2"><span className="text-gold">●</span>最新情報は公式Xでお知らせ</li>
                 </ul>
                 <a
-                  href="#contact"
+                  href="#recruit"
                   className="inline-flex items-center gap-2 bg-red hover:bg-red-2 transition-colors px-5 py-3 font-bold tracking-wider"
                 >
-                  対戦の相談 →
+                  メンバー応募はこちら →
                 </a>
               </div>
             </div>
@@ -721,7 +722,7 @@ const faqs = [
   },
   {
     q: "対戦相手（他のチーム）も募集していますか？",
-    a: "はい、対戦相手チームも同時に募集しています。福岡市内・近郊の草野球チームで練習試合・親善試合をしてくださるチームがあれば、ぜひお問い合わせください。初心者が多いチーム同士だと特に助かります。",
+    a: "現在はメンバー集めと道具・防具の準備に専念しているため、対戦相手の募集は一時停止中です。人数と装備が整ったタイミングで、福岡市内・近郊の草野球チーム様に練習試合をお願いしていく予定です。再開時は公式X（@SK_rookies_FK）とサイトのお知らせでご案内します。",
   },
 ];
 
@@ -778,7 +779,7 @@ function ContactSection() {
         <div className="grid md:grid-cols-12 gap-8 md:gap-12">
           <div className="md:col-span-4">
             <p className="text-ink leading-relaxed mb-4 text-[15px]">
-              下記フォームから、応募・質問・対戦相手の相談・
+              下記フォームから、応募・質問・
               <a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">スポンサー</a>
               ・<a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">道具の支援</a>
               などを受け付けています。
@@ -845,7 +846,7 @@ function Footer() {
             </div>
             <p className="text-white/70 leading-relaxed text-sm max-w-md">
               福岡市を拠点に活動する、初心者中心の草野球チーム。
-              一緒に野球を楽しむ仲間と、対戦相手を募集中です。
+              一緒に野球を楽しむ仲間を募集中です。
             </p>
           </div>
 
