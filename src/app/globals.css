@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --navy: #0d1b2a;
+  --navy-2: #102438;
+  --red: #c1121f;
+  --red-2: #8a0a14;
+  --cream: #f7f1e3;
+  --cream-2: #efe6d0;
+  --gold: #d4a017;
+  --ink: #14202b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-red: var(--red);
+  --color-red-2: var(--red-2);
+  --color-cream: var(--cream);
+  --color-cream-2: var(--cream-2);
+  --color-gold: var(--gold);
+  --color-ink: var(--ink);
+  --font-sans: var(--font-noto-jp);
+  --font-display: var(--font-bebas);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html, body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-noto-jp), system-ui, -apple-system, sans-serif;
+}
+
+/* Baseball stitching divider */
+.stitch {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 14px,
+    var(--red) 14px 22px,
+    transparent 22px 36px
+  );
+  height: 4px;
+}
+
+/* Baseball ball with stitch */
+.ball {
+  background: #fff;
+  border-radius: 9999px;
+  position: relative;
+  box-shadow: inset -8px -8px 24px rgba(0, 0, 0, 0.18),
+    0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.ball::before,
+.ball::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px dashed var(--red);
+}
+.ball::before {
+  clip-path: polygon(0 0, 30% 0, 18% 100%, 0 100%);
+}
+.ball::after {
+  clip-path: polygon(70% 0, 100% 0, 100% 100%, 82% 100%);
+}
+
+/* Diamond shape */
+.diamond {
+  transform: rotate(45deg);
+  border: 3px solid var(--cream);
+}
+
+/* Subtle field grid */
+.field-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Number badge */
+.num-badge {
+  font-family: var(--font-bebas), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Reveal on view */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: reveal 0.8s ease forwards;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @keyframes reveal {
+    to { opacity: 1; transform: none; }
+  }
 }
