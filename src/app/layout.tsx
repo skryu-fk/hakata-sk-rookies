@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Zen_Kaku_Gothic_New, Oswald } from "next/font/google";
+import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
 import "./globals.css";
 
 const zenKaku = Zen_Kaku_Gothic_New({
@@ -12,6 +12,12 @@ const oswald = Oswald({
   variable: "--font-oswald",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
+});
+
+const rocknRoll = RocknRoll_One({
+  variable: "--font-rocknroll",
+  subsets: ["latin"],
+  weight: ["400"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${zenKaku.variable} ${oswald.variable} h-full antialiased`}
+      className={`${zenKaku.variable} ${oswald.variable} ${rocknRoll.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-base text-ink">
         {children}

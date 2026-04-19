@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import RecruitForm from "@/components/RecruitForm";
 
@@ -54,7 +55,7 @@ function Header() {
     <header className="sticky top-0 z-50 bg-base-2 border-b-4 border-red shadow-sm">
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 flex items-center justify-between">
         <Link href="#top" className="flex items-center gap-3 py-3">
-          <Emblem className="w-12 h-12 md:w-14 md:h-14" />
+          <Logo className="w-24 h-24 md:w-28 md:h-28" priority />
           <div className="leading-tight">
             <p className="font-bold text-lg md:text-xl tracking-wider text-navy">
               {TEAM_NAME_JP}
@@ -112,55 +113,24 @@ function NavTab({
   );
 }
 
-/* ───────────────────────────────────────── EMBLEM */
+/* ───────────────────────────────────────── LOGO */
 
-function Emblem({ className = "" }: { className?: string }) {
+function Logo({
+  className = "",
+  priority = false,
+}: {
+  className?: string;
+  priority?: boolean;
+}) {
   return (
-    <svg viewBox="0 0 100 100" className={className} aria-hidden>
-      {/* Outer shield */}
-      <path
-        d="M50 4 L92 16 L92 56 C92 78 74 92 50 96 C26 92 8 78 8 56 L8 16 Z"
-        fill="#0b1e3f"
-        stroke="#d10024"
-        strokeWidth="3"
-      />
-      {/* Inner panel */}
-      <path
-        d="M50 12 L84 22 L84 56 C84 74 70 86 50 90 C30 86 16 74 16 56 L16 22 Z"
-        fill="#fff"
-      />
-      {/* Diagonal red stripe */}
-      <path
-        d="M16 56 L84 30 L84 38 L16 64 Z"
-        fill="#d10024"
-      />
-      {/* SK monogram */}
-      <text
-        x="50"
-        y="50"
-        textAnchor="middle"
-        fontFamily="Oswald, sans-serif"
-        fontWeight="700"
-        fontSize="30"
-        fill="#0b1e3f"
-        letterSpacing="0"
-      >
-        SK
-      </text>
-      {/* HAKATA arc */}
-      <text
-        x="50"
-        y="80"
-        textAnchor="middle"
-        fontFamily="Oswald, sans-serif"
-        fontWeight="500"
-        fontSize="9"
-        fill="#0b1e3f"
-        letterSpacing="2"
-      >
-        HAKATA
-      </text>
-    </svg>
+    <Image
+      src="/logo.png"
+      alt={`${TEAM_NAME_JP} ロゴ`}
+      width={512}
+      height={512}
+      className={`object-contain ${className}`}
+      priority={priority}
+    />
   );
 }
 
@@ -233,7 +203,7 @@ function Hero() {
 
           <div className="hidden md:flex md:col-span-4 justify-center reveal" style={{ animationDelay: "0.15s" }}>
             <div className="relative">
-              <Emblem className="w-72 h-72 drop-shadow-2xl" />
+              <Logo className="w-[28rem] h-[28rem] lg:w-[32rem] lg:h-[32rem] drop-shadow-2xl" priority />
               <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-base-2 text-navy px-4 py-1 font-display text-sm tracking-widest border-2 border-navy">
                 EST. {FOUNDED}
               </div>
@@ -261,7 +231,7 @@ function Ticker() {
     <div className="bg-red text-white py-3 overflow-hidden border-b-4 border-navy">
       <div className="ticker-track">
         {repeated.map((t, i) => (
-          <span key={i} className="font-display text-lg md:text-xl tracking-widest inline-flex items-center gap-12">
+          <span key={i} className="font-ticker text-lg md:text-xl tracking-[0.15em] inline-flex items-center gap-12">
             {t}
             <span className="text-white/50">●</span>
           </span>
@@ -460,7 +430,7 @@ function AboutSection() {
         {/* Founder note */}
         <div className="mt-12 bg-navy text-white p-6 md:p-10 grid md:grid-cols-12 gap-6 md:gap-10 items-center">
           <div className="md:col-span-3 flex md:justify-center">
-            <Emblem className="w-24 h-24 md:w-32 md:h-32" />
+            <Logo className="w-44 h-44 md:w-60 md:h-60" />
           </div>
           <div className="md:col-span-9">
             <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">
@@ -505,24 +475,19 @@ function ActivitySection() {
       <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
         <SectionTitle jp="活動概要" en="Activity" />
 
-        <div className="bg-base-2 border border-line">
-          {/* Header */}
-          <div className="grid grid-cols-12 bg-navy text-white px-5 py-3 text-xs font-bold tracking-widest uppercase">
-            <div className="col-span-3 md:col-span-2">項目</div>
-            <div className="col-span-9 md:col-span-10">内容</div>
-          </div>
+        <div className="border border-line overflow-hidden">
           {rows.map((r, i) => (
             <div
               key={r.label}
-              className={`grid grid-cols-12 gap-4 px-5 py-5 ${i !== rows.length - 1 ? "border-b border-line" : ""}`}
+              className={`grid grid-cols-1 md:grid-cols-12 ${i !== rows.length - 1 ? "border-b border-line" : ""}`}
             >
-              <div className="col-span-12 md:col-span-2">
-                <p className="font-bold text-navy text-sm md:text-base bg-base inline-block md:bg-transparent px-2 py-1 md:p-0 border-l-4 md:border-l-0 border-red md:border-0">
+              <div className="md:col-span-3 bg-navy text-white px-5 md:px-6 py-3 md:py-7 flex md:items-center border-l-4 border-red">
+                <p className="font-bold text-base md:text-lg tracking-wider">
                   {r.label}
                 </p>
               </div>
-              <div className="col-span-12 md:col-span-10">
-                <p className="text-lg md:text-2xl font-black text-navy mb-1">
+              <div className="md:col-span-9 bg-base-2 px-5 md:px-8 py-5 md:py-7">
+                <p className="text-xl md:text-2xl font-black text-navy mb-1.5 leading-tight">
                   {r.main}
                 </p>
                 <p className="text-muted text-sm leading-relaxed">{r.sub}</p>
@@ -672,7 +637,7 @@ function Footer() {
         <div className="grid md:grid-cols-12 gap-10 mb-10">
           <div className="md:col-span-5">
             <div className="flex items-center gap-4 mb-4">
-              <Emblem className="w-16 h-16" />
+              <Logo className="w-32 h-32" />
               <div>
                 <p className="font-bold text-xl tracking-wider">{TEAM_NAME_JP}</p>
                 <p className="font-display text-xs tracking-[0.3em] text-white/60 uppercase">
