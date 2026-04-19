@@ -6,6 +6,7 @@ const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 const X_URL = "https://x.com/SK_rookies_FK";
 const FOUNDED = "2026";
+const MEMBER_COUNT = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 3);
 
 export default function Home() {
   return (
@@ -201,6 +202,12 @@ function Hero() {
                 チームを知る
               </a>
             </div>
+
+            <div className="mt-12 grid grid-cols-3 gap-4 max-w-xl border-t border-white/15 pt-6">
+              <Stat value={MEMBER_COUNT} unit="名" label="現メンバー" />
+              <Stat value={FOUNDED} unit="" label="設立" />
+              <Stat value="福岡市" unit="" label="拠点" />
+            </div>
           </div>
 
           <div className="hidden md:flex md:col-span-4 justify-center reveal" style={{ animationDelay: "0.15s" }}>
@@ -214,6 +221,18 @@ function Hero() {
         </div>
       </div>
     </section>
+  );
+}
+
+function Stat({ value, unit, label }: { value: string | number; unit?: string; label: string }) {
+  return (
+    <div>
+      <p className="font-display text-3xl md:text-4xl font-bold text-gold leading-none">
+        {value}
+        {unit && <span className="text-base md:text-lg font-bold text-white/70 ml-1">{unit}</span>}
+      </p>
+      <p className="text-xs text-white/60 mt-1.5 tracking-wider">{label}</p>
+    </div>
   );
 }
 
@@ -770,7 +789,7 @@ function Footer() {
             <dl className="space-y-2 text-sm">
               <Info label="拠点" value="福岡市" />
               <Info label="設立" value={`${FOUNDED}年`} />
-              <Info label="代表" value="19歳・初心者" />
+              <Info label="代表" value="柏木 海斗（19歳・初心者）" />
               <Info label="対象" value="10代〜40代 / 初心者中心" />
             </dl>
             <a
