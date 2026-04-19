@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import RecruitForm from "@/components/RecruitForm";
+import { news, CATEGORY_STYLES } from "@/data/news";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
@@ -285,24 +286,6 @@ function SectionTitle({
 
 /* ───────────────────────────────────────── NEWS */
 
-const news = [
-  {
-    date: "2026.04.19",
-    cat: "サイト",
-    title: "公式サイトを開設しました。",
-  },
-  {
-    date: "2026.04.19",
-    cat: "募集",
-    title: "メンバー募集を開始。10代〜40代まで初心者中心。",
-  },
-  {
-    date: "2026.04.19",
-    cat: "対戦",
-    title: "対戦相手チーム・個人も同時募集中です。",
-  },
-];
-
 function NewsSection() {
   return (
     <section id="news" className="bg-base-2 border-b border-line">
@@ -319,8 +302,8 @@ function NewsSection() {
                 {n.date}
               </span>
               <span className="col-span-3 md:col-span-2">
-                <span className="inline-block bg-navy text-white text-xs px-3 py-1 font-bold tracking-wider">
-                  {n.cat}
+                <span className={`inline-block text-xs px-3 py-1 font-bold tracking-wider ${CATEGORY_STYLES[n.category]}`}>
+                  {n.category}
                 </span>
               </span>
               <span className="col-span-12 md:col-span-8 text-base md:text-lg font-bold text-ink mt-2 md:mt-0">
