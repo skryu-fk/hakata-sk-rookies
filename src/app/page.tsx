@@ -5,6 +5,7 @@ import FaqSection  from "@/components/FaqSection";
 import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
 import TweetsSection from "@/components/TweetsSection";
+import MobileMenu    from "@/components/MobileMenu";
 import { news, CATEGORY_STYLES } from "@/data/news";
 import { blogPosts } from "@/data/blog";
 
@@ -84,7 +85,10 @@ function Header() {
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
         </nav>
-        <a href="#recruit" className="lg:hidden ml-auto bg-red text-white flex items-center px-5 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集 →</a>
+        <div className="lg:hidden ml-auto flex items-stretch">
+          <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
+          <MobileMenu />
+        </div>
       </div>
     </header>
   );
@@ -224,7 +228,7 @@ function AboutSection() {
           <div className="px-6 py-8 md:px-12 md:py-10">
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
             <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は今年19歳・自身も野球初心者です。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
           </div>
         </div>
       </div>
@@ -235,6 +239,7 @@ function AboutSection() {
 /* ── ActivitySection ──────────────────────────────────── */
 const ACTIVITY = [
   { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
+  { label: "ホーム球場", main: "山王公園野球場（予定）",    sub: "正式なホーム契約は結んでいませんが、博多区の山王公園野球場をメインに使わせていただく予定です。空き状況によっては市内の別グラウンドでも活動します。" },
   { label: "活動頻度",   main: "月 2〜3回 / 主に週末",      sub: "参加は出れる時だけでOK。無理なく続けられるペースを大事に。" },
   { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
   { label: "費用",       main: "月額 ¥500 + 都度 数百円",   sub: "チーム運営費として月額500円。加えて活動ごとにグラウンド代を割り勘で数百円いただきます。" },
@@ -411,7 +416,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>TEAM INFO</p>
             <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
-              {[["拠点","福岡市"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳・初心者）"],["対象","10代〜40代 / 初心者中心"]].map(([l,v]) => (
+              {[["拠点","福岡市"],["本拠地","山王公園野球場（予定）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"]].map(([l,v]) => (
                 <div key={l} style={{ display: "flex", gap: 12 }}>
                   <dt style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", width: 38, flexShrink: 0 }}>{l}</dt>
                   <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{v}</dd>
