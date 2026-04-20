@@ -6,8 +6,10 @@ import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
 import TweetsSection from "@/components/TweetsSection";
 import MobileMenu    from "@/components/MobileMenu";
+import PracticeCalendar from "@/components/PracticeCalendar";
 import { news, CATEGORY_STYLES } from "@/data/news";
 import { blogPosts } from "@/data/blog";
+import { practices, PRACTICE_TYPE_COLOR } from "@/data/practices";
 
 const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
 const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
@@ -154,39 +156,97 @@ function BlogPreview() {
 }
 
 /* ── ScheduleSection ──────────────────────────────────── */
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
+  scheduled: { label: "予定", bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" },
+  tentative: { label: "未定",  bg: "rgba(212,168,42,0.15)",   color: "#d4a82a" },
+  canceled:  { label: "中止",  bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
+};
+
+function UpcomingPractices() {
+  // 文字列比較でJST由来のズレを回避（YYYY-MM-DDはISO昇順=日付昇順）
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayISO = jst.toISOString().slice(0, 10);
+  const upcoming = [...practices]
+    .filter(p => p.date >= todayISO)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
+
+  return (
+    <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+      <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 20px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>近日の練習</span>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
+      </div>
+      {upcoming.length === 0 ? (
+        <div style={{ padding: "56px 24px", textAlign: "center" }}>
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, lineHeight: 1.8 }}>次の練習日は調整中です。<br />決まり次第こちらに掲載します。</p>
+        </div>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {upcoming.map((p) => {
+            const d = new Date(p.date + "T00:00:00");
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const wd = WEEKDAY_JP[d.getDay()];
+            const st = STATUS_STYLE[p.status];
+            const dotColor = p.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[p.type];
+            return (
+              <li key={p.date + p.place} style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1 }}>
+                <div style={{ minWidth: 54, textAlign: "center" }}>
+                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>{p.type === "キャッチボール" ? "公園練習" : p.type}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: p.note ? 4 : 0 }}>
+                    📍 {p.place}{p.time ? ` / ${p.time}` : ""}
+                  </div>
+                  {p.note && (
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>※ {p.note}</div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</p>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleSection() {
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
       <div className="field-grid absolute inset-0" />
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
-        <SectionTitle jp="試合情報" en="Schedule" light />
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-          {/* Upcoming */}
-          <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 24px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>直近の試合</span>
-              <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
+        <SectionTitle jp="スケジュール" en="Schedule" light />
+        <p className="reveal" style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 1.9, marginTop: -28, marginBottom: 36, maxWidth: 680 }}>
+          キャッチボール中心の公園練習は週1〜2回、野球場を借りてのノック・バッティング練習は月3〜4回を予定しています。平日夜・週末どちらも活動あり。毎回参加できなくても問題ありません。
+        </p>
+
+        <div className="grid gap-6 mb-10 grid-cols-1 lg:[grid-template-columns:1fr_380px]">
+          <PracticeCalendar />
+          <UpcomingPractices />
+        </div>
+
+        {/* Match notice */}
+        <div className="reveal" style={{ background: "rgba(209,0,36,0.08)", border: "1px solid rgba(209,0,36,0.2)", padding: "28px 28px" }}>
+          <div className="grid gap-5 items-start grid-cols-1 md:[grid-template-columns:1fr_auto] md:items-center">
+            <div>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>MATCH — COMING SOON</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(17px,2.2vw,22px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 8 }}>対戦相手募集は準備中です。</h3>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>現在はメンバー集めと道具・防具の準備に専念中。人数が集まり装備が整ったタイミングで、他チーム様との練習試合もお願いしていく予定です。戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.85)" }}>0勝 0敗 0分</span></p>
             </div>
-            <div style={{ padding: "60px 32px", textAlign: "center" }}>
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: "clamp(40px,7vw,72px)", color: "rgba(255,255,255,0.06)", letterSpacing: "0.1em", lineHeight: 1, marginBottom: 20 }}>COMING<br />SOON</div>
-              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14 }}>まだ試合の予定はありません</p>
-              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, marginTop: 8, lineHeight: 1.7 }}>最初の一戦に向けて準備中。決まり次第こちらでお知らせします。</p>
-            </div>
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", padding: "12px 24px", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "rgba(255,255,255,0.7)", marginLeft: 4 }}>0勝 0敗 0分</span></span>
-            </div>
-          </div>
-          {/* Opponent */}
-          <div className="reveal" style={{ background: "rgba(209,0,36,0.08)", border: "1px solid rgba(209,0,36,0.2)", padding: "36px 32px" }}>
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>COMING SOON</p>
-            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(18px,2.5vw,24px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 16 }}>対戦相手募集は<br />準備中です。</h3>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 1.85, marginBottom: 24 }}>現在はメンバー集めと道具の準備に専念中。人数が集まり、装備が整ったタイミングで他チーム様との練習試合もお願いしていく予定です。</p>
-            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {["まずはメンバー募集に注力","道具・防具が揃い次第、対戦募集再開","最新情報は公式Xでお知らせ"].map(t => (
-                <li key={t} style={{ display: "flex", gap: 10, color: "rgba(255,255,255,0.7)", fontSize: 13 }}><span style={{ color: "#d4a82a", flexShrink: 0 }}>⬥</span>{t}</li>
-              ))}
-            </ul>
-            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
               メンバー応募はこちら →
             </a>
           </div>
@@ -240,7 +300,7 @@ function AboutSection() {
 const ACTIVITY = [
   { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
   { label: "ホーム球場", main: "山王公園野球場（予定）",    sub: "正式なホーム契約は結んでいませんが、博多区の山王公園野球場をメインに使わせていただく予定です。空き状況によっては市内の別グラウンドでも活動します。" },
-  { label: "活動頻度",   main: "月 2〜3回 / 主に週末",      sub: "参加は出れる時だけでOK。無理なく続けられるペースを大事に。" },
+  { label: "活動頻度",   main: "週 1〜2回 ＋ 月 3〜4回",    sub: "公園でのキャッチボール練習が週1〜2回、野球場を借りてのノック・バッティング練習が月3〜4回。平日夜・週末どちらも活動あり。参加は出れる時だけでOK。" },
   { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
   { label: "費用",       main: "月額 ¥500 + 都度 数百円",   sub: "チーム運営費として月額500円。加えて活動ごとにグラウンド代を割り勘で数百円いただきます。" },
   { label: "装備",       main: "グローブ持参推奨",           sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。" },
