@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
-import ScrollToTopOnReload from "@/components/ScrollToTopOnReload";
 import "./globals.css";
 
 const zenKaku = Zen_Kaku_Gothic_New({
@@ -180,10 +179,21 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-base text-ink">
         <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+              if (!location.hash) {
+                window.scrollTo(0, 0);
+                window.addEventListener("load", function () { if (!location.hash) window.scrollTo(0, 0); });
+                window.addEventListener("beforeunload", function () { window.scrollTo(0, 0); });
+              }
+            `,
+          }}
+        />
+        <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <ScrollToTopOnReload />
         {children}
       </body>
     </html>
