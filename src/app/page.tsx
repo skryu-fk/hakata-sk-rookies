@@ -142,9 +142,7 @@ function ScheduleSection() {
                 <li key={t} style={{ display: "flex", gap: 10, color: "rgba(255,255,255,0.7)", fontSize: 13 }}><span style={{ color: "#d4a82a", flexShrink: 0 }}>⬥</span>{t}</li>
               ))}
             </ul>
-            <a href="#recruit" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", background: "#d10024", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", transition: "background 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#a80019")}
-              onMouseLeave={e => (e.currentTarget.style.background = "#d10024")}>
+            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
               メンバー応募はこちら →
             </a>
           </div>
@@ -267,9 +265,7 @@ function RecruitSection() {
                 </div>
               ))}
             </div>
-            <a href="#contact" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", background: "#d10024", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", transition: "background 0.2s" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#a80019")}
-              onMouseLeave={e => (e.currentTarget.style.background = "#d10024")}>
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em" }}>
               応募フォームへ →
             </a>
           </div>
@@ -301,9 +297,7 @@ function SupportSection() {
               <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 8 }}>
                 {c.items.map(item => <li key={item} style={{ display: "flex", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.65)" }}><span style={{ color: c.eyeColor, flexShrink: 0 }}>⬥</span>{item}</li>)}
               </ul>
-              <a href="#contact" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", background: c.red ? "#d10024" : "transparent", color: "#fff", border: c.red ? "none" : "1px solid rgba(255,255,255,0.3)", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", transition: "all 0.2s" }}
-                onMouseEnter={e => { if (c.red) e.currentTarget.style.background = "#a80019"; else e.currentTarget.style.borderColor = "rgba(255,255,255,0.7)"; }}
-                onMouseLeave={e => { if (c.red) e.currentTarget.style.background = "#d10024"; else e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; }}>
+              <a href="#contact" className={c.red ? "bg-red hover:bg-red-2 transition-colors" : "bg-transparent border border-white/30 hover:border-white/70 transition-colors"} style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
                 {c.red ? "スポンサーのご相談はこちら →" : "道具支援のご相談はこちら →"}
               </a>
             </div>
