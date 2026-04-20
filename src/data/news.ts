@@ -29,6 +29,11 @@ export type NewsItem = {
 
 export const news: NewsItem[] = [
   {
+    {
+    date: "2026.04.20",
+    category: "募集",
+    title: "メンバーを五人ほど募集しています！是非参加お願いします！",
+  },
     date: "2026.04.20",
     category: "告知",
     title: "公式X（@SK_rookies_FK）を開設しました！",
