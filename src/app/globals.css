@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 @theme {
-  --color-navy: #0b1e3f;
+  --color-navy:   #0b1e3f;
   --color-navy-2: #142a52;
   --color-navy-3: #1c3866;
-  --color-red: #d10024;
-  --color-red-2: #a80019;
-  --color-gold: #d4a82a;
-  --color-base: #f5f2ec;
+  --color-red:    #d10024;
+  --color-red-2:  #a80019;
+  --color-gold:   #d4a82a;
+  --color-base:   #f5f2ec;
   --color-base-2: #ffffff;
-  --color-ink: #131922;
-  --color-muted: #5b6373;
-  --color-line: #d8d4cb;
+  --color-ink:    #131922;
+  --color-muted:  #5b6373;
+  --color-line:   #d8d4cb;
   --color-line-2: #e8e4dc;
-  --font-sans: var(--font-zen);
+  --font-sans:    var(--font-zen);
   --font-display: var(--font-oswald);
-  --font-ticker: var(--font-rocknroll);
+  --font-ticker:  var(--font-rocknroll);
 }
 
 :root {
@@ -28,22 +28,123 @@
 
 html, body {
   background: var(--base);
-  color: var(--ink);
-  font-family: var(--font-zen), system-ui, -apple-system, sans-serif;
+  color: #131922;
+  font-family: var(--font-zen), system-ui, sans-serif;
   font-feature-settings: "palt";
+  overflow-x: hidden;
 }
 
-::selection {
-  background: var(--red);
-  color: #fff;
+::selection { background: var(--red); color: #fff; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--navy); }
+::-webkit-scrollbar-thumb { background: var(--red); }
+
+/* ── Hero animations ──────────────────────────────────── */
+@keyframes heroSlideUp {
+  from { opacity: 0; transform: translateY(60px) skewY(1.5deg); }
+  to   { opacity: 1; transform: translateY(0) skewY(0deg); }
+}
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes badgeIn {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-12px); }
+}
+@keyframes diamondDraw {
+  from { stroke-dashoffset: 1200; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes diamondPulse {
+  0%, 100% { opacity: 0.07; }
+  50%       { opacity: 0.14; }
+}
+@keyframes heroPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+@keyframes stitch {
+  from { stroke-dashoffset: 300; opacity: 0; }
+  to   { stroke-dashoffset: 0;   opacity: 1; }
 }
 
-.font-display {
+/* ── Ticker ───────────────────────────────────────────── */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-33.333%); }
+}
+.ticker-track {
+  display: inline-flex;
+  gap: 0;
+  animation: ticker 50s linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* ── Hero classes ─────────────────────────────────────── */
+.hero-badge  { animation: badgeIn     0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s  both; }
+.hero-line-1 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.4s  both; }
+.hero-line-2 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.6s  both; }
+.hero-line-3 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.8s  both; }
+.hero-sub    { animation: heroFadeIn  0.8s ease 1.0s  both; }
+.hero-btns   { animation: heroFadeIn  0.8s ease 1.15s both; }
+.hero-stats  { animation: heroFadeIn  0.8s ease 1.3s  both; }
+.hero-logo   { animation: heroFadeIn  1.0s ease 0.7s  both; }
+.logo-float  { animation: logoFloat   4s ease-in-out 2s infinite; }
+
+.diamond-outer { animation: diamondDraw 2.5s ease 0.3s both, diamondPulse 4s ease 3s infinite; }
+.diamond-inner { animation: diamondDraw 2.0s ease 0.9s both; }
+
+/* ── Scroll reveal ────────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.7s cubic-bezier(0.2,0.8,0.2,1),
+              transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
+}
+.reveal.visible { opacity: 1; transform: none; }
+
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-50px);
+  transition: opacity 0.7s cubic-bezier(0.2,0.8,0.2,1),
+              transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
+}
+.reveal-left.visible { opacity: 1; transform: none; }
+
+.reveal-right {
+  opacity: 0;
+  transform: translateX(50px);
+  transition: opacity 0.7s cubic-bezier(0.2,0.8,0.2,1),
+              transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
+}
+.reveal-right.visible { opacity: 1; transform: none; }
+
+/* ── Field grid texture ───────────────────────────────── */
+.field-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* ── Section ghost text ───────────────────────────────── */
+.section-ghost {
   font-family: var(--font-oswald), sans-serif;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 0.85;
+  user-select: none;
+  pointer-events: none;
 }
 
-/* Diagonal red accent stripe */
+/* ── Diagonal stripe ──────────────────────────────────── */
 .diag-stripe {
   background: repeating-linear-gradient(
     -45deg,
@@ -52,50 +153,92 @@ html, body {
   );
 }
 
-/* Subtle field grid (very faint) */
-.field-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 64px 64px;
+/* ── Nav hover underline ──────────────────────────────── */
+.nav-link {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--navy);
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  text-decoration: none;
 }
-
-/* Reveal */
-@media (prefers-reduced-motion: no-preference) {
-  .reveal {
-    opacity: 0;
-    transform: translateY(16px);
-    animation: reveal 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  }
-  @keyframes reveal {
-    to { opacity: 1; transform: none; }
-  }
+.nav-link:hover {
+  color: var(--red);
+  border-bottom-color: var(--red);
 }
-
-/* Marquee ticker */
-@keyframes ticker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.ticker-track {
-  display: inline-flex;
-  gap: 3rem;
-  animation: ticker 40s linear infinite;
-  white-space: nowrap;
-  will-change: transform;
-}
-
-/* Section header bar */
-.section-bar {
-  position: relative;
-  padding-left: 1rem;
-}
-.section-bar::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.2em;
-  bottom: 0.2em;
-  width: 6px;
+.nav-link-cta {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 24px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
   background: var(--red);
+  color: #fff;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.nav-link-cta:hover { background: var(--red-2); }
+
+/* ── About card hover ─────────────────────────────────── */
+.about-card {
+  transition: transform 0.25s cubic-bezier(0.2,0.8,0.2,1),
+              box-shadow 0.25s cubic-bezier(0.2,0.8,0.2,1),
+              border-color 0.25s;
+}
+.about-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+  border-color: var(--red) !important;
+}
+
+/* ── Recruit row hover ────────────────────────────────── */
+.recruit-row {
+  transition: background 0.15s, transform 0.2s cubic-bezier(0.2,0.8,0.2,1);
+}
+.recruit-row:hover {
+  background: #faf8f5;
+  transform: translateX(8px);
+}
+.recruit-row:hover .recruit-num { color: var(--red); }
+.recruit-row:hover .recruit-arrow { opacity: 1; }
+
+/* ── Support card hover ───────────────────────────────── */
+.support-card {
+  transition: background 0.25s, transform 0.25s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.25s, border-color 0.25s;
+}
+.support-card:hover {
+  background: rgba(255,255,255,0.07) !important;
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+  border-color: rgba(255,255,255,0.2) !important;
+}
+
+/* ── News row hover ───────────────────────────────────── */
+.news-row {
+  transition: background 0.15s, transform 0.15s;
+}
+.news-row:hover {
+  background: #faf8f5;
+  transform: translateX(4px);
+}
+
+/* ── Activity row ─────────────────────────────────────── */
+.activity-label {
+  transition: background 0.2s;
+}
+.activity-row:hover .activity-label {
+  background: #0f2347;
+}
+.activity-body {
+  transition: background 0.15s;
+}
+.activity-row:hover .activity-body {
+  background: #fff;
 }

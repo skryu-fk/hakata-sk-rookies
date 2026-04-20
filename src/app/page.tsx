@@ -1,22 +1,410 @@
 import Image from "next/image";
 import Link from "next/link";
-import RecruitForm from "@/components/RecruitForm";
+import HeroSection from "@/components/HeroSection";
+import FaqSection  from "@/components/FaqSection";
+import ScrollReveal from "@/components/ScrollReveal";
+import RecruitForm  from "@/components/RecruitForm";
 import { news, CATEGORY_STYLES } from "@/data/news";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
-const TEAM_NAME_EN = "HAKATA SK ROOKIES";
-const X_URL = "https://x.com/SK_rookies_FK";
-const FOUNDED = "2026";
-const MEMBER_COUNT = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 3);
+const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
+const X_URL         = "https://x.com/SK_rookies_FK";
+const FOUNDED       = "2026";
+const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 3);
 
+/* ── shared inline styles ─────────────────────────────── */
+const S = {
+  eyebrow: { fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.45em", color: "#d10024", textTransform: "uppercase" as const, marginBottom: 10 },
+  redBar:  { width: 44, height: 4, background: "#d10024", marginTop: 14, borderRadius: 2 },
+};
+
+/* ── XIcon ────────────────────────────────────────────── */
+function XIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+      <path d="M18.244 2H21l-6.52 7.45L22.5 22h-6.18l-4.84-6.32L5.91 22H3.15l6.98-7.97L1.5 2h6.34l4.38 5.79L18.244 2z"/>
+    </svg>
+  );
+}
+
+/* ── SectionTitle ─────────────────────────────────────── */
+function SectionTitle({ jp, en, light = false }: { jp: string; en: string; light?: boolean }) {
+  return (
+    <div className="mb-14 reveal" style={{ position: "relative" }}>
+      <div className="section-ghost" style={{ fontSize: "clamp(72px,12vw,140px)", color: light ? "rgba(255,255,255,0.04)" : "rgba(11,30,63,0.05)", marginBottom: -18, paddingLeft: 2 }}>
+        {en.toUpperCase()}
+      </div>
+      <div>
+        <p style={S.eyebrow}>{en}</p>
+        <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 900, color: light ? "#fff" : "#0b1e3f", lineHeight: 1.1 }}>{jp}</h2>
+        <div style={S.redBar} />
+      </div>
+    </div>
+  );
+}
+
+/* ── TopBar ───────────────────────────────────────────── */
+function TopBar() {
+  return (
+    <div style={{ background: "#060f20", color: "rgba(255,255,255,0.55)", fontSize: 11, letterSpacing: "0.12em" }}>
+      <div className="max-w-[1280px] mx-auto px-8 flex items-center justify-between" style={{ height: 34 }}>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.2em" }}>福岡市拠点 — 草野球チーム — EST. {FOUNDED}</span>
+        <div className="hidden md:flex items-center gap-5">
+          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1.5" style={{ color: "inherit", textDecoration: "none" }}>
+            <XIcon size={11} /> 公式X
+          </a>
+          <span style={{ opacity: 0.2 }}>|</span>
+          <a href="#contact" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>お問い合わせ</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Header ───────────────────────────────────────────── */
+function Header() {
+  return (
+    <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
+      <div className="max-w-[1280px] mx-auto px-8 flex items-stretch" style={{ height: 68 }}>
+        <Link href="#top" className="flex items-center gap-3 flex-shrink-0 pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
+          <Image src="/logo.png" alt={TEAM_NAME_JP} width={48} height={48} className="object-contain" priority />
+          <div style={{ lineHeight: 1 }}>
+            <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: "#0b1e3f", letterSpacing: "0.04em" }}>{TEAM_NAME_JP}</div>
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#aaa", letterSpacing: "0.3em", marginTop: 3, textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
+          </div>
+        </Link>
+        <nav className="ml-auto hidden lg:flex items-stretch h-full">
+          {([["#news","お知らせ"],["#schedule","試合情報"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+            <a key={href} href={href} className="nav-link">{label}</a>
+          ))}
+          <a href="#contact" className="nav-link-cta">お問い合わせ</a>
+        </nav>
+        <a href="#recruit" className="lg:hidden ml-auto bg-red text-white flex items-center px-5 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集 →</a>
+      </div>
+    </header>
+  );
+}
+
+/* ── NewsSection ──────────────────────────────────────── */
+function NewsSection() {
+  return (
+    <section id="news" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionTitle jp="お知らせ" en="News" />
+        <div>
+          {news.map((n, i) => {
+            const cs = CATEGORY_STYLES[n.category] as string;
+            return (
+              <div key={i} className="news-row grid items-center gap-6 px-4 border-t border-line-2" style={{ gridTemplateColumns: "160px 88px 1fr", padding: "20px 16px" }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#0b1e3f", letterSpacing: "0.06em" }}>{n.date}</span>
+                <span className={`inline-block text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>{n.category}</span>
+                <span className="font-bold text-ink text-[15px] leading-snug">{n.title}</span>
+              </div>
+            );
+          })}
+          <div className="border-t border-line-2" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── ScheduleSection ──────────────────────────────────── */
+function ScheduleSection() {
+  return (
+    <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+      <div className="field-grid absolute inset-0" />
+      <div className="max-w-[1280px] mx-auto px-8 py-24 relative">
+        <SectionTitle jp="試合情報" en="Schedule" light />
+        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          {/* Upcoming */}
+          <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 24px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>直近の試合</span>
+              <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
+            </div>
+            <div style={{ padding: "60px 32px", textAlign: "center" }}>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: "clamp(40px,7vw,72px)", color: "rgba(255,255,255,0.06)", letterSpacing: "0.1em", lineHeight: 1, marginBottom: 20 }}>COMING<br />SOON</div>
+              <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14 }}>まだ試合の予定はありません</p>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, marginTop: 8, lineHeight: 1.7 }}>最初の一戦に向けて準備中。決まり次第こちらでお知らせします。</p>
+            </div>
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", padding: "12px 24px", display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)" }}>戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "rgba(255,255,255,0.7)", marginLeft: 4 }}>0勝 0敗 0分</span></span>
+            </div>
+          </div>
+          {/* Opponent */}
+          <div className="reveal" style={{ background: "rgba(209,0,36,0.08)", border: "1px solid rgba(209,0,36,0.2)", padding: "36px 32px" }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>COMING SOON</p>
+            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(18px,2.5vw,24px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 16 }}>対戦相手募集は<br />準備中です。</h3>
+            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 1.85, marginBottom: 24 }}>現在はメンバー集めと道具の準備に専念中。人数が集まり、装備が整ったタイミングで他チーム様との練習試合もお願いしていく予定です。</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {["まずはメンバー募集に注力","道具・防具が揃い次第、対戦募集再開","最新情報は公式Xでお知らせ"].map(t => (
+                <li key={t} style={{ display: "flex", gap: 10, color: "rgba(255,255,255,0.7)", fontSize: 13 }}><span style={{ color: "#d4a82a", flexShrink: 0 }}>⬥</span>{t}</li>
+              ))}
+            </ul>
+            <a href="#recruit" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", background: "#d10024", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", transition: "background 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#a80019")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#d10024")}>
+              メンバー応募はこちら →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── AboutSection ─────────────────────────────────────── */
+const STORIES = [
+  { no: "01", head: "みんなで教え合う", body: "代表自身も野球初心者。経験者・未経験者がフラットに教え合うスタイルです。「分からない」を気軽に言える空気を大切に。経験者の加入も大歓迎。" },
+  { no: "02", head: "全力で楽しむ",     body: "勝ち負けより、まず楽しむこと。声を出して、笑って、汗をかく。それが、俺たちのスタイル。" },
+  { no: "03", head: "フラットな空気",   body: "10代から40代までごちゃ混ぜ。年齢も職業も関係なく、グラウンドの上ではみんな対等。" },
+];
+
+function AboutSection() {
+  return (
+    <section id="about" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionTitle jp="チーム紹介" en="About" />
+        <div className="grid grid-cols-3 gap-5 mb-10">
+          {STORIES.map((s, i) => (
+            <div key={s.no} className="about-card reveal" data-delay={String(i * 120)}
+              style={{ padding: "36px 28px", background: "#f9f6f2", border: "1px solid #e4e0d8", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", right: 10, top: 8, fontFamily: "var(--font-oswald),sans-serif", fontSize: 80, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{s.no}</div>
+              <div style={{ width: 4, height: 44, background: "#d10024", marginBottom: 20 }} />
+              <p style={S.eyebrow}>POINT {s.no}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 20, fontWeight: 900, color: "#0b1e3f", marginBottom: 12, lineHeight: 1.3 }}>{s.head}</h3>
+              <p style={{ fontSize: 14, color: "rgba(19,25,34,0.68)", lineHeight: 1.9 }}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* Founder */}
+        <div className="reveal grid overflow-hidden" style={{ background: "#0b1e3f", gridTemplateColumns: "200px 1fr" }}>
+          <div style={{ background: "rgba(209,0,36,0.08)", display: "flex", alignItems: "center", justifyContent: "center", padding: 36, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+            <Image src="/logo.png" alt="logo" width={130} height={130} className="object-contain" />
+          </div>
+          <div style={{ padding: "40px 48px" }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は今年19歳・自身も野球初心者です。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── ActivitySection ──────────────────────────────────── */
+const ACTIVITY = [
+  { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
+  { label: "活動頻度",   main: "月 2〜3回 / 主に週末",      sub: "参加は出れる時だけでOK。無理なく続けられるペースを大事に。" },
+  { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
+  { label: "費用",       main: "月額 ¥500 + 都度 数百円",   sub: "チーム運営費として月額500円。加えて活動ごとにグラウンド代を割り勘で数百円いただきます。" },
+  { label: "装備",       main: "グローブ持参推奨",           sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。" },
+];
+
+function ActivitySection() {
+  return (
+    <section id="activity" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionTitle jp="活動概要" en="Activity" />
+        <div style={{ border: "1px solid #e0dcd4", overflow: "hidden" }}>
+          {ACTIVITY.map((row, i) => (
+            <div key={row.label} className="activity-row reveal grid" data-delay={String(i * 80)}
+              style={{ gridTemplateColumns: "220px 1fr", borderBottom: i < ACTIVITY.length - 1 ? "1px solid #e0dcd4" : "none" }}>
+              <div className="activity-label flex items-center px-7 py-6" style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024" }}>
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, color: "#fff", letterSpacing: "0.06em" }}>{row.label}</span>
+              </div>
+              <div className="activity-body px-8 py-6" style={{ background: "#fefcfa" }}>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,22px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 6 }}>{row.main}</p>
+                <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>{row.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── RecruitSection ───────────────────────────────────── */
+const TARGETS = [
+  "野球をやってみたい初心者（代表も初心者）",
+  "経験者も大歓迎（一緒に教え合える人）",
+  "10代〜40代までの男女",
+  "福岡市内・近郊に通える人",
+  "とにかく元気で、声を出せる人",
+  "学生も社会人も、ブランクある人もOK",
+];
+
+function RecruitSection() {
+  return (
+    <section id="recruit" className="bg-white border-b border-line-2 relative overflow-hidden">
+      <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionTitle jp="メンバー募集" en="Recruit" />
+        <div className="grid gap-12 items-start" style={{ gridTemplateColumns: "1fr 380px" }}>
+          <div>
+            <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>こんな人を、待っています。</p>
+            <div>
+              {TARGETS.map((item, i) => (
+                <div key={item} className="recruit-row reveal flex items-center gap-5 py-4 px-2 border-b border-line-2" data-delay={String(i * 80)}>
+                  <span className="recruit-num font-display font-bold transition-colors" style={{ fontSize: 24, color: "rgba(11,30,63,0.18)", width: 40, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-bold text-ink text-[15px] leading-snug flex-1">{item}</span>
+                  <span className="recruit-arrow text-red text-lg opacity-0 transition-opacity">→</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="reveal sticky" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "36px 32px", top: 100 }}>
+            <p style={S.eyebrow}>APPLY NOW</p>
+            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.5vw,26px)", fontWeight: 900, color: "#0b1e3f", lineHeight: 1.3, marginBottom: 28, marginTop: 8 }}>応募はかんたん<br />3ステップ。</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              {[["1","フォームから連絡","下のフォーム or X DM で応募ください。"],["2","代表から返信","3日以内に詳細をお返しします。"],["3","グラウンドへ","次回の活動に参加してみてください！"]].map(([n,t,d]) => (
+                <div key={n} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <div style={{ width: 34, height: 34, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, flexShrink: 0 }}>{n}</div>
+                  <div><p style={{ fontWeight: 700, color: "#0b1e3f", fontSize: 14, marginBottom: 2 }}>{t}</p><p style={{ fontSize: 13, color: "#5b6373" }}>{d}</p></div>
+                </div>
+              ))}
+            </div>
+            <a href="#contact" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", background: "#d10024", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em", transition: "background 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.background = "#a80019")}
+              onMouseLeave={e => (e.currentTarget.style.background = "#d10024")}>
+              応募フォームへ →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── SupportSection ───────────────────────────────────── */
+function SupportSection() {
+  const cards = [
+    { eyebrow: "SPONSOR",   eyeColor: "#d10024", title: "スポンサー募集中", body: "福岡の地域店舗・個人スポンサー様を募集しています。ユニフォームへのロゴ掲出、サイト・Xでの紹介、試合当日のPRなど、予算感に合わせてご相談可能です。", items: ["サイトにロゴ＆リンク掲出","公式X（@SK_rookies_FK）で紹介","ユニフォーム・備品へのロゴ掲出（相談）","活動報告での感謝紹介"], red: true },
+    { eyebrow: "EQUIPMENT", eyeColor: "#d4a82a", title: "道具のお裾分け歓迎", body: "もしご自宅に使っていないボール・バット・ベース・防具などがあれば、チームに譲っていただけると大変助かります。「ちょうど処分しようと思ってた」くらいの気軽さで大丈夫です。", items: ["軟式ボール（使用済みでもOK）","バット（子ども用〜大人用まで）","ベース・塁間マーカー","ヘルメット・キャッチャー防具","古くなったグローブ（練習用に）"], red: false },
+  ];
+  return (
+    <section id="support" className="bg-navy text-white relative overflow-hidden">
+      <div className="field-grid absolute inset-0" />
+      <div className="max-w-[1280px] mx-auto px-8 py-24 relative">
+        <SectionTitle jp="支援のお願い" en="Support" light />
+        <p className="reveal text-white/60 mb-12 text-[15px] leading-[1.9] max-w-lg" style={{ marginTop: -28 }}>立ち上がったばかりのチームです。道具や活動資金、応援の輪、どんな形でも支えていただけると大変助かります。</p>
+        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          {cards.map((c, i) => (
+            <div key={c.title} className="support-card reveal" data-delay={String(i * 160)}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", padding: "36px 32px" }}>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: c.eyeColor, letterSpacing: "0.4em", marginBottom: 14 }}>{c.eyebrow}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", marginBottom: 16, lineHeight: 1.3 }}>{c.title}</h3>
+              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.9, marginBottom: 20 }}>{c.body}</p>
+              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 8 }}>
+                {c.items.map(item => <li key={item} style={{ display: "flex", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.65)" }}><span style={{ color: c.eyeColor, flexShrink: 0 }}>⬥</span>{item}</li>)}
+              </ul>
+              <a href="#contact" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", background: c.red ? "#d10024" : "transparent", color: "#fff", border: c.red ? "none" : "1px solid rgba(255,255,255,0.3)", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", transition: "all 0.2s" }}
+                onMouseEnter={e => { if (c.red) e.currentTarget.style.background = "#a80019"; else e.currentTarget.style.borderColor = "rgba(255,255,255,0.7)"; }}
+                onMouseLeave={e => { if (c.red) e.currentTarget.style.background = "#d10024"; else e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)"; }}>
+                {c.red ? "スポンサーのご相談はこちら →" : "道具支援のご相談はこちら →"}
+              </a>
+            </div>
+          ))}
+        </div>
+        <p className="reveal text-center text-white/35 text-sm mt-10">ご支援いただいた方はサイト・Xで感謝とともにご紹介させていただきます</p>
+      </div>
+    </section>
+  );
+}
+
+/* ── ContactSection ───────────────────────────────────── */
+function ContactSection() {
+  return (
+    <section id="contact" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionTitle jp="お問い合わせ" en="Contact" />
+        <div className="grid gap-10 items-start" style={{ gridTemplateColumns: "300px 1fr" }}>
+          <div>
+            <p className="reveal text-[14px] leading-[1.9] mb-5" style={{ color: "#3a3f4a" }}>
+              下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。
+            </p>
+            <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
+              <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
+              女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
+            </div>
+            {[["SNS", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
+              ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
+            ].map(([eyebrow, content, sub]) => (
+              <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.4em", marginBottom: 10 }}>{eyebrow}</p>
+                {content}
+                <p className="text-[12px] text-muted mt-1.5">{sub}</p>
+              </div>
+            ))}
+          </div>
+          <div className="reveal reveal-right"><RecruitForm /></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Footer ───────────────────────────────────────────── */
+function Footer() {
+  return (
+    <footer style={{ background: "#060f20", color: "#fff" }}>
+      <div style={{ height: 4, background: "linear-gradient(90deg,#d10024,#a80019 50%,#d10024)" }} />
+      <div className="max-w-[1280px] mx-auto px-8" style={{ paddingTop: 60, paddingBottom: 40 }}>
+        <div className="grid gap-12 pb-10" style={{ gridTemplateColumns: "1fr 160px 220px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          <div>
+            <div className="flex items-center gap-4 mb-4">
+              <Image src="/logo.png" alt={TEAM_NAME_JP} width={54} height={54} className="object-contain" />
+              <div>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "0.04em" }}>{TEAM_NAME_JP}</p>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em", marginTop: 3 }}>{TEAM_NAME_EN}</p>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。一緒に野球を楽しむ仲間を募集中です。</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+              {[["#news","お知らせ"],["#schedule","試合情報"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#contact","お問い合わせ"]].map(([h,l]) => (
+                <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>TEAM INFO</p>
+            <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
+              {[["拠点","福岡市"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳・初心者）"],["対象","10代〜40代 / 初心者中心"]].map(([l,v]) => (
+                <div key={l} style={{ display: "flex", gap: 12 }}>
+                  <dt style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", width: 38, flexShrink: 0 }}>{l}</dt>
+                  <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+            <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 16px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+              <XIcon size={12} /> 公式X
+            </a>
+          </div>
+        </div>
+        <div className="flex justify-between items-center pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <span>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}. All rights reserved.</span>
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.3em" }}>FUKUOKA — EST. {FOUNDED}</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ── Page ─────────────────────────────────────────────── */
 export default function Home() {
   return (
     <>
+      <ScrollReveal />
       <TopBar />
       <Header />
-      <main className="flex-1">
-        <Hero />
-        <Ticker />
+      <main>
+        <HeroSection memberCount={MEMBER_COUNT} />
         <NewsSection />
         <ScheduleSection />
         <AboutSection />
@@ -28,883 +416,5 @@ export default function Home() {
       </main>
       <Footer />
     </>
-  );
-}
-
-/* ───────────────────────────────────────── TOP BAR */
-
-function TopBar() {
-  return (
-    <div className="bg-navy text-white/80 text-xs">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 h-8 flex items-center justify-between">
-        <p className="tracking-wider">
-          福岡市拠点 / 草野球チーム / EST. {FOUNDED}
-        </p>
-        <div className="hidden md:flex items-center gap-4">
-          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white inline-flex items-center gap-1">
-            <XIcon /> 公式X
-          </a>
-          <span className="text-white/30">|</span>
-          <a href="#contact" className="hover:text-white">お問い合わせ</a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────── HEADER */
-
-function Header() {
-  return (
-    <header className="sticky top-0 z-50 bg-base-2 border-b-4 border-red shadow-sm">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 flex items-center justify-between">
-        <Link href="#top" className="flex items-center gap-3 py-3">
-          <Logo className="w-24 h-24 md:w-28 md:h-28" priority />
-          <div className="leading-tight">
-            <p className="font-bold text-lg md:text-xl tracking-wider text-navy">
-              {TEAM_NAME_JP}
-            </p>
-            <p className="font-display text-[10px] md:text-xs tracking-[0.25em] text-muted uppercase">
-              {TEAM_NAME_EN}
-            </p>
-          </div>
-        </Link>
-        <nav className="hidden lg:flex items-stretch h-full text-sm font-bold">
-          <NavTab href="#news">お知らせ</NavTab>
-          <NavTab href="#schedule">試合情報</NavTab>
-          <NavTab href="#about">チーム紹介</NavTab>
-          <NavTab href="#activity">活動概要</NavTab>
-          <NavTab href="#recruit">メンバー募集</NavTab>
-          <NavTab href="#support">支援</NavTab>
-          <NavTab href="#faq">FAQ</NavTab>
-          <NavTab href="#contact" highlight>お問い合わせ</NavTab>
-        </nav>
-        <a
-          href="#recruit"
-          className="lg:hidden bg-red text-white px-4 py-2 text-sm font-bold tracking-wide"
-        >
-          募集 →
-        </a>
-      </div>
-    </header>
-  );
-}
-
-function NavTab({
-  href,
-  children,
-  highlight = false,
-}: {
-  href: string;
-  children: React.ReactNode;
-  highlight?: boolean;
-}) {
-  if (highlight) {
-    return (
-      <a
-        href={href}
-        className="bg-red hover:bg-red-2 text-white px-5 py-5 transition-colors flex items-center"
-      >
-        {children}
-      </a>
-    );
-  }
-  return (
-    <a
-      href={href}
-      className="px-5 py-5 hover:text-red transition-colors flex items-center border-b-2 border-transparent hover:border-red text-ink"
-    >
-      {children}
-    </a>
-  );
-}
-
-/* ───────────────────────────────────────── LOGO */
-
-function Logo({
-  className = "",
-  priority = false,
-}: {
-  className?: string;
-  priority?: boolean;
-}) {
-  return (
-    <Image
-      src="/logo.png"
-      alt={`${TEAM_NAME_JP} ロゴ`}
-      width={512}
-      height={512}
-      className={`object-contain ${className}`}
-      priority={priority}
-    />
-  );
-}
-
-/* ───────────────────────────────────────── HERO */
-
-function Hero() {
-  return (
-    <section
-      id="top"
-      className="relative bg-navy text-white overflow-hidden"
-    >
-      <div className="absolute inset-0 field-grid opacity-60" />
-      <div
-        className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full opacity-15 blur-3xl"
-        style={{ background: "radial-gradient(circle, #d10024 0%, transparent 60%)" }}
-      />
-
-      {/* Diagonal red accent block */}
-      <div className="absolute top-0 right-0 h-full w-[35%] hidden md:block">
-        <div className="absolute top-0 right-0 h-full w-full diag-stripe opacity-15" />
-        <div
-          className="absolute top-0 right-0 h-full w-full bg-red"
-          style={{ clipPath: "polygon(60% 0, 100% 0, 100% 100%, 80% 100%)" }}
-        />
-      </div>
-
-      <div className="relative max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-28">
-        <div className="grid md:grid-cols-12 gap-8 items-center">
-          <div className="md:col-span-8 reveal">
-            <div className="inline-flex items-center gap-3 bg-red px-4 py-1.5 text-xs md:text-sm font-bold tracking-widest mb-6">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              MEMBER WANTED — メンバー募集中
-            </div>
-
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black leading-[1.05] tracking-tight">
-              野球で、<br />
-              <span className="text-gold">福岡</span>を、<br />
-              熱くする。
-            </h1>
-
-            <p className="mt-8 text-xl md:text-2xl font-bold tracking-wider">
-              {TEAM_NAME_JP}
-              <span className="block font-display text-sm md:text-base text-white/60 tracking-[0.3em] mt-2">
-                {TEAM_NAME_EN} — FUKUOKA SANDLOT BASEBALL CLUB
-              </span>
-            </p>
-
-            <div className="mt-10 max-w-2xl text-base md:text-lg leading-relaxed text-white/85">
-              代表も初心者。
-              10代から40代まで、年齢も経験も関係なく、
-              野球を全力で楽しむ仲間を募集中。バットを握ったことがなくても大歓迎です。
-            </div>
-
-            <div className="mt-10 flex flex-wrap gap-3">
-              <a
-                href="#recruit"
-                className="bg-red hover:bg-red-2 transition-colors px-7 py-4 text-white font-bold tracking-wider shadow-xl shadow-red/30 inline-flex items-center gap-2"
-              >
-                <span>メンバーに応募する</span>
-                <span className="text-xl">→</span>
-              </a>
-              <a
-                href="#about"
-                className="border-2 border-white/40 hover:border-white px-7 py-4 font-bold tracking-wider transition-colors"
-              >
-                チームを知る
-              </a>
-            </div>
-
-            <div className="mt-12 grid grid-cols-3 gap-4 max-w-xl border-t border-white/15 pt-6">
-              <Stat value={MEMBER_COUNT} unit="名" label="現メンバー" />
-              <Stat value={FOUNDED} unit="" label="設立" />
-              <Stat value="福岡市" unit="" label="拠点" />
-            </div>
-          </div>
-
-          <div className="hidden md:flex md:col-span-4 justify-center reveal" style={{ animationDelay: "0.15s" }}>
-            <div className="relative">
-              <Logo className="w-[28rem] h-[28rem] lg:w-[32rem] lg:h-[32rem] drop-shadow-2xl" priority />
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-base-2 text-navy px-4 py-1 font-display text-sm tracking-widest border-2 border-navy">
-                EST. {FOUNDED}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Stat({ value, unit, label }: { value: string | number; unit?: string; label: string }) {
-  return (
-    <div>
-      <p className="font-display text-3xl md:text-4xl font-bold text-gold leading-none">
-        {value}
-        {unit && <span className="text-base md:text-lg font-bold text-white/70 ml-1">{unit}</span>}
-      </p>
-      <p className="text-xs text-white/60 mt-1.5 tracking-wider">{label}</p>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────── TICKER */
-
-function Ticker() {
-  const items = [
-    "メンバー募集中",
-    "初心者大歓迎",
-    "道具・防具のご支援歓迎",
-    "福岡市拠点",
-    "経験者も歓迎",
-    `EST. ${FOUNDED}`,
-  ];
-  const repeated = [...items, ...items, ...items];
-  return (
-    <div className="bg-red text-white py-3 overflow-hidden border-b-4 border-navy">
-      <div className="ticker-track">
-        {repeated.map((t, i) => (
-          <span key={i} className="font-ticker text-lg md:text-xl tracking-[0.15em] inline-flex items-center gap-12">
-            {t}
-            <span className="text-white/50">●</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────── SECTION HEADING */
-
-function SectionTitle({
-  jp,
-  en,
-}: {
-  jp: string;
-  en: string;
-}) {
-  return (
-    <div className="mb-10 md:mb-14">
-      <p className="font-display text-xs md:text-sm tracking-[0.4em] text-red mb-2 uppercase">
-        {en}
-      </p>
-      <h2 className="section-bar text-3xl md:text-5xl font-black tracking-wide text-navy leading-tight">
-        {jp}
-      </h2>
-    </div>
-  );
-}
-
-/* ───────────────────────────────────────── NEWS */
-
-function NewsSection() {
-  return (
-    <section id="news" className="bg-base-2 border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="お知らせ" en="News" />
-
-        <ul className="divide-y divide-line border-t border-b border-line">
-          {news.map((n, i) => (
-            <li
-              key={i}
-              className="grid grid-cols-12 gap-3 md:gap-6 py-5 items-center hover:bg-base transition-colors"
-            >
-              <span className="col-span-4 md:col-span-2 font-display text-navy text-base md:text-lg tracking-wider">
-                {n.date}
-              </span>
-              <span className="col-span-3 md:col-span-2">
-                <span className={`inline-block text-xs px-3 py-1 font-bold tracking-wider ${CATEGORY_STYLES[n.category]}`}>
-                  {n.category}
-                </span>
-              </span>
-              <span className="col-span-12 md:col-span-8 text-base md:text-lg font-bold text-ink mt-2 md:mt-0">
-                {n.title}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── SCHEDULE */
-
-function ScheduleSection() {
-  return (
-    <section id="schedule" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="試合情報" en="Schedule" />
-
-        <div className="grid md:grid-cols-12 gap-6 md:gap-10">
-          {/* Schedule placeholder */}
-          <div className="md:col-span-7">
-            <div className="bg-base-2 border border-line">
-              <div className="bg-navy text-white px-5 py-3 flex items-center justify-between">
-                <p className="font-bold tracking-wider text-sm">直近の試合</p>
-                <p className="font-display text-xs tracking-widest text-white/60">UPCOMING</p>
-              </div>
-              <div className="px-6 py-16 text-center">
-                <p className="font-display text-7xl md:text-8xl text-navy/15 leading-none mb-4 tracking-wider">
-                  COMING<br />SOON
-                </p>
-                <p className="text-muted mb-2 text-sm">
-                  まだ試合の予定はありません
-                </p>
-                <p className="text-ink leading-relaxed max-w-md mx-auto text-sm">
-                  最初の一戦に向けて準備中。決まり次第こちらでお知らせします。
-                </p>
-              </div>
-              <div className="border-t border-line px-5 py-3 flex justify-between text-xs text-muted">
-                <span>戦績: <span className="font-display text-base text-navy">0勝 0敗 0分</span></span>
-                <span className="font-display tracking-widest">— —</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 対戦相手募集は将来予定 */}
-          <div className="md:col-span-5">
-            <div className="bg-navy text-white p-6 md:p-8 h-full relative overflow-hidden">
-              <div
-                className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-20 blur-2xl"
-                style={{ background: "#d10024" }}
-              />
-              <div className="relative">
-                <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">COMING SOON</p>
-                <h3 className="text-2xl md:text-3xl font-black leading-snug mb-4">
-                  対戦相手募集は<br />
-                  準備中です。
-                </h3>
-                <p className="text-white/85 leading-relaxed mb-6 text-sm">
-                  現在はメンバー集めと道具の準備に専念中。
-                  人数が集まり、装備が整ったタイミングで、
-                  他チーム様との練習試合もお願いしていく予定です。
-                </p>
-                <ul className="space-y-2 mb-6 text-sm">
-                  <li className="flex gap-2"><span className="text-gold">●</span>まずはメンバー募集に注力</li>
-                  <li className="flex gap-2"><span className="text-gold">●</span>道具・防具が揃い次第、対戦募集再開</li>
-                  <li className="flex gap-2"><span className="text-gold">●</span>最新情報は公式Xでお知らせ</li>
-                </ul>
-                <a
-                  href="#recruit"
-                  className="inline-flex items-center gap-2 bg-red hover:bg-red-2 transition-colors px-5 py-3 font-bold tracking-wider"
-                >
-                  メンバー応募はこちら →
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── ABOUT */
-
-function AboutSection() {
-  const stories = [
-    {
-      no: "01",
-      head: "みんなで教え合う",
-      body: "代表自身も野球初心者。経験者・未経験者がフラットに教え合うスタイルです。「分からない」を気軽に言える空気を大切に。経験者の加入も大歓迎。",
-    },
-    {
-      no: "02",
-      head: "全力で楽しむ",
-      body: "勝ち負けより、まず楽しむこと。声を出して、笑って、汗をかく。それが、俺たちのスタイル。",
-    },
-    {
-      no: "03",
-      head: "フラットな空気",
-      body: "10代から40代までごちゃ混ぜ。年齢も職業も関係なく、グラウンドの上ではみんな対等。",
-    },
-  ];
-
-  return (
-    <section id="about" className="bg-base-2 border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="チーム紹介" en="About the Team" />
-
-        <div className="grid md:grid-cols-3 gap-6">
-          {stories.map((s) => (
-            <div key={s.no} className="bg-base p-7 border-t-4 border-red relative">
-              <p className="font-display text-5xl text-navy/15 absolute top-4 right-5 leading-none">
-                {s.no}
-              </p>
-              <p className="font-display text-xs tracking-[0.3em] text-red mb-3">
-                POINT {s.no}
-              </p>
-              <h3 className="text-xl md:text-2xl font-black text-navy mb-3 leading-tight">
-                {s.head}
-              </h3>
-              <p className="text-ink/80 leading-relaxed text-[15px]">{s.body}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Founder note */}
-        <div className="mt-12 bg-navy text-white p-6 md:p-10 grid md:grid-cols-12 gap-6 md:gap-10 items-center">
-          <div className="md:col-span-3 flex md:justify-center">
-            <Logo className="w-44 h-44 md:w-60 md:h-60" />
-          </div>
-          <div className="md:col-span-9">
-            <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">
-              代表からのメッセージ
-            </p>
-            <p className="text-xl md:text-2xl font-bold leading-relaxed mb-4">
-              「未経験だし…」「下手だし…」は気にしないでOK。
-            </p>
-            <p className="text-white/80 leading-relaxed text-[15px]">
-              代表は今年19歳・自身も野球初心者です。チームを立ち上げたばかりで、
-              メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として
-              加わってくれると嬉しいです。まずは気軽に応募・質問してください。
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── ACTIVITY */
-
-function ActivitySection() {
-  const rows = [
-    { label: "活動エリア", main: "福岡市内のグラウンド", sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
-    { label: "活動頻度", main: "月 2〜3回 / 主に週末", sub: "参加は出れる時だけでOK。無理なく続けられるペースを大事に。" },
-    { label: "練習内容", main: "基礎練習 + 試合形式", sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
-    {
-      label: "費用",
-      main: "月額 ¥500 + 都度 数百円",
-      sub: "チーム運営費として月額500円。加えて活動ごとにグラウンド代を割り勘で数百円いただきます。",
-    },
-    {
-      label: "装備",
-      main: "グローブ持参推奨",
-      sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。",
-    },
-  ];
-
-  return (
-    <section id="activity" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="活動概要" en="Activity" />
-
-        <div className="border border-line overflow-hidden">
-          {rows.map((r, i) => (
-            <div
-              key={r.label}
-              className={`grid grid-cols-1 md:grid-cols-12 ${i !== rows.length - 1 ? "border-b border-line" : ""}`}
-            >
-              <div className="md:col-span-3 bg-navy text-white px-5 md:px-6 py-3 md:py-7 flex md:items-center border-l-4 border-red">
-                <p className="font-bold text-base md:text-lg tracking-wider">
-                  {r.label}
-                </p>
-              </div>
-              <div className="md:col-span-9 bg-base-2 px-5 md:px-8 py-5 md:py-7">
-                <p className="text-xl md:text-2xl font-black text-navy mb-1.5 leading-tight">
-                  {r.main}
-                </p>
-                <p className="text-muted text-sm leading-relaxed">{r.sub}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── RECRUIT */
-
-function RecruitSection() {
-  const targets = [
-    "野球をやってみたい初心者（代表も初心者）",
-    "経験者も大歓迎（一緒に教え合える人）",
-    "10代〜40代までの男女",
-    "福岡市内・近郊に通える人",
-    "とにかく元気で、声を出せる人",
-    "学生も社会人も、ブランクある人もOK",
-  ];
-
-  return (
-    <section id="recruit" className="bg-base-2 border-b border-line relative overflow-hidden">
-      {/* Diagonal accent */}
-      <div className="absolute top-0 right-0 w-1/3 h-1 bg-red" />
-
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="メンバー募集" en="Recruit" />
-
-        <div className="grid md:grid-cols-12 gap-8 md:gap-12">
-          <div className="md:col-span-7">
-            <p className="text-xl md:text-2xl font-bold text-navy mb-6">
-              こんな人を、待っています。
-            </p>
-            <ul className="border-t border-line">
-              {targets.map((item, i) => (
-                <li key={item} className="flex items-start gap-4 py-4 border-b border-line">
-                  <span className="font-display text-red text-2xl leading-none w-10 flex-shrink-0 pt-1">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span className="text-base md:text-lg text-ink leading-snug font-bold pt-1">
-                    {item}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="md:col-span-5">
-            <div className="bg-base p-6 md:p-8 border border-line">
-              <p className="font-display text-xs tracking-[0.3em] text-red mb-3">
-                APPLY NOW
-              </p>
-              <p className="text-2xl md:text-3xl font-black text-navy leading-snug mb-4">
-                応募は<br />
-                かんたん3ステップ。
-              </p>
-              <ol className="space-y-4 mb-8">
-                <Step n="1" t="フォームから連絡" d="下のフォーム or X DM で応募ください。" />
-                <Step n="2" t="代表から返信" d="3日以内に詳細をお返しします。" />
-                <Step n="3" t="グラウンドへ" d="次回の活動に参加してみてください！" />
-              </ol>
-              <a
-                href="#contact"
-                className="block bg-red hover:bg-red-2 text-white text-center px-6 py-4 font-bold tracking-wider transition-colors"
-              >
-                応募フォームへ →
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Step({ n, t, d }: { n: string; t: string; d: string }) {
-  return (
-    <li className="flex gap-4">
-      <span className="font-display bg-navy text-white w-8 h-8 grid place-items-center text-lg flex-shrink-0">
-        {n}
-      </span>
-      <div>
-        <p className="font-bold text-navy">{t}</p>
-        <p className="text-muted text-sm">{d}</p>
-      </div>
-    </li>
-  );
-}
-
-/* ───────────────────────────────────────── SUPPORT */
-
-function SupportSection() {
-  return (
-    <section id="support" className="bg-navy text-white border-b border-line relative overflow-hidden">
-      <div className="absolute inset-0 field-grid opacity-40" />
-      <div className="relative max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <div className="mb-10 md:mb-14">
-          <p className="font-display text-xs md:text-sm tracking-[0.4em] text-gold mb-2 uppercase">
-            Support & Sponsor
-          </p>
-          <h2 className="text-3xl md:text-5xl font-black tracking-wide text-white leading-tight section-bar">
-            支援のお願い
-          </h2>
-          <p className="mt-4 text-white/80 leading-relaxed max-w-3xl text-[15px] md:text-base">
-            立ち上がったばかりのチームです。道具や活動資金、応援の輪、
-            どんな形でも支えていただけるとすごく助かります🙏
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-          {/* Sponsor card */}
-          <div className="bg-white/[0.04] border border-white/15 p-6 md:p-8 backdrop-blur">
-            <p className="font-display text-xs tracking-[0.3em] text-red mb-3">SPONSOR</p>
-            <h3 className="text-2xl md:text-3xl font-black text-white leading-tight mb-4">
-              スポンサー募集中 📣
-            </h3>
-            <p className="text-white/85 leading-relaxed text-[15px] mb-6">
-              福岡の地域店舗・個人スポンサー様を募集しています。
-              ユニフォームへのロゴ掲出、サイト・Xでの紹介、試合当日のPRなど、
-              予算感に合わせてご相談可能です。
-              初期のチームだからこそ、長く応援してもらえる関係を築きたいと思っています。
-            </p>
-            <ul className="space-y-2 mb-6 text-sm text-white/80">
-              <li>✅ サイトにロゴ＆リンク掲出</li>
-              <li>✅ 公式X（@SK_rookies_FK）で紹介</li>
-              <li>✅ ユニフォーム・備品へのロゴ掲出（相談）</li>
-              <li>✅ 活動報告での感謝紹介</li>
-            </ul>
-            <a
-              href="#contact"
-              className="inline-flex items-center gap-2 bg-red hover:bg-red-2 transition-colors px-5 py-3 font-bold tracking-wider text-sm"
-            >
-              <span>スポンサーのご相談はこちら</span>
-              <span>→</span>
-            </a>
-          </div>
-
-          {/* Equipment donation card */}
-          <div className="bg-white/[0.04] border border-white/15 p-6 md:p-8 backdrop-blur">
-            <p className="font-display text-xs tracking-[0.3em] text-gold mb-3">EQUIPMENT</p>
-            <h3 className="text-2xl md:text-3xl font-black text-white leading-tight mb-4">
-              道具のお裾分け歓迎 🧤
-            </h3>
-            <p className="text-white/85 leading-relaxed text-[15px] mb-6">
-              参加メンバー＆地域の皆さんへ、お願いです。
-              もしご自宅に使っていないボール・バット・ベース・防具などがあれば、
-              チームに譲っていただけると大変助かります。
-              無理のない範囲でOK、「ちょうど処分しようと思ってた」くらいの気軽さで大丈夫です😊
-            </p>
-            <ul className="space-y-2 mb-6 text-sm text-white/80">
-              <li>⚾ 軟式ボール（使用済みでもOK）</li>
-              <li>🏏 バット（子ども用〜大人用まで）</li>
-              <li>🟫 ベース・塁間マーカー</li>
-              <li>🛡 ヘルメット・キャッチャー防具</li>
-              <li>🧤 古くなったグローブ（練習用に）</li>
-            </ul>
-            <p className="text-xs text-white/60 mb-4">
-              受け渡しは福岡市内ならお伺いします。送付いただく場合の送料は
-              チーム負担にします。
-            </p>
-            <a
-              href="#contact"
-              className="inline-flex items-center gap-2 border-2 border-white/40 hover:border-white transition-colors px-5 py-3 font-bold tracking-wider text-sm"
-            >
-              <span>道具支援のご相談はこちら</span>
-              <span>→</span>
-            </a>
-          </div>
-        </div>
-
-        <p className="mt-10 text-center text-white/60 text-sm">
-          ご支援いただいた方はサイト・Xで感謝とともにご紹介させていただきます🙏
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── FAQ */
-
-const faqs = [
-  {
-    q: "本当に未経験・初心者でも大丈夫ですか？",
-    a: "大丈夫です。福岡市でもっとも初心者が始めやすい草野球チームを目指しています。代表自身も野球未経験からのスタートで、キャッチボールもまだ覚えている最中です。「経験者がゼロから教える」のではなく、みんなで少しずつ覚えながら楽しんでいくスタイルなので、ルールを知らない段階でも気後れなく参加できます。学生時代に少し触った程度、ブランク10年以上、完全にゼロ — どの段階の方でも歓迎します。",
-  },
-  {
-    q: "福岡市のどこで活動していますか？",
-    a: "福岡市内の公営グラウンド（雁の巣・西南杜の湖畔公園・美野島公園など）を中心に、その都度空いている場所を予約して活動します。市内・近郊からアクセスしやすい場所を選ぶので、福岡市中央区・博多区・早良区・南区・東区・西区・城南区、どこからでも通えます。糸島・春日・大野城・粕屋エリアからの参加もOKです。",
-  },
-  {
-    q: "費用はいくらかかりますか？",
-    a: "月額500円のチーム費と、活動日ごとのグラウンド代の実費シェア（1回あたり数百円程度）のみです。福岡市周辺の草野球チームの中でも、かなり安く始められる金額設定にしています。ユニフォーム購入や入会金、高い年会費などはありません。",
-  },
-  {
-    q: "道具は何が必要ですか？",
-    a: "まずは **グローブだけ** 用意してもらえればOKです。バット・ボール・ベースなどはチームで用意します。防具（ヘルメット・キャッチャー防具など）は現在整備中で、試合が本格化する段階で揃えていきます。グローブもこれから買う方は、スポーツ量販店で3,000〜5,000円の初心者用で十分です。",
-  },
-  {
-    q: "何歳まで参加できますか？10代や40代でも浮きませんか？",
-    a: "10代〜40代までの幅広い年齢を想定しています。代表は19歳ですが、社会人・主婦・学生など多様な年齢のメンバーを歓迎しています。野球は世代を超えて楽しめるスポーツなので、年齢差は全く気にしなくて大丈夫です。",
-  },
-  {
-    q: "女性も参加できますか？マネージャー希望でもOK？",
-    a: "もちろんです。男女問わず、野球を楽しみたい方はどなたでも歓迎します。プレイヤーとしてだけでなく、スコア記録・撮影・練習サポートなどを担当してくれるマネージャーとしての参加も大歓迎です。「プレーは自信ないけど野球の雰囲気が好き」という方も、お気軽にご連絡ください。",
-  },
-  {
-    q: "代表が19歳（10代）と若いけど、20代〜40代でも大丈夫？",
-    a: "全く問題ありません。代表が10代だからといって遠慮する必要はないです。年上の方の参加は大歓迎ですし、こちらは年齢差をまったく気にしていません。むしろ社会人としての経験や、過去に野球をかじった知識をシェアしてもらえるとチームとして助かります。フラットに「野球を楽しむ仲間」として接するので、変に気を遣う必要はありません。",
-  },
-  {
-    q: "活動はどれくらいの頻度ですか？",
-    a: "月2〜3回、主に週末（土日祝）の活動を予定しています。仕事や学業と両立しやすいペースを意識しているので、毎週出られなくても問題ありません。活動日時はXアカウント（@SK_rookies_FK）と、このサイトのお知らせ欄でお知らせします。",
-  },
-  {
-    q: "経験者だけど入れますか？",
-    a: "大歓迎です。経験者がゼロから教える体制ではなく「みんなで教え合う」スタイルなので、経験者の方には得意なところを共有してもらえると助かります。本気で上手くなりたい方も、久しぶりに野球したい方も、どちらも居場所があります。",
-  },
-  {
-    q: "見学だけでもできますか？",
-    a: "もちろん可能です。応募フォームかX（@SK_rookies_FK）のDMで「見学希望」とお伝えください。次回の活動日時と場所をご案内します。実際の雰囲気を見てから判断してもらってOKです。",
-  },
-  {
-    q: "対戦相手（他のチーム）も募集していますか？",
-    a: "現在はメンバー集めと道具・防具の準備に専念しているため、対戦相手の募集は一時停止中です。人数と装備が整ったタイミングで、福岡市内・近郊の草野球チーム様に練習試合をお願いしていく予定です。再開時は公式X（@SK_rookies_FK）とサイトのお知らせでご案内します。",
-  },
-];
-
-function FaqSection() {
-  return (
-    <section id="faq" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="よくある質問" en="FAQ" />
-        <p className="text-muted text-base md:text-lg leading-relaxed mb-10 max-w-3xl">
-          福岡市で草野球を始めたい初心者の方から、よくいただく質問をまとめました。
-          他に気になることがあれば、<a href="#contact" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">お問い合わせフォーム</a>
-          か X（<a href="https://x.com/SK_rookies_FK" target="_blank" rel="noopener noreferrer" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">@SK_rookies_FK</a>）
-          までお気軽にどうぞ。
-        </p>
-
-        <div className="border-t border-line">
-          {faqs.map((f, i) => (
-            <details
-              key={f.q}
-              className="group border-b border-line"
-            >
-              <summary className="flex items-start gap-4 md:gap-6 py-5 md:py-6 cursor-pointer list-none select-none hover:bg-base-2 transition-colors px-3 md:px-4">
-                <span className="font-display text-red text-xl md:text-2xl leading-none w-10 md:w-14 flex-shrink-0 pt-1">
-                  Q{String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="flex-1 text-base md:text-xl font-bold text-navy leading-snug pt-0.5">
-                  {f.q}
-                </span>
-                <span className="font-display text-navy text-2xl md:text-3xl flex-shrink-0 leading-none pt-1 transition-transform group-open:rotate-45">
-                  +
-                </span>
-              </summary>
-              <div className="px-3 md:px-4 pb-6 md:pb-8 pl-14 md:pl-20">
-                <p className="text-ink text-base leading-relaxed">
-                  {f.a}
-                </p>
-              </div>
-            </details>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── CONTACT */
-
-function ContactSection() {
-  return (
-    <section id="contact" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 py-16 md:py-24">
-        <SectionTitle jp="お問い合わせ" en="Contact" />
-
-        <div className="grid md:grid-cols-12 gap-8 md:gap-12">
-          <div className="md:col-span-4">
-            <p className="text-ink leading-relaxed mb-4 text-[15px]">
-              下記フォームから、応募・質問・
-              <a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">スポンサー</a>
-              ・<a href="#support" className="text-red font-bold underline decoration-dotted underline-offset-4 hover:text-red-2">道具の支援</a>
-              などを受け付けています。
-              3日以内に返信します。X（Twitter）の DM でも結構です。
-            </p>
-            <div className="bg-base-2 border-l-4 border-red px-4 py-3 mb-6 text-[13px] leading-relaxed text-ink">
-              <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
-              <p>
-                女性はプレイヤーでもマネージャーでも大歓迎です。<br />
-                20代〜40代の方へ：代表は19歳ですが、年齢差はこちらも
-                <span className="font-bold">まったく気にしていません</span>
-                。フラットに楽しみましょう。
-              </p>
-            </div>
-
-            <div className="bg-base-2 border border-line p-5 mb-4">
-              <p className="font-display text-xs tracking-[0.3em] text-red mb-2">SNS</p>
-              <a
-                href={X_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 font-bold text-navy hover:text-red transition-colors"
-              >
-                <XIcon /> @SK_rookies_FK
-              </a>
-              <p className="text-xs text-muted mt-2">
-                最新情報・活動報告はXで発信中。お気軽にフォロー&DMください。
-              </p>
-            </div>
-
-            <div className="bg-base-2 border border-line p-5">
-              <p className="font-display text-xs tracking-[0.3em] text-red mb-2">RESPONSE</p>
-              <p className="font-bold text-navy">原則3日以内に返信</p>
-              <p className="text-xs text-muted mt-1">
-                返信が遅い場合はメール再送 or DMください。
-              </p>
-            </div>
-          </div>
-          <div className="md:col-span-8">
-            <RecruitForm />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ───────────────────────────────────────── FOOTER */
-
-function Footer() {
-  return (
-    <footer className="bg-navy text-white">
-      <div className="max-w-[1280px] mx-auto px-4 md:px-6 pt-14 pb-8">
-        <div className="grid md:grid-cols-12 gap-10 mb-10">
-          <div className="md:col-span-5">
-            <div className="flex items-center gap-4 mb-4">
-              <Logo className="w-32 h-32" />
-              <div>
-                <p className="font-bold text-xl tracking-wider">{TEAM_NAME_JP}</p>
-                <p className="font-display text-xs tracking-[0.3em] text-white/60 uppercase">
-                  {TEAM_NAME_EN}
-                </p>
-              </div>
-            </div>
-            <p className="text-white/70 leading-relaxed text-sm max-w-md">
-              福岡市を拠点に活動する、初心者中心の草野球チーム。
-              一緒に野球を楽しむ仲間を募集中です。
-            </p>
-          </div>
-
-          <div className="md:col-span-3">
-            <p className="font-display text-xs tracking-[0.3em] text-gold mb-4">MENU</p>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#news" className="hover:text-red transition-colors">お知らせ</a></li>
-              <li><a href="#schedule" className="hover:text-red transition-colors">試合情報</a></li>
-              <li><a href="#about" className="hover:text-red transition-colors">チーム紹介</a></li>
-              <li><a href="#activity" className="hover:text-red transition-colors">活動概要</a></li>
-              <li><a href="#recruit" className="hover:text-red transition-colors">メンバー募集</a></li>
-              <li><a href="#contact" className="hover:text-red transition-colors">お問い合わせ</a></li>
-            </ul>
-          </div>
-
-          <div className="md:col-span-4">
-            <p className="font-display text-xs tracking-[0.3em] text-gold mb-4">TEAM INFO</p>
-            <dl className="space-y-2 text-sm">
-              <Info label="拠点" value="福岡市" />
-              <Info label="設立" value={`${FOUNDED}年`} />
-              <Info label="代表" value="柏木 海斗（19歳・初心者）" />
-              <Info label="対象" value="10代〜40代 / 初心者中心" />
-            </dl>
-            <a
-              href={X_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 border border-white/30 hover:border-white px-4 py-2 transition-colors text-sm"
-            >
-              <XIcon /> 公式X
-            </a>
-          </div>
-        </div>
-
-        <div className="diag-stripe h-1 mb-6 opacity-60" />
-
-        <div className="flex flex-col md:flex-row justify-between items-center text-xs text-white/50 gap-2">
-          <p>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}. All rights reserved.</p>
-          <p className="font-display tracking-[0.3em]">FUKUOKA — EST. {FOUNDED}</p>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex gap-3">
-      <dt className="text-white/50 w-16">{label}</dt>
-      <dd className="text-white">{value}</dd>
-    </div>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden>
-      <path d="M18.244 2H21l-6.52 7.45L22.5 22h-6.18l-4.84-6.32L5.91 22H3.15l6.98-7.97L1.5 2h6.34l4.38 5.79L18.244 2z" />
-    </svg>
   );
 }
