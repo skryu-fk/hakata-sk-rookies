@@ -4,7 +4,12 @@ import HeroSection from "@/components/HeroSection";
 import FaqSection  from "@/components/FaqSection";
 import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
+import TweetsSection from "@/components/TweetsSection";
 import { news, CATEGORY_STYLES } from "@/data/news";
+import { blogPosts } from "@/data/blog";
+
+const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
+const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
@@ -74,7 +79,7 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden lg:flex items-stretch h-full">
-          {([["#news","お知らせ"],["#schedule","試合情報"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -89,20 +94,55 @@ function Header() {
 function NewsSection() {
   return (
     <section id="news" className="bg-white border-b border-line-2">
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="お知らせ" en="News" />
         <div>
           {news.map((n, i) => {
             const cs = CATEGORY_STYLES[n.category] as string;
             return (
-              <div key={i} className="news-row grid items-center gap-6 px-4 border-t border-line-2" style={{ gridTemplateColumns: "160px 88px 1fr", padding: "20px 16px" }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#0b1e3f", letterSpacing: "0.06em" }}>{n.date}</span>
-                <span className={`inline-block text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>{n.category}</span>
-                <span className="font-bold text-ink text-[15px] leading-snug">{n.title}</span>
+              <div key={i} className="news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr]">
+                <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#0b1e3f", letterSpacing: "0.06em" }}>{n.date}</span>
+                <span className={`order-2 inline-block text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>{n.category}</span>
+                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug">{n.title}</span>
               </div>
             );
           })}
           <div className="border-t border-line-2" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── BlogPreview ──────────────────────────────────────── */
+function BlogPreview() {
+  const latest = blogPosts.slice(0, 3);
+  if (latest.length === 0) return null;
+  return (
+    <section id="blog" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="ブログ・コラム" en="Blog" />
+        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
+          チームの考え方、福岡市で草野球を始めたい方向けのお役立ち情報、活動報告など。
+        </p>
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+          {latest.map((p, i) => (
+            <Link key={p.slug} href={`/blog/${p.slug}`} className="reveal block bg-white border border-line-2 hover:border-red hover:-translate-y-1 hover:shadow-lg transition-all" data-delay={String(i * 120)}
+              style={{ textDecoration: "none", padding: "26px 24px", display: "flex", flexDirection: "column", gap: 12, minHeight: 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#0b1e3f", letterSpacing: "0.08em" }}>{p.date}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "#d10024", color: "#fff", padding: "3px 9px" }}>{p.category}</span>
+              </div>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.45 }}>{p.title}</h3>
+              <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.85, flex: 1 }}>{p.excerpt}</p>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#d10024", letterSpacing: "0.08em" }}>続きを読む →</span>
+            </Link>
+          ))}
+        </div>
+        <div className="reveal mt-10 text-center">
+          <Link href="/blog" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0b1e3f", color: "#fff", padding: "12px 28px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+            すべての記事を見る →
+          </Link>
         </div>
       </div>
     </section>
@@ -114,9 +154,9 @@ function ScheduleSection() {
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
       <div className="field-grid absolute inset-0" />
-      <div className="max-w-[1280px] mx-auto px-8 py-24 relative">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
         <SectionTitle jp="試合情報" en="Schedule" light />
-        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {/* Upcoming */}
           <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
             <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 24px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -162,9 +202,9 @@ const STORIES = [
 function AboutSection() {
   return (
     <section id="about" className="bg-white border-b border-line-2">
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="チーム紹介" en="About" />
-        <div className="grid grid-cols-3 gap-5 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
           {STORIES.map((s, i) => (
             <div key={s.no} className="about-card reveal" data-delay={String(i * 120)}
               style={{ padding: "36px 28px", background: "#f9f6f2", border: "1px solid #e4e0d8", position: "relative", overflow: "hidden" }}>
@@ -177,11 +217,11 @@ function AboutSection() {
           ))}
         </div>
         {/* Founder */}
-        <div className="reveal grid overflow-hidden" style={{ background: "#0b1e3f", gridTemplateColumns: "200px 1fr" }}>
+        <div className="reveal grid overflow-hidden grid-cols-1 md:[grid-template-columns:200px_1fr]" style={{ background: "#0b1e3f" }}>
           <div style={{ background: "rgba(209,0,36,0.08)", display: "flex", alignItems: "center", justifyContent: "center", padding: 36, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
             <Image src="/logo.png" alt="logo" width={130} height={130} className="object-contain" />
           </div>
-          <div style={{ padding: "40px 48px" }}>
+          <div className="px-6 py-8 md:px-12 md:py-10">
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
             <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は今年19歳・自身も野球初心者です。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
@@ -204,16 +244,16 @@ const ACTIVITY = [
 function ActivitySection() {
   return (
     <section id="activity" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="活動概要" en="Activity" />
         <div style={{ border: "1px solid #e0dcd4", overflow: "hidden" }}>
           {ACTIVITY.map((row, i) => (
-            <div key={row.label} className="activity-row reveal grid" data-delay={String(i * 80)}
-              style={{ gridTemplateColumns: "220px 1fr", borderBottom: i < ACTIVITY.length - 1 ? "1px solid #e0dcd4" : "none" }}>
-              <div className="activity-label flex items-center px-7 py-6" style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024" }}>
+            <div key={row.label} className="activity-row reveal grid grid-cols-1 md:[grid-template-columns:220px_1fr]" data-delay={String(i * 80)}
+              style={{ borderBottom: i < ACTIVITY.length - 1 ? "1px solid #e0dcd4" : "none" }}>
+              <div className="activity-label flex items-center px-5 md:px-7 py-4 md:py-6" style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024" }}>
                 <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, color: "#fff", letterSpacing: "0.06em" }}>{row.label}</span>
               </div>
-              <div className="activity-body px-8 py-6" style={{ background: "#fefcfa" }}>
+              <div className="activity-body px-5 md:px-8 py-5 md:py-6" style={{ background: "#fefcfa" }}>
                 <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,22px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 6 }}>{row.main}</p>
                 <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>{row.sub}</p>
               </div>
@@ -239,9 +279,9 @@ function RecruitSection() {
   return (
     <section id="recruit" className="bg-white border-b border-line-2 relative overflow-hidden">
       <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="メンバー募集" en="Recruit" />
-        <div className="grid gap-12 items-start" style={{ gridTemplateColumns: "1fr 380px" }}>
+        <div className="grid gap-10 md:gap-12 items-start grid-cols-1 md:[grid-template-columns:1fr_380px]">
           <div>
             <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>こんな人を、待っています。</p>
             <div>
@@ -284,10 +324,10 @@ function SupportSection() {
   return (
     <section id="support" className="bg-navy text-white relative overflow-hidden">
       <div className="field-grid absolute inset-0" />
-      <div className="max-w-[1280px] mx-auto px-8 py-24 relative">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
         <SectionTitle jp="支援のお願い" en="Support" light />
         <p className="reveal text-white/60 mb-12 text-[15px] leading-[1.9] max-w-lg" style={{ marginTop: -28 }}>立ち上がったばかりのチームです。道具や活動資金、応援の輪、どんな形でも支えていただけると大変助かります。</p>
-        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {cards.map((c, i) => (
             <div key={c.title} className="support-card reveal" data-delay={String(i * 160)}
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", padding: "36px 32px" }}>
@@ -313,9 +353,9 @@ function SupportSection() {
 function ContactSection() {
   return (
     <section id="contact" className="bg-white border-b border-line-2">
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="お問い合わせ" en="Contact" />
-        <div className="grid gap-10 items-start" style={{ gridTemplateColumns: "300px 1fr" }}>
+        <div className="grid gap-10 items-start grid-cols-1 md:[grid-template-columns:300px_1fr]">
           <div>
             <p className="reveal text-[14px] leading-[1.9] mb-5" style={{ color: "#3a3f4a" }}>
               下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。
@@ -325,6 +365,8 @@ function ContactSection() {
               女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
             </div>
             {[["SNS", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
+              ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
+              ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
               ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
             ].map(([eyebrow, content, sub]) => (
               <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
@@ -346,8 +388,8 @@ function Footer() {
   return (
     <footer style={{ background: "#060f20", color: "#fff" }}>
       <div style={{ height: 4, background: "linear-gradient(90deg,#d10024,#a80019 50%,#d10024)" }} />
-      <div className="max-w-[1280px] mx-auto px-8" style={{ paddingTop: 60, paddingBottom: 40 }}>
-        <div className="grid gap-12 pb-10" style={{ gridTemplateColumns: "1fr 160px 220px", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 48, paddingBottom: 32 }}>
+        <div className="grid gap-10 md:gap-12 pb-10 grid-cols-1 md:[grid-template-columns:1fr_160px_220px]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
           <div>
             <div className="flex items-center gap-4 mb-4">
               <Image src="/logo.png" alt={TEAM_NAME_JP} width={54} height={54} className="object-contain" />
@@ -361,7 +403,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["#schedule","試合情報"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -376,12 +418,20 @@ function Footer() {
                 </div>
               ))}
             </dl>
-            <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ marginTop: 20, display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 16px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
-              <XIcon size={12} /> 公式X
-            </a>
+            <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <XIcon size={12} /> 公式X
+              </a>
+              <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                ジモティー
+              </a>
+              <a href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                Labola
+              </a>
+            </div>
           </div>
         </div>
-        <div className="flex justify-between items-center pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2 pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
           <span>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}. All rights reserved.</span>
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.3em" }}>FUKUOKA — EST. {FOUNDED}</span>
         </div>
@@ -400,12 +450,14 @@ export default function Home() {
       <main>
         <HeroSection memberCount={MEMBER_COUNT} />
         <NewsSection />
+        <TweetsSection />
         <ScheduleSection />
         <AboutSection />
         <ActivitySection />
         <RecruitSection />
         <SupportSection />
         <FaqSection />
+        <BlogPreview />
         <ContactSection />
       </main>
       <Footer />

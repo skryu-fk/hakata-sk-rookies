@@ -56,7 +56,7 @@ export default function FaqSection() {
 
   return (
     <section id="faq" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-8 py-24">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         {/* Section title */}
         <div className="mb-14 reveal">
           <div className="section-ghost text-navy/5 mb-[-18px]" style={{ fontSize: "clamp(72px,12vw,140px)" }}>FAQ</div>
@@ -119,7 +119,7 @@ export default function FaqSection() {
                 maxHeight: open === i ? 500 : 0,
                 transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1)",
               }}>
-                <div style={{ padding: "8px 16px 28px 80px" }}>
+                <div className="pb-7 pl-4 pr-4 pt-2 md:pl-20">
                   <p className="text-[15px] leading-[1.95]" style={{ color: "#3a3f4a", borderLeft: "3px solid rgba(209,0,36,0.2)", paddingLeft: 16 }}>
                     {f.a}
                   </p>
