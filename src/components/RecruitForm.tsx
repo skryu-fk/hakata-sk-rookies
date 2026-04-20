@@ -90,16 +90,22 @@ export default function RecruitForm() {
       return;
     }
     setStatus("submitting"); setErrorMsg("");
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
     try {
       const res = await fetch(ENDPOINT, { method: "POST", body: formData, headers: { Accept: "application/json" } });
-      if (res.ok) { setStatus("success"); event.currentTarget.reset(); }
-      else {
+      if (res.ok) {
+        setStatus("success");
+        form.reset();
+      } else {
         const data = await res.json().catch(() => ({}));
         setStatus("error");
         setErrorMsg(data?.errors?.[0]?.message ?? "送信に失敗しました。時間をおいて再度お試しください。");
       }
-    } catch { setStatus("error"); setErrorMsg("ネットワークエラーが発生しました。"); }
+    } catch {
+      setStatus("error");
+      setErrorMsg("ネットワークエラーが発生しました。時間をおいて再度お試しください。");
+    }
   }
 
   if (status === "success") return (
