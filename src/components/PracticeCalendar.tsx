@@ -96,8 +96,9 @@ export default function PracticeCalendar() {
             const ps = byDay.get(d) ?? [];
             const hasPractice = ps.length > 0;
             const allCanceled = hasPractice && ps.every(p => p.status === "canceled");
-            const borderColor = isToday ? "#d4a82a" : hasPractice ? "rgba(255,255,255,0.18)" : "transparent";
-            const bg = hasPractice ? "rgba(255,255,255,0.05)" : "transparent";
+            const borderColor = isToday ? "#d10024" : hasPractice ? "#d4a82a" : "transparent";
+            const borderWidth = isToday || hasPractice ? 2 : 1;
+            const bg = isToday ? "rgba(209,0,36,0.1)" : hasPractice ? "rgba(212,168,42,0.08)" : "transparent";
             const title = ps.map(p => {
               const st = p.status === "canceled" ? "【中止】" : p.status === "tentative" ? "【未定】" : "";
               return `${st}${p.type} @ ${p.place}${p.time ? " " + p.time : ""}`;
@@ -113,7 +114,7 @@ export default function PracticeCalendar() {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 3,
-                  border: `1px solid ${borderColor}`,
+                  border: `${borderWidth}px solid ${borderColor}`,
                   background: bg,
                   opacity: allCanceled ? 0.5 : 1,
                   position: "relative",
@@ -121,8 +122,8 @@ export default function PracticeCalendar() {
                 <span style={{
                   fontFamily: "var(--font-oswald),sans-serif",
                   fontSize: 13,
-                  color: isToday ? "#d4a82a" : dow === 0 ? "#f28899" : dow === 6 ? "#8fc4ff" : "rgba(255,255,255,0.85)",
-                  fontWeight: isToday ? 700 : 400,
+                  color: isToday ? "#ff5b75" : dow === 0 ? "#f28899" : dow === 6 ? "#8fc4ff" : "rgba(255,255,255,0.85)",
+                  fontWeight: isToday || hasPractice ? 700 : 400,
                   textDecoration: allCanceled ? "line-through" : "none",
                 }}>{d}</span>
                 <div style={{ display: "flex", gap: 2, height: 6 }}>
