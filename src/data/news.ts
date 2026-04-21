@@ -1,15 +1,18 @@
 /**
  * お知らせデータ
  *
- * 追加方法:
- *   1. 下の news 配列の一番上に新しい項目を追加
- *   2. category は下の NEWS_CATEGORIES のどれかを必ず使う
- *   3. date は "YYYY.MM.DD" の形式
- *   4. 保存 → commit & push → Vercelが自動で反映
+ * 編集方法（推奨・pushなし）:
+ *   Google スプレッドシートの "news" シートを編集。
+ *   セットアップは src/lib/sheets.ts のコメント参照。
  *
- * GitHubから編集する場合:
+ * 編集方法（GitHub直編集）:
  *   https://github.com/skryu-fk/hakata-sk-rookies/edit/main/src/data/news.ts
+ *   下の news 配列を編集 → commit → Vercel が自動デプロイ。
+ *
+ * 下の news 配列はスプレッドシート未設定・取得失敗時のフォールバック。
  */
+
+import { fetchSheetCSV } from "@/lib/sheets";
 
 export const NEWS_CATEGORIES = [
   "サイト",
@@ -27,6 +30,7 @@ export type NewsItem = {
   title: string;
 };
 
+/** フォールバック（スプレッドシート未設定・取得失敗時に使われる） */
 export const news: NewsItem[] = [
   {
     date: "2026.04.20",
@@ -57,3 +61,28 @@ export const CATEGORY_STYLES: Record<NewsCategory, string> = {
   試合: "bg-red-2 text-white",
   告知: "bg-gold text-navy",
 };
+
+function normalizeCategory(v: string): NewsCategory {
+  const t = v.trim();
+  return (NEWS_CATEGORIES as readonly string[]).includes(t) ? (t as NewsCategory) : "告知";
+}
+
+/** スプレッドシートから最新のお知らせを取得。失敗時は静的配列にフォールバック。 */
+export async function getNews(): Promise<NewsItem[]> {
+  const rows = await fetchSheetCSV("news");
+  if (rows.length <= 1) return news;
+  // 1行目はヘッダなのでスキップ
+  const parsed = rows.slice(1)
+    .map<NewsItem | null>(r => {
+      const date = (r[0] ?? "").trim();
+      const title = (r[2] ?? "").trim();
+      if (!date || !title) return null;
+      return {
+        date,
+        category: normalizeCategory(r[1] ?? ""),
+        title,
+      };
+    })
+    .filter((n): n is NewsItem => n !== null);
+  return parsed.length > 0 ? parsed : news;
+}

@@ -7,9 +7,12 @@ import RecruitForm  from "@/components/RecruitForm";
 import TweetsSection from "@/components/TweetsSection";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
-import { news, CATEGORY_STYLES } from "@/data/news";
+import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { blogPosts } from "@/data/blog";
-import { practices, PRACTICE_TYPE_COLOR } from "@/data/practices";
+import { getPractices, PRACTICE_TYPE_COLOR, type Practice } from "@/data/practices";
+
+/** Googleスプレッドシート（ISR）由来のデータは5分で再検証 */
+export const revalidate = 300;
 
 const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
 const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
@@ -97,7 +100,7 @@ function Header() {
 }
 
 /* ── NewsSection ──────────────────────────────────────── */
-function NewsSection() {
+function NewsSection({ news }: { news: NewsItem[] }) {
   return (
     <section id="news" className="bg-white border-b border-line-2">
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
@@ -163,7 +166,7 @@ const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }>
   canceled:  { label: "中止",  bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
 };
 
-function UpcomingPractices() {
+function UpcomingPractices({ practices }: { practices: Practice[] }) {
   // 文字列比較でJST由来のズレを回避（YYYY-MM-DDはISO昇順=日付昇順）
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -223,7 +226,7 @@ function UpcomingPractices() {
   );
 }
 
-function ScheduleSection() {
+function ScheduleSection({ practices }: { practices: Practice[] }) {
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
       <div className="field-grid absolute inset-0" />
@@ -234,8 +237,8 @@ function ScheduleSection() {
         </p>
 
         <div className="grid gap-6 mb-10 grid-cols-1 lg:[grid-template-columns:1fr_380px]">
-          <PracticeCalendar />
-          <UpcomingPractices />
+          <PracticeCalendar practices={practices} />
+          <UpcomingPractices practices={practices} />
         </div>
 
         {/* Match notice */}
@@ -506,7 +509,8 @@ function Footer() {
 }
 
 /* ── Page ─────────────────────────────────────────────── */
-export default function Home() {
+export default async function Home() {
+  const [news, practices] = await Promise.all([getNews(), getPractices()]);
   return (
     <>
       <ScrollReveal />
@@ -514,9 +518,9 @@ export default function Home() {
       <Header />
       <main>
         <HeroSection memberCount={MEMBER_COUNT} />
-        <NewsSection />
+        <NewsSection news={news} />
         <TweetsSection />
-        <ScheduleSection />
+        <ScheduleSection practices={practices} />
         <AboutSection />
         <ActivitySection />
         <RecruitSection />

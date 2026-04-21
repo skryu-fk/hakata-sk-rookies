@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { practices, PRACTICE_TYPE_COLOR, type Practice, type PracticeType } from "@/data/practices";
+import { useEffect, useMemo, useState } from "react";
+import { PRACTICE_TYPE_COLOR, type Practice, type PracticeType } from "@/data/practices";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -11,14 +11,36 @@ function parseDate(s: string) {
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-export default function PracticeCalendar() {
-  const today = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+export default function PracticeCalendar({ practices }: { practices: Practice[] }) {
+  // today を state 管理し、日付が変わったら自動で更新する
+  const [today, setToday] = useState<Date>(() => startOfToday());
+  const [view, setView] = useState<Date>(() => {
+    const t = startOfToday();
+    return new Date(t.getFullYear(), t.getMonth(), 1);
+  });
+
+  useEffect(() => {
+    // 毎分チェック + タブ復帰時にもチェック。日付が変わったら setToday でハイライトを移動。
+    const tick = () => {
+      const t = startOfToday();
+      setToday(prev => (sameDay(prev, t) ? prev : t));
+    };
+    const id = window.setInterval(tick, 60 * 1000);
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
-  const [view, setView] = useState<Date>(() => new Date(today.getFullYear(), today.getMonth(), 1));
 
   const year = view.getFullYear();
   const month = view.getMonth();
@@ -38,7 +60,7 @@ export default function PracticeCalendar() {
       }
     }
     return m;
-  }, [year, month]);
+  }, [practices, year, month]);
 
   const cells: (number | null)[] = [];
   for (let i = 0; i < startWeekday; i++) cells.push(null);
@@ -142,14 +164,17 @@ export default function PracticeCalendar() {
 
         {/* legend */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, border: "2px solid #d10024", background: "rgba(209,0,36,0.1)" }} /> 今日
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 12, height: 12, border: "2px solid #d4a82a", background: "rgba(212,168,42,0.08)" }} /> 練習日
+          </span>
           {(Object.keys(PRACTICE_TYPE_COLOR) as PracticeType[]).map(t => (
             <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} /> {t === "キャッチボール" ? "公園練習" : t}
             </span>
           ))}
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#d4a82a", opacity: 0.6 }} /> 未定
-          </span>
         </div>
       </div>
     </div>
