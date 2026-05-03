@@ -49,11 +49,20 @@ export const practices: Practice[] = [
   },
 ];
 
-function normalizeType(v: string): PracticeType {
-  const t = v.trim();
-  if (t === "球場練習" || t === "field") return "球場練習";
+/**
+ * 練習種別を決定する。
+ * 試合は type 列が "試合" / "match" のときのみ。
+ * それ以外は place（開催場所）ベース：
+ *   - "球場" "野球場" を含む場合 → 球場練習
+ *   - それ以外                  → 公園練習（キャッチボール扱い）
+ * これにより、type 列を空にしてもシートが正しく分類される。
+ */
+function resolveType(typeColumn: string, place: string): PracticeType {
+  const t = typeColumn.trim();
   if (t === "試合" || t === "match") return "試合";
-  return "キャッチボール"; // 公園練習／キャッチボール／その他はまとめてキャッチボール
+  // "野球場" は "球場" にマッチするので /球場/ だけで両方拾える
+  if (/球場/.test(place)) return "球場練習";
+  return "キャッチボール"; // = 公園練習
 }
 
 function normalizeStatus(v: string): PracticeStatus {
@@ -83,7 +92,7 @@ export async function getPractices(): Promise<Practice[]> {
       if (!date || !place) return null;
       return {
         date,
-        type: normalizeType(r[1] ?? ""),
+        type: resolveType(r[1] ?? "", place),
         place,
         status: normalizeStatus(r[3] ?? ""),
         time: (r[4] ?? "").trim() || undefined,
