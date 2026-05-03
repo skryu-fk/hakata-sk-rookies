@@ -83,7 +83,10 @@ const jsonLd = [
     foundingDate: "2026",
     description:
       "福岡市を拠点に活動する草野球チーム。初心者中心、10〜40代までのメンバーが在籍。",
-    sameAs: ["https://x.com/SK_rookies_FK"],
+    sameAs: [
+      "https://x.com/SK_rookies_FK",
+      "https://www.instagram.com/hakata_sk_rookies/",
+    ],
     areaServed: { "@type": "City", name: "福岡市" },
     location: {
       "@type": "Place",

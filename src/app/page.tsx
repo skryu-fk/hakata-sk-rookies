@@ -20,6 +20,8 @@ const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
 const X_URL         = "https://x.com/SK_rookies_FK";
+const IG_HANDLE     = "hakata_sk_rookies";
+const IG_URL        = `https://www.instagram.com/${IG_HANDLE}/`;
 const FOUNDED       = "2026";
 const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 3);
 
@@ -34,6 +36,17 @@ function XIcon({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
       <path d="M18.244 2H21l-6.52 7.45L22.5 22h-6.18l-4.84-6.32L5.91 22H3.15l6.98-7.97L1.5 2h6.34l4.38 5.79L18.244 2z"/>
+    </svg>
+  );
+}
+
+/* ── IGIcon ───────────────────────────────────────────── */
+function IGIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" ry="5"/>
+      <path d="M16 11.37a4 4 0 1 1-7.914 1.173A4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
     </svg>
   );
 }
@@ -63,6 +76,9 @@ function TopBar() {
         <div className="hidden md:flex items-center gap-5">
           <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1.5" style={{ color: "inherit", textDecoration: "none" }}>
             <XIcon size={11} /> 公式X
+          </a>
+          <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1.5" style={{ color: "inherit", textDecoration: "none" }}>
+            <IGIcon size={12} /> Instagram
           </a>
           <span style={{ opacity: 0.2 }}>|</span>
           <a href="#contact" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>お問い合わせ</a>
@@ -183,7 +199,7 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
       </div>
       {upcoming.length === 0 ? (
-        <div style={{ padding: "56px 24px", textAlign: "center" }}>
+        <div style={{ padding: "32px 24px", textAlign: "center" }}>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, lineHeight: 1.8 }}>次の練習日は調整中です。<br />決まり次第こちらに掲載します。</p>
         </div>
       ) : (
@@ -226,6 +242,81 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
   );
 }
 
+/* ── RecentPractices ──────────────────────────────────── */
+function RecentPractices({ practices }: { practices: Practice[] }) {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayISO = jst.toISOString().slice(0, 10);
+  const recent = [...practices]
+    .filter(p => p.date < todayISO && p.status !== "canceled")
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+
+  // 練習種別ごとの実施回数（中止以外）
+  const stats = practices.reduce(
+    (acc, p) => {
+      if (p.date < todayISO && p.status !== "canceled") {
+        acc.total += 1;
+        acc[p.type] = (acc[p.type] ?? 0) + 1;
+      }
+      return acc;
+    },
+    { total: 0 } as { total: number; [k: string]: number }
+  );
+
+  if (recent.length === 0) return null;
+
+  return (
+    <div className="reveal" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)" }}>
+      <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>最近の活動</span>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>RECENT</span>
+      </div>
+      {/* 実績サマリ */}
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", flexWrap: "wrap", gap: "8px 14px" }}>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, color: "#d4a82a", lineHeight: 1, fontWeight: 700 }}>
+          {stats.total}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginLeft: 4, letterSpacing: "0.1em" }}>回 実施</span>
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: "auto" }}>
+          {(["球場練習", "キャッチボール", "試合"] as const).map(t =>
+            stats[t] ? (
+              <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} />
+                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : "試合"} {stats[t]}
+              </span>
+            ) : null
+          )}
+        </div>
+      </div>
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {recent.map((p) => {
+          const d = new Date(p.date + "T00:00:00");
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          const wd = WEEKDAY_JP[d.getDay()];
+          const dotColor = PRACTICE_TYPE_COLOR[p.type];
+          return (
+            <li key={p.date + p.place} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div style={{ minWidth: 54, textAlign: "center" }}>
+                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, color: "rgba(255,255,255,0.85)", lineHeight: 1 }}>{mm}.{dd}</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{p.type === "キャッチボール" ? "公園練習" : p.type}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", padding: "2px 7px" }}>実施済</span>
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function ScheduleSection({ practices }: { practices: Practice[] }) {
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
@@ -236,9 +327,12 @@ function ScheduleSection({ practices }: { practices: Practice[] }) {
           キャッチボール中心の公園練習は週1〜2回、野球場を借りてのノック・バッティング練習は月3〜4回を予定しています。平日夜・週末どちらも活動あり。毎回参加できなくても問題ありません。
         </p>
 
-        <div className="grid gap-6 mb-10 grid-cols-1 lg:[grid-template-columns:1fr_380px]">
+        <div className="grid gap-6 mb-10 grid-cols-1 lg:[grid-template-columns:1fr_380px] lg:items-start">
           <PracticeCalendar practices={practices} />
-          <UpcomingPractices practices={practices} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <UpcomingPractices practices={practices} />
+            <RecentPractices practices={practices} />
+          </div>
         </div>
 
         {/* Match notice */}
@@ -432,7 +526,8 @@ function ContactSection() {
               <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
               女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
             </div>
-            {[["SNS", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
+            {[["X", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
+              ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
               ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
               ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
               ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
@@ -489,6 +584,9 @@ function Footer() {
             <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", gap: 8 }}>
               <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
                 <XIcon size={12} /> 公式X
+              </a>
+              <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <IGIcon size={13} /> Instagram
               </a>
               <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
                 ジモティー

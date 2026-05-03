@@ -33,6 +33,11 @@ export type NewsItem = {
 /** フォールバック（スプレッドシート未設定・取得失敗時に使われる） */
 export const news: NewsItem[] = [
   {
+    date: "2026.05.03",
+    category: "告知",
+    title: "公式Instagram（@hakata_sk_rookies）を開設しました！",
+  },
+  {
     date: "2026.04.20",
     category: "募集",
     title: "メンバーを5人ほど募集しています！ぜひ参加お願いします。",
