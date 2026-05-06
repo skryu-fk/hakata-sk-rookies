@@ -126,12 +126,67 @@ html, body {
 }
 .reveal-right.visible { opacity: 1; transform: none; }
 
-/* ── Field grid texture ───────────────────────────────── */
+/* ── Field grid texture — baseball diamond + stadium lights ── */
 .field-grid {
   background-image:
-    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
-  background-size: 56px 56px;
+    /* Layer 1: gold "stadium light" accent dots */
+    radial-gradient(circle at center, rgba(212,168,42,0.28) 1.5px, transparent 2.4px),
+    /* Layer 2: diamond grid — two diagonal line sets at 45° */
+    linear-gradient( 45deg, rgba(255,255,255,0.055) 1px, transparent 1px),
+    linear-gradient(-45deg, rgba(255,255,255,0.055) 1px, transparent 1px),
+    /* Layer 3: top spotlight — gold haze */
+    radial-gradient(ellipse 90% 55% at 50% 0%, rgba(212,168,42,0.06) 0%, transparent 70%),
+    /* Layer 4: red center glow — team color depth */
+    radial-gradient(ellipse 60% 55% at 50% 55%, rgba(209,0,36,0.08) 0%, transparent 70%);
+  background-size:
+    192px 192px,
+    64px 64px,
+    64px 64px,
+    100% 100%,
+    100% 100%;
+  background-position:
+    32px 32px,
+    0 0,
+    0 0,
+    top,
+    center;
+  background-repeat: repeat, repeat, repeat, no-repeat, no-repeat;
+  /* .field-grid divs already have `absolute inset-0` from the markup,
+     which creates the positioning context for the pseudo-elements below. */
+}
+.field-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Slow scanline sweep — adds a subtle "alive" feel */
+  background: linear-gradient(
+    180deg,
+    transparent 40%,
+    rgba(212,168,42,0.04) 50%,
+    transparent 60%
+  );
+  animation: fieldSweep 14s linear infinite;
+}
+.field-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Soft top→bottom edge fade — frames the section */
+  background: linear-gradient(
+    180deg,
+    rgba(11,30,63,0.4) 0%,
+    transparent 18%,
+    transparent 82%,
+    rgba(11,30,63,0.55) 100%
+  );
+}
+@keyframes fieldSweep {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
 }
 
 /* ── Section ghost text ───────────────────────────────── */
