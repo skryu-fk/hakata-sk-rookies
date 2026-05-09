@@ -15,6 +15,7 @@ const MENU: [string, string][] = [
 
 const X_URL = "https://x.com/SK_rookies_FK";
 const IG_URL = "https://www.instagram.com/hakata_sk_rookies/";
+const LINE_URL = "https://line.me/ti/g/-buBk3SbuY";
 const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
 const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
 
@@ -157,6 +158,9 @@ export default function MobileMenu() {
           </a>
           <a href={IG_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
             Instagram
+          </a>
+          <a href={LINE_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", background: "#06c755", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
+            公式グループLINE（連絡網）→
           </a>
           <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
             ジモティー

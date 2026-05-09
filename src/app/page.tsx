@@ -22,6 +22,7 @@ const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
 const X_URL         = "https://x.com/SK_rookies_FK";
 const IG_HANDLE     = "hakata_sk_rookies";
 const IG_URL        = `https://www.instagram.com/${IG_HANDLE}/`;
+const LINE_URL      = "https://line.me/ti/g/-buBk3SbuY";
 const FOUNDED       = "2026";
 const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 13);
 
@@ -47,6 +48,15 @@ function IGIcon({ size = 14 }: { size?: number }) {
       <rect x="3" y="3" width="18" height="18" rx="5" ry="5"/>
       <path d="M16 11.37a4 4 0 1 1-7.914 1.173A4 4 0 0 1 16 11.37z"/>
       <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+    </svg>
+  );
+}
+
+/* ── LINEIcon ─────────────────────────────────────────── */
+function LINEIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+      <path d="M12 2C6.486 2 2 5.589 2 10c0 3.953 3.564 7.273 8.443 7.91.327.07.772.214.885.491.102.252.066.65.033.905l-.143.86c-.043.252-.2.985.864.537 1.064-.448 5.732-3.376 7.819-5.78C21.36 13.292 22 11.71 22 10c0-4.411-4.486-8-10-8zM7.32 12.81H5.272a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .858 0v3.66H7.32a.43.43 0 0 1 0 .859zm1.694-.43a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .86 0v4.088zm4.917 0a.43.43 0 0 1-.43.43.428.428 0 0 1-.343-.171L11.062 9.78v2.6a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .43-.43c.13 0 .258.064.343.172l2.097 2.86V8.292a.43.43 0 0 1 .859 0v4.088zm3.301-2.473a.43.43 0 0 1 0 .859h-1.617v1.184h1.617a.43.43 0 0 1 0 .86h-2.046a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .43-.43h2.046a.43.43 0 0 1 0 .859h-1.617v1.186h1.617z"/>
     </svg>
   );
 }
@@ -542,6 +552,7 @@ function ContactSection() {
             </div>
             {[["X", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
               ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
+              ["LINE GROUP", <a key="line" href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold transition-colors text-[15px]" style={{ textDecoration: "none", color: "#06c755" }}><LINEIcon size={20}/> 公式グループLINE（連絡網）→</a>, "メンバー専用の連絡網。入会時は必ず自己紹介（やりたいポジション・経験）をお願いします。"],
               ["POSTAL", <div key="p" className="font-bold text-navy text-[14px]" style={{ lineHeight: 1.7 }}><div>福岡・博多オフィス</div><div className="font-normal text-[13px] mt-0.5" style={{ color: "#3a3f4a" }}>〒812-0011<br/>福岡県福岡市博多区博多駅前<br/>1丁目23番2号<br/>ParkFront博多駅前1丁目 5F-B</div></div>, "郵便物・物品送付はこちらまで。"],
               ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
               ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
@@ -602,6 +613,9 @@ function Footer() {
               </a>
               <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
                 <IGIcon size={13} /> Instagram
+              </a>
+              <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <LINEIcon size={14} /> LINE
               </a>
               <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
                 ジモティー

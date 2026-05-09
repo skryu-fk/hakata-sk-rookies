@@ -61,20 +61,22 @@ export default async function NewsDetailPage(
 
       <main className="bg-white">
         <article>
-          <div className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
-            <div className="field-grid absolute inset-0" />
-            <div className="max-w-[820px] mx-auto px-5 md:px-8 py-12 md:py-16 relative">
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, color: "#d4a82a", letterSpacing: "0.18em" }}>{item.date}</span>
-                <span className={`text-xs font-bold tracking-wider px-3 py-1 ${cs}`}>{item.category}</span>
+          {/* お知らせは告知中心 → 軽めのヘッダ。ブログのフィールドグリッドは使わない */}
+          <div className="bg-base" style={{ borderBottom: "1px solid #e0dcd4" }}>
+            <div className="max-w-[760px] mx-auto px-5 md:px-8 py-8 md:py-10">
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d10024", letterSpacing: "0.4em" }}>NEWS</span>
+                <span style={{ width: 16, height: 1, background: "#d10024" }} />
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#0b1e3f", letterSpacing: "0.06em" }}>{item.date}</span>
+                <span className={`text-[10px] font-bold tracking-wider px-2 py-0.5 ${cs}`}>{item.category}</span>
               </div>
-              <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(22px,3.4vw,34px)", fontWeight: 900, lineHeight: 1.35, color: "#fff" }}>
+              <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.8vw,28px)", fontWeight: 900, lineHeight: 1.4, color: "#0b1e3f" }}>
                 {item.title}
               </h1>
             </div>
           </div>
 
-          <div className="max-w-[820px] mx-auto px-5 md:px-8 py-12 md:py-16">
+          <div className="max-w-[760px] mx-auto px-5 md:px-8 py-10 md:py-14">
             {bodyHtml ? (
               <div
                 className="news-body"

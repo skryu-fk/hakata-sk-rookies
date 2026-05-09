@@ -497,7 +497,10 @@ export default function AdminPage() {
           </div>
 
           <div style={{ marginTop: 32, padding: "16px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
-            <strong style={{ color: "#d4a82a" }}>ヒント</strong>　お知らせの本文を書いた行は一覧から「詳しく →」付きでクリック可能になり、<code>/news/[slug]</code> で詳細ページが開きます。本文を空にすると一覧表示のみ（クリック不可）。
+            <strong style={{ color: "#d4a82a" }}>使い分け</strong>
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>お知らせ</span>＝短い告知（募集/告知/活動報告など、1〜数行）。
+            <span style={{ color: "rgba(255,255,255,0.75)" }}>ブログ</span>＝長文記事（コラム・活動レポート・お役立ち情報）。
+            両方は別のシート・別ページに保存され、サイト上の表示エリアも別になります。
           </div>
         </div>
       </main>
