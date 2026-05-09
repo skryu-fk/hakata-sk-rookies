@@ -23,7 +23,7 @@ const X_URL         = "https://x.com/SK_rookies_FK";
 const IG_HANDLE     = "hakata_sk_rookies";
 const IG_URL        = `https://www.instagram.com/${IG_HANDLE}/`;
 const FOUNDED       = "2026";
-const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 3);
+const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 13);
 
 /* ── shared inline styles ─────────────────────────────── */
 const S = {
@@ -124,11 +124,25 @@ function NewsSection({ news }: { news: NewsItem[] }) {
         <div>
           {news.map((n, i) => {
             const cs = CATEGORY_STYLES[n.category] as string;
-            return (
-              <div key={i} className="news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr]">
+            const hasBody = !!n.body;
+            const inner = (
+              <>
                 <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#0b1e3f", letterSpacing: "0.06em" }}>{n.date}</span>
                 <span className={`order-2 inline-block text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>{n.category}</span>
-                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug">{n.title}</span>
+                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug">
+                  {n.title}
+                  {hasBody && <span className="ml-2 text-red text-xs font-bold tracking-wider">詳しく →</span>}
+                </span>
+              </>
+            );
+            const cls = "news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr]";
+            return hasBody ? (
+              <Link key={n.slug} href={`/news/${n.slug}`} className={cls} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={n.slug || i} className={cls}>
+                {inner}
               </div>
             );
           })}

@@ -12,8 +12,15 @@
  *      `SHEETS_ID = XXXXXXXX` を追加 → Redeploy
  *
  * シート形式:
- *   news:       date | category | title
- *                例: 2026.04.21 | 募集 | メンバーを5人ほど募集中！
+ *   news:       date | category | title | body | slug
+ *                例: 2026.04.21 | 募集 | メンバーを5人ほど募集中！ | 〜詳細本文〜 | （任意）
+ *                ※ body 列を埋めるとお知らせ一覧から /news/[slug] にリンクされる。
+ *                ※ slug 列が空の時は date+行番号から自動生成。
+ *
+ *   tweets:     date | text | url
+ *                例: 2026-05-08 | 山王公園球場で球場練習でした！ | https://x.com/SK_rookies_FK/status/...
+ *                ※ Xにポストしたあと、トップに載せたいものだけここにコピペすれば
+ *                   サイトの「公式Xの最新投稿」にカードで反映される。
  *
  *   practices:  date | type | place | status | time | note
  *                例: 2026-04-21 | キャッチボール | 東平尾公園 | 未定 | 18:00〜20:00 | 天候次第

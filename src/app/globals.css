@@ -284,6 +284,28 @@ html, body {
   transform: translateX(4px);
 }
 
+/* ── Tweet card ───────────────────────────────────────── */
+.tweet-card {
+  transition: border-color 0.2s, transform 0.2s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.2s;
+}
+.tweet-card:hover {
+  border-color: #d10024;
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(11,30,63,0.08);
+}
+
+/* ── News / blog body typography ─────────────────────── */
+.news-body { color: #1f2734; font-size: 15.5px; line-height: 1.95; }
+.news-body p { margin-bottom: 1.4em; }
+.news-body p:last-child { margin-bottom: 0; }
+.news-body strong { color: #0b1e3f; font-weight: 700; }
+.news-body .md-link {
+  color: #d10024; font-weight: 700;
+  text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px;
+  transition: color 0.15s;
+}
+.news-body .md-link:hover { color: #a80019; }
+
 /* ── Activity row ─────────────────────────────────────── */
 .activity-label {
   transition: background 0.2s;

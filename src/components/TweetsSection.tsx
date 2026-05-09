@@ -1,15 +1,9 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { getTweets } from "@/data/tweets";
 
 const X_HANDLE = "SK_rookies_FK";
 const X_URL = `https://x.com/${X_HANDLE}`;
-
-declare global {
-  interface Window {
-    twttr?: { widgets?: { load: (el?: Element | null) => void } };
-  }
-}
+const TEAM_NAME_JP = "博多SKルーキーズ";
 
 function XIcon({ size = 14 }: { size?: number }) {
   return (
@@ -19,38 +13,20 @@ function XIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-/**
- * 公式X（@SK_rookies_FK）のタイムラインを自動で埋め込むセクション。
- * Xに投稿すればサイト側の更新作業は不要（widget が最新を都度取得）。
- */
-export default function TweetsSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [loaded, setLoaded] = useState(false);
+function formatDate(iso: string) {
+  // "2026-05-08" → "5月8日"
+  const m = iso.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return iso;
+  return `${Number(m[2])}月${Number(m[3])}日`;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      if (cancelled) return;
-      if (window.twttr?.widgets) {
-        window.twttr.widgets.load(ref.current);
-        setLoaded(true);
-      }
-    };
-    const existing = document.querySelector<HTMLScriptElement>('script[data-x-widget="1"]');
-    if (existing) {
-      if (window.twttr?.widgets) load();
-      else existing.addEventListener("load", load, { once: true });
-      return () => { cancelled = true; };
-    }
-    const script = document.createElement("script");
-    script.src = "https://platform.twitter.com/widgets.js";
-    script.async = true;
-    script.charset = "utf-8";
-    script.dataset.xWidget = "1";
-    script.onload = load;
-    document.body.appendChild(script);
-    return () => { cancelled = true; };
-  }, []);
+/**
+ * 公式Xの投稿を**キュレート式**で表示するセクション。
+ * Twitter公式ウィジェットは表示不安定なので、Sheets運用の独自カードに統一。
+ * Server Component なので JS なしで描画され、ハイドレーション不要。
+ */
+export default async function TweetsSection() {
+  const items = (await getTweets()).slice(0, 6);
 
   return (
     <section id="tweets" className="bg-base border-b border-line">
@@ -64,50 +40,66 @@ export default function TweetsSection() {
           </div>
         </div>
 
-        <div className="grid gap-8 items-start grid-cols-1 lg:[grid-template-columns:460px_1fr]">
-          {/* 左: X公式ウィジェット（自動更新）
-              dangerouslySetInnerHTML で外部DOM書き換えをReactの管理外にし、
-              widgets.js による差し替えでハイドレーション警告が出ないようにしている。 */}
-          <div style={{ background: "#fff", border: "1px solid #e0dcd4", padding: "10px", minHeight: 400, position: "relative" }}>
-            {!loaded && (
-              <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#aaa", fontSize: 13, pointerEvents: "none" }}>
-                最新の投稿を読み込み中…
-              </div>
-            )}
-            <div
-              ref={ref}
-              dangerouslySetInnerHTML={{
-                __html: `<a class="twitter-timeline" data-height="560" data-theme="light" data-chrome="noheader nofooter transparent" data-tweet-limit="4" data-dnt="true" href="${X_URL}">Tweets by @${X_HANDLE}</a>`,
-              }}
-            />
-          </div>
-
-          {/* 右: フォロー導線・説明 */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ background: "#fff", border: "1px solid #e0dcd4", padding: "24px 26px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div style={{ width: 40, height: 40, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                  <XIcon size={18} />
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-10">
+          {items.map((t, i) => {
+            const Wrapper: React.ElementType = t.url ? "a" : "div";
+            const wrapperProps = t.url
+              ? { href: t.url, target: "_blank", rel: "noopener noreferrer" }
+              : {};
+            return (
+              <Wrapper
+                key={i}
+                {...wrapperProps}
+                className="reveal tweet-card"
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e0dcd4",
+                  padding: "18px 20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  textDecoration: "none",
+                  color: "inherit",
+                  cursor: t.url ? "pointer" : "default",
+                  minHeight: 180,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 38, height: 38, background: "#0b1e3f", display: "grid", placeItems: "center", flexShrink: 0, position: "relative", overflow: "hidden" }}>
+                    <Image src="/logo.png" alt={TEAM_NAME_JP} width={32} height={32} className="object-contain" style={{ filter: "brightness(1.1)" }} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13, color: "#0b1e3f", lineHeight: 1.2 }}>{TEAM_NAME_JP}</div>
+                    <div style={{ fontSize: 11, color: "#8a8a8a", marginTop: 2 }}>@{X_HANDLE} · {formatDate(t.date)}</div>
+                  </div>
+                  <span style={{ color: "#0b1e3f", flexShrink: 0 }} aria-hidden>
+                    <XIcon size={14} />
+                  </span>
                 </div>
-                <div>
-                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 15, color: "#0b1e3f" }}>博多SKルーキーズ</div>
-                  <div style={{ fontSize: 12, color: "#8a8a8a", marginTop: 2 }}>@{X_HANDLE}</div>
-                </div>
-              </div>
-              <p style={{ fontSize: 14, color: "#3a3f4a", lineHeight: 1.85, marginBottom: 18 }}>
-                活動報告・練習日変更・メンバー募集など、リアルタイムの情報はX（旧Twitter）で発信しています。気になる方はぜひフォローをお願いします。
-              </p>
-              <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#0b1e3f", color: "#fff", padding: "12px 22px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
-                <XIcon size={14} /> 公式Xをフォローする →
-              </a>
-            </div>
+                <p style={{ fontSize: 13.5, color: "#1f2734", lineHeight: 1.85, whiteSpace: "pre-wrap", flex: 1 }}>
+                  {t.text}
+                </p>
+                {t.url && (
+                  <div style={{ fontSize: 11, color: "#d10024", fontWeight: 700, letterSpacing: "0.08em" }}>Xで開く →</div>
+                )}
+              </Wrapper>
+            );
+          })}
+        </div>
 
-            <div style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", fontSize: 13, color: "#3a3f4a", lineHeight: 1.85 }}>
-              タイムラインが表示されない場合は、ブラウザの広告ブロッカーを一時OFFにするか、
-              <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ color: "#d10024", fontWeight: 700, textDecoration: "underline", textDecorationStyle: "dotted", marginLeft: 2 }}>Xで直接見る</a>
-              でご確認ください。
+        <div className="reveal" style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "20px 24px", background: "#fff", border: "1px solid #e0dcd4" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}>
+              <XIcon size={16} />
+            </div>
+            <div>
+              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 14, color: "#0b1e3f" }}>リアルタイムは公式Xで</div>
+              <div style={{ fontSize: 12, color: "#5b6373", marginTop: 2 }}>練習日変更・募集情報・活動報告は最速でXに投稿しています。</div>
             </div>
           </div>
+          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#d10024", color: "#fff", padding: "12px 22px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+            <XIcon size={14} /> @{X_HANDLE} をフォロー →
+          </a>
         </div>
       </div>
     </section>
