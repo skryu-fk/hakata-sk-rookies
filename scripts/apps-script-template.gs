@@ -1,22 +1,29 @@
 /**
  * 博多SKルーキーズ — 管理画面 → スプレッドシート 書き込み用 Apps Script
+ * （スタンドアロン版 — script.google.com から直接プロジェクトを作って使う）
  *
  * 設定方法:
- *   1) Google スプレッドシートを開く
- *   2) 拡張機能 → Apps Script
+ *   1) https://script.google.com を開く
+ *   2) 「新しいプロジェクト」をクリック
  *   3) 開いたエディタの中身をすべて削除して、このファイルの内容を貼り付け
- *   4) 下の PASSWORD を、Vercel に設定する ADMIN_PASSWORD と同じ値に書き換え
- *   5) 右上「デプロイ」→「新しいデプロイ」
- *      - 種類: ウェブアプリ
- *      - 説明: 任意（例: hakata-admin）
+ *   4) 下の SHEET_ID を、Vercel の SHEETS_ID と同じ値に書き換え
+ *      （スプレッドシートURL `.../spreadsheets/d/XXXXXX/edit` の XXXXXX 部分）
+ *   5) 下の PASSWORD を、Vercel の ADMIN_PASSWORD と同じ値に書き換え
+ *   6) 💾 保存（Ctrl+S）→ プロジェクト名を聞かれたら任意で（例：hakata-admin）
+ *   7) 右上「デプロイ」→「新しいデプロイ」
+ *      - ⚙️ 種類の選択 → ウェブアプリ
+ *      - 説明: 任意
  *      - 次のユーザーとして実行: 自分
  *      - アクセスできるユーザー: 全員
- *      （※「全員」でもパスワード一致がないと弾かれるので外には公開されません）
- *   6) 表示された URL（https://script.google.com/macros/s/.../exec）を Vercel の
- *      環境変数 APPS_SCRIPT_URL に設定
- *   7) Vercel で再デプロイ → /admin から送信テスト
+ *      （※「Google アカウントを持つ全員」ではなく「全員」を選ぶ）
+ *   8) 「デプロイ」を押す → 初回は権限の確認画面が出るので
+ *      「アクセスを承認」→ アカウント選択 → 「詳細」→「（プロジェクト名）に移動（安全ではないページ）」
+ *      → 「許可」 を順に押す
+ *   9) 表示された URL（https://script.google.com/macros/s/.../exec）を Vercel の
+ *      環境変数 APPS_SCRIPT_URL に設定 → Redeploy → /admin から送信テスト
  */
 
+const SHEET_ID = "ここをスプレッドシートのIDに置き換える";
 const PASSWORD = "ここをADMIN_PASSWORDと同じ値に置き換える";
 
 function doPost(e) {
@@ -40,7 +47,7 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = SpreadsheetApp.openById(SHEET_ID);
     let sh = ss.getSheetByName(sheetName);
     if (!sh) {
       // 無ければ作る
