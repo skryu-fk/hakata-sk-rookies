@@ -8,7 +8,7 @@ import TweetsSection from "@/components/TweetsSection";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
-import { blogPosts } from "@/data/blog";
+import { getBlogs, type BlogPost } from "@/data/blog";
 import { getPractices, PRACTICE_TYPE_COLOR, type Practice } from "@/data/practices";
 
 /** Googleスプレッドシート（ISR）由来のデータは5分で再検証 */
@@ -154,8 +154,8 @@ function NewsSection({ news }: { news: NewsItem[] }) {
 }
 
 /* ── BlogPreview ──────────────────────────────────────── */
-function BlogPreview() {
-  const latest = blogPosts.slice(0, 3);
+function BlogPreview({ posts }: { posts: BlogPost[] }) {
+  const latest = posts.slice(0, 3);
   if (latest.length === 0) return null;
   return (
     <section id="blog" className="bg-base border-b border-line">
@@ -622,7 +622,7 @@ function Footer() {
 
 /* ── Page ─────────────────────────────────────────────── */
 export default async function Home() {
-  const [news, practices] = await Promise.all([getNews(), getPractices()]);
+  const [news, practices, blogs] = await Promise.all([getNews(), getPractices(), getBlogs()]);
   return (
     <>
       <ScrollReveal />
@@ -638,7 +638,7 @@ export default async function Home() {
         <RecruitSection />
         <SupportSection />
         <FaqSection />
-        <BlogPreview />
+        <BlogPreview posts={blogs} />
         <ContactSection />
       </main>
       <Footer />

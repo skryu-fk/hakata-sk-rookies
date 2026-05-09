@@ -14,7 +14,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_SHEETS = new Set(["news", "tweets"]);
+const ALLOWED_SHEETS = new Set(["news", "tweets", "blog", "practices"]);
 
 export async function POST(request: Request) {
   // ── 認証 ──
@@ -109,6 +109,9 @@ export async function POST(request: Request) {
     revalidatePath("/");
     if (sheet === "news") {
       revalidatePath("/news/[slug]", "page");
+    } else if (sheet === "blog") {
+      revalidatePath("/blog");
+      revalidatePath("/blog/[slug]", "page");
     }
   } catch (e) {
     console.warn("[admin/append] revalidate warning:", e);

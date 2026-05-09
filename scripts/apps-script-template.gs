@@ -41,7 +41,7 @@ function doPost(e) {
         .createTextOutput(JSON.stringify({ ok: false, error: "row required" }))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    if (!["news", "tweets"].includes(sheetName)) {
+    if (!["news", "tweets", "blog", "practices"].includes(sheetName)) {
       return ContentService
         .createTextOutput(JSON.stringify({ ok: false, error: "unknown sheet" }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -56,6 +56,10 @@ function doPost(e) {
         sh.appendRow(["date", "category", "title", "body", "slug"]);
       } else if (sheetName === "tweets") {
         sh.appendRow(["date", "text", "url"]);
+      } else if (sheetName === "blog") {
+        sh.appendRow(["date", "category", "title", "excerpt", "content", "slug"]);
+      } else if (sheetName === "practices") {
+        sh.appendRow(["date", "type", "place", "status", "time", "note"]);
       }
     }
 

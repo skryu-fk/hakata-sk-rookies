@@ -2,19 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { blogPosts } from "@/data/blog";
+import { getBlogs, getBlogBySlug, blogPosts } from "@/data/blog";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 const X_URL = "https://x.com/SK_rookies_FK";
 
+// シート由来データなので 5 分の ISR で再検証
+export const revalidate = 300;
+
 export async function generateStaticParams() {
+  // 静的フォールバック分だけビルド時に prerender。
+  // シートで追加された slug は dynamicParams=true（既定）でオンデマンド生成される。
   return blogPosts.map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const post = blogPosts.find((p) => p.slug === slug);
+  const post = await getBlogBySlug(slug);
   if (!post) return { title: "記事が見つかりません | 博多SKルーキーズ" };
   return {
     title: `${post.title} | 博多SKルーキーズ`,
@@ -29,12 +34,33 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
+/** 段落prefix（■・Q.A.【】――）を保持したままインライン markdown を許可する軽量レンダラ。 */
+function renderInline(s: string): string {
+  // & < > " ' をエスケープ
+  let r = s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  // [text](url)
+  r = r.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t: string, u: string) => {
+    const safe = /^(https?:|mailto:)/i.test(u) || u.startsWith("/") || u.startsWith("#") ? u : "#";
+    const ext = /^https?:/i.test(safe);
+    return `<a href="${safe}"${ext ? ' target="_blank" rel="noopener noreferrer"' : ""} class="md-link">${t}</a>`;
+  });
+  // **bold**
+  r = r.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  return r;
+}
+
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const post = blogPosts.find((p) => p.slug === slug);
+  const [post, all] = await Promise.all([getBlogBySlug(slug), getBlogs()]);
   if (!post) notFound();
 
-  const others = blogPosts.filter((p) => p.slug !== slug).slice(0, 3);
+  const others = all.filter((p) => p.slug !== slug).slice(0, 3);
+  const blocks = post.content.split(/\r?\n/).filter(b => b.length > 0);
 
   return (
     <>
@@ -67,7 +93,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </header>
 
           <div className="max-w-[820px] mx-auto px-5 md:px-8 py-12 md:py-16">
-            {post.content.map((block, i) => {
+            {blocks.map((block, i) => {
               if (block === "――") {
                 return <hr key={i} style={{ border: "none", borderTop: "1px solid #e0dcd4", margin: "28px 0" }} />;
               }
@@ -75,18 +101,18 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 return <h2 key={i} style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 18, fontWeight: 900, color: "#0b1e3f", marginTop: 28, marginBottom: 12, borderLeft: "4px solid #d10024", paddingLeft: 12 }}>{block.replace(/^【|】$/g, "")}</h2>;
               }
               if (block.startsWith("■")) {
-                return <h3 key={i} style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#0b1e3f", marginTop: 20, marginBottom: 8 }}>{block}</h3>;
+                return <h3 key={i} style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#0b1e3f", marginTop: 20, marginBottom: 8 }} dangerouslySetInnerHTML={{ __html: renderInline(block) }} />;
               }
               if (block.startsWith("・")) {
-                return <p key={i} style={{ fontSize: 15, lineHeight: 2, color: "#3a3f4a", marginLeft: 14, marginBottom: 4 }}>{block}</p>;
+                return <p key={i} className="news-body" style={{ fontSize: 15, lineHeight: 2, color: "#3a3f4a", marginLeft: 14, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: renderInline(block) }} />;
               }
               if (/^Q\. /.test(block)) {
-                return <p key={i} style={{ fontSize: 14, fontWeight: 700, color: "#0b1e3f", marginTop: 16, marginBottom: 4 }}>{block}</p>;
+                return <p key={i} className="news-body" style={{ fontSize: 14, fontWeight: 700, color: "#0b1e3f", marginTop: 16, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: renderInline(block) }} />;
               }
               if (/^A\. /.test(block)) {
-                return <p key={i} style={{ fontSize: 14, lineHeight: 1.95, color: "#3a3f4a", marginBottom: 12 }}>{block}</p>;
+                return <p key={i} className="news-body" style={{ fontSize: 14, lineHeight: 1.95, color: "#3a3f4a", marginBottom: 12 }} dangerouslySetInnerHTML={{ __html: renderInline(block) }} />;
               }
-              return <p key={i} style={{ fontSize: 15, lineHeight: 2, color: "#3a3f4a", marginBottom: 16 }}>{block}</p>;
+              return <p key={i} className="news-body" style={{ fontSize: 15, lineHeight: 2, color: "#3a3f4a", marginBottom: 16 }} dangerouslySetInnerHTML={{ __html: renderInline(block) }} />;
             })}
           </div>
 

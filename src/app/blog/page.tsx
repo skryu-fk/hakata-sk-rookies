@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { blogPosts } from "@/data/blog";
+import { getBlogs } from "@/data/blog";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
+
+// シート由来データなので 5 分の ISR で再検証
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "ブログ・コラム | 博多SKルーキーズ（福岡市の草野球チーム）",
@@ -13,7 +16,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/blog" },
 };
 
-export default function BlogIndex() {
+export default async function BlogIndex() {
+  const posts = await getBlogs();
   return (
     <>
       <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
@@ -47,7 +51,7 @@ export default function BlogIndex() {
 
         <section className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-20">
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {blogPosts.map((p) => (
+            {posts.map((p) => (
               <Link key={p.slug} href={`/blog/${p.slug}`}
                 className="block bg-white border border-line-2 hover:border-red transition-all hover:-translate-y-1 hover:shadow-lg"
                 style={{ textDecoration: "none", padding: "28px 26px", display: "flex", flexDirection: "column", gap: 12, minHeight: 240 }}>

@@ -1,15 +1,26 @@
 /**
  * ブログ記事データ
  *
- * 追加方法:
- *   1. 下の blogPosts 配列の一番上に新しい記事を追加
- *   2. slug は URL に使われる英字・ハイフン（例: "first-game-report"）
- *   3. content は段落ごとに配列の1要素（空行なしで自動的に段落になります）
- *   4. 保存 → commit & push → Vercelが自動で反映
+ * 編集方法（推奨・pushなし）:
+ *   Google スプレッドシートの "blog" シートを編集。
+ *   列構成: date | category | title | excerpt | content | slug
  *
- * GitHubから編集する場合:
- *   https://github.com/skryu-fk/hakata-sk-rookies/edit/main/src/data/blog.ts
+ *   content は本文。改行で段落区切り。次の記法が使えます:
+ *     ・――              区切り線
+ *     ・【セクション名】 大見出し（赤帯）
+ *     ・■ 項目          中見出し
+ *     ・・本文          箇条書き
+ *     ・Q. / A.          Q&A
+ *     ・**太字**         インライン強調
+ *     ・[リンク](URL)    リンク
+ *
+ *   slug が空欄の場合は自動生成。
+ *
+ * 編集方法（管理画面・pushなし）:
+ *   /admin の「ブログ」タブから入力。
  */
+
+import { fetchSheetCSV } from "@/lib/sheets";
 
 export const BLOG_CATEGORIES = [
   "コラム",
@@ -27,7 +38,8 @@ export type BlogPost = {
   date: string;
   category: BlogCategory;
   excerpt: string;
-  content: string[];
+  /** 本文。改行区切りの段落。各段落は prefix（■・Q.A.【】――）または markdown インライン。 */
+  content: string;
 };
 
 export const blogPosts: BlogPost[] = [
@@ -55,7 +67,7 @@ export const blogPosts: BlogPost[] = [
       "まずはメンバーを集めること。そこから道具を揃えて、他チームとの練習試合にも挑戦していきたい。1年後、2年後には福岡市の草野球シーンで「初心者が最初に選ぶチーム」と言ってもらえる存在になれたら最高です。",
       "少しでも興味を持ってくれた方、ぜひお気軽に連絡ください。X（@SK_rookies_FK）のDM、サイトの応募フォーム、どちらからでもOK。「見学だけ」「質問だけ」も大歓迎です。",
       "野球で、福岡を、熱くする。ここから始めます。",
-    ],
+    ].join("\n"),
   },
   {
     slug: "beginner-gear-guide",
@@ -96,6 +108,49 @@ export const blogPosts: BlogPost[] = [
       "――",
       "持ち物のハードルは、草野球においては本当に低いです。「気になってるけど踏み出せない」方、まずはグローブだけ買って、見学からでもOKなので博多SKルーキーズに遊びに来てください。",
       "応募・質問は X（@SK_rookies_FK）またはサイトの応募フォームから。お待ちしています。",
-    ],
+    ].join("\n"),
   },
 ];
+
+function normalizeCategory(v: string): BlogCategory {
+  const t = v.trim();
+  return (BLOG_CATEGORIES as readonly string[]).includes(t)
+    ? (t as BlogCategory)
+    : "コラム";
+}
+
+function autoSlug(date: string, idx: number): string {
+  const d = date.replace(/[./]/g, "-");
+  return `${d}-${idx + 1}`;
+}
+
+/** スプレッドシートから記事を取得。失敗時は静的配列にフォールバック。 */
+export async function getBlogs(): Promise<BlogPost[]> {
+  const rows = await fetchSheetCSV("blog");
+  if (rows.length <= 1) return blogPosts;
+  // 1行目はヘッダ。列: date | category | title | excerpt | content | slug
+  const parsed = rows.slice(1)
+    .map<BlogPost | null>((r, i) => {
+      const date = (r[0] ?? "").trim();
+      const title = (r[2] ?? "").trim();
+      const content = (r[4] ?? "").trim();
+      if (!date || !title || !content) return null;
+      const explicitSlug = (r[5] ?? "").trim();
+      return {
+        slug: explicitSlug || autoSlug(date, i),
+        title,
+        date,
+        category: normalizeCategory(r[1] ?? ""),
+        excerpt: (r[3] ?? "").trim(),
+        content,
+      };
+    })
+    .filter((p): p is BlogPost => p !== null);
+  return parsed.length > 0 ? parsed : blogPosts;
+}
+
+/** slug 検索（詳細ページ用） */
+export async function getBlogBySlug(slug: string): Promise<BlogPost | null> {
+  const items = await getBlogs();
+  return items.find(p => p.slug === slug) ?? null;
+}

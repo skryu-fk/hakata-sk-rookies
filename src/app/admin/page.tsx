@@ -18,10 +18,16 @@ import Link from "next/link";
 import Image from "next/image";
 import { renderMarkdown } from "@/lib/markdown";
 
-type Tab = "news" | "tweets";
+type Tab = "news" | "tweets" | "blog" | "practice";
 type Status = { ok: boolean; text: string } | null;
 
 const NEWS_CATEGORIES = ["サイト", "募集", "活動", "試合", "告知"] as const;
+const BLOG_CATEGORIES = ["コラム", "活動報告", "お役立ち", "試合レポート", "お知らせ"] as const;
+const PRACTICE_STATUSES = [
+  { value: "scheduled", label: "予定" },
+  { value: "tentative", label: "未定（要相談）" },
+  { value: "canceled", label: "中止" },
+] as const;
 
 function todayDot(): string {
   const d = new Date();
@@ -91,8 +97,32 @@ export default function AdminPage() {
   const [tText, setTText] = useState("");
   const [tUrl, setTUrl] = useState("");
 
+  // Blog form
+  const [bDate, setBDate] = useState(todayDot);
+  const [bCat, setBCat] = useState<typeof BLOG_CATEGORIES[number]>("コラム");
+  const [bTitle, setBTitle] = useState("");
+  const [bExcerpt, setBExcerpt] = useState("");
+  const [bContent, setBContent] = useState("");
+  const [bSlug, setBSlug] = useState("");
+
+  // Practice form
+  const [pDate, setPDate] = useState(todayIso);
+  const [pPlace, setPPlace] = useState("");
+  const [pIsMatch, setPIsMatch] = useState(false);
+  const [pStatus, setPStatus] = useState<(typeof PRACTICE_STATUSES)[number]["value"]>("scheduled");
+  const [pTime, setPTime] = useState("");
+  const [pNote, setPNote] = useState("");
+
   const newsBodyHtml = useMemo(() => renderMarkdown(nBody), [nBody]);
   const finalSlug = nSlug.trim() || autoSlug(nDate, nTitle);
+  const finalBlogSlug = bSlug.trim() || autoSlug(bDate, bTitle);
+
+  // 練習種別は place ベース（球場 or 野球場 → 球場練習、それ以外 → 公園練習）
+  const inferredPracticeType = pIsMatch
+    ? "試合"
+    : /球場/.test(pPlace)
+    ? "球場練習"
+    : "公園練習";
 
   async function submit() {
     setStatus(null);
@@ -105,9 +135,19 @@ export default function AdminPage() {
         setStatus({ ok: false, text: "日付とタイトルは必須です。" });
         return;
       }
-    } else {
+    } else if (tab === "tweets") {
       if (!tDate || !tText.trim()) {
         setStatus({ ok: false, text: "日付と本文は必須です。" });
+        return;
+      }
+    } else if (tab === "blog") {
+      if (!bDate || !bTitle.trim() || !bContent.trim()) {
+        setStatus({ ok: false, text: "日付・タイトル・本文は必須です。" });
+        return;
+      }
+    } else if (tab === "practice") {
+      if (!pDate || !pPlace.trim()) {
+        setStatus({ ok: false, text: "日付と場所は必須です。" });
         return;
       }
     }
@@ -119,10 +159,23 @@ export default function AdminPage() {
             // 列順: date | category | title | body | slug
             row: [nDate, nCat, nTitle.trim(), nBody.trim(), finalSlug],
           }
-        : {
+        : tab === "tweets"
+        ? {
             sheet: "tweets" as const,
             // 列順: date | text | url
             row: [tDate, tText.trim(), tUrl.trim()],
+          }
+        : tab === "blog"
+        ? {
+            sheet: "blog" as const,
+            // 列順: date | category | title | excerpt | content | slug
+            row: [bDate, bCat, bTitle.trim(), bExcerpt.trim(), bContent.trim(), finalBlogSlug],
+          }
+        : {
+            sheet: "practices" as const,
+            // 列順: date | type | place | status | time | note
+            // type は "試合" のときだけ書く（それ以外は place ベースで自動判定される）
+            row: [pDate, pIsMatch ? "試合" : "", pPlace.trim(), pStatus, pTime.trim(), pNote.trim()],
           };
     try {
       const res = await fetch("/api/admin/append", {
@@ -135,8 +188,12 @@ export default function AdminPage() {
         setStatus({ ok: true, text: "送信しました！サイトに反映されました（最大数秒）。" });
         if (tab === "news") {
           setNTitle(""); setNBody(""); setNSlug("");
-        } else {
+        } else if (tab === "tweets") {
           setTText(""); setTUrl("");
+        } else if (tab === "blog") {
+          setBTitle(""); setBExcerpt(""); setBContent(""); setBSlug("");
+        } else if (tab === "practice") {
+          setPPlace(""); setPTime(""); setPNote(""); setPIsMatch(false); setPStatus("scheduled");
         }
       } else {
         setStatus({ ok: false, text: data?.error ?? "送信に失敗しました。" });
@@ -148,8 +205,8 @@ export default function AdminPage() {
     }
   }
 
-  const tabBtn = (key: Tab, label: string): React.CSSProperties => ({
-    padding: "10px 22px",
+  const tabBtn = (key: Tab): React.CSSProperties => ({
+    padding: "10px 18px",
     background: tab === key ? "#d10024" : "transparent",
     color: tab === key ? "#fff" : "rgba(255,255,255,0.6)",
     border: tab === key ? "none" : "1px solid rgba(255,255,255,0.15)",
@@ -190,14 +247,141 @@ export default function AdminPage() {
               autoComplete="current-password"
               style={{ ...inp, background: "rgba(255,255,255,0.06)", color: "#fff", borderColor: "rgba(255,255,255,0.15)", maxWidth: 320 }}
             />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setTab("news")} style={tabBtn("news", "お知らせ")}>お知らせ</button>
-              <button onClick={() => setTab("tweets")} style={tabBtn("tweets", "ツイート")}>ツイート</button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => setTab("news")}    style={tabBtn("news")}>お知らせ</button>
+              <button onClick={() => setTab("tweets")}  style={tabBtn("tweets")}>ツイート</button>
+              <button onClick={() => setTab("blog")}    style={tabBtn("blog")}>ブログ</button>
+              <button onClick={() => setTab("practice")} style={tabBtn("practice")}>練習</button>
             </div>
           </div>
 
           {/* Forms */}
-          {tab === "news" ? (
+          {tab === "blog" ? (
+            <div className="grid gap-8 md:grid-cols-2">
+              <section style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 24 }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 18 }}>NEW BLOG POST</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <Field label="日付（例：2026.05.10）">
+                    <input value={bDate} onChange={e => setBDate(e.target.value)} style={inp} />
+                  </Field>
+                  <Field label="カテゴリ">
+                    <select value={bCat} onChange={e => setBCat(e.target.value as typeof BLOG_CATEGORIES[number])} style={{ ...inp, cursor: "pointer" }}>
+                      {BLOG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="タイトル">
+                    <input value={bTitle} onChange={e => setBTitle(e.target.value)} placeholder="例：5月の活動報告" style={inp} />
+                  </Field>
+                  <Field label="抜粋（一覧カードに表示される短い説明）">
+                    <textarea value={bExcerpt} onChange={e => setBExcerpt(e.target.value)} rows={3} placeholder="記事の冒頭に配置する2〜3行の紹介文" style={{ ...inp, resize: "vertical", minHeight: 70, fontFamily: "var(--font-zen),sans-serif" }} />
+                  </Field>
+                  <Field
+                    label="本文"
+                    hint="改行ごとに段落。記法: ―― 区切り線 / 【セクション】大見出し / ■ 中見出し / ・箇条書き / Q. A. でQ&A / **太字** / [リンク文字](URL)"
+                  >
+                    <textarea
+                      value={bContent}
+                      onChange={e => setBContent(e.target.value)}
+                      rows={16}
+                      placeholder={"5月9日に山王公園球場で初練習を行いました。\n\n――\n\n【参加メンバー】\n■ 当日の参加状況\n10名のメンバーが集まり〜"}
+                      style={{ ...inp, resize: "vertical", minHeight: 280, fontFamily: "var(--font-zen),sans-serif" }}
+                    />
+                  </Field>
+                  <Field label="URLスラグ（任意・空欄なら自動）" hint={`生成: /blog/${finalBlogSlug || "..."}`}>
+                    <input value={bSlug} onChange={e => setBSlug(e.target.value)} placeholder="例: 2026-05-10-first-practice-report" style={inp} />
+                  </Field>
+                </div>
+              </section>
+
+              <section style={{ background: "#fff", color: "#1f2734", padding: 24, maxHeight: 720, overflowY: "auto" }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d10024", letterSpacing: "0.4em", marginBottom: 14 }}>PREVIEW</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#0b1e3f", letterSpacing: "0.06em" }}>{bDate || "—"}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", padding: "3px 9px", background: "#d10024", color: "#fff" }}>{bCat}</span>
+                </div>
+                <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.4, marginBottom: 12 }}>
+                  {bTitle || "（タイトル未入力）"}
+                </h3>
+                {bExcerpt && (
+                  <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.85, marginBottom: 14, padding: "10px 14px", background: "#f5f2ec", borderLeft: "3px solid #d4a82a" }}>{bExcerpt}</p>
+                )}
+                {bContent.trim() ? (
+                  <div style={{ borderTop: "1px solid #e0dcd4", paddingTop: 14 }}>
+                    {bContent.split(/\r?\n/).filter(b => b.length > 0).map((block, i) => {
+                      if (block === "――") return <hr key={i} style={{ border: "none", borderTop: "1px solid #e0dcd4", margin: "20px 0" }} />;
+                      if (/^【.+】$/.test(block)) return <h4 key={i} style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#0b1e3f", marginTop: 20, marginBottom: 8, borderLeft: "4px solid #d10024", paddingLeft: 10 }}>{block.replace(/^【|】$/g, "")}</h4>;
+                      if (block.startsWith("■")) return <h5 key={i} style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 900, color: "#0b1e3f", marginTop: 14, marginBottom: 6 }}>{block}</h5>;
+                      if (block.startsWith("・")) return <p key={i} style={{ fontSize: 13, lineHeight: 1.9, color: "#3a3f4a", marginLeft: 12, marginBottom: 4 }}>{block}</p>;
+                      if (/^Q\. /.test(block)) return <p key={i} style={{ fontSize: 13, fontWeight: 700, color: "#0b1e3f", marginTop: 12, marginBottom: 2 }}>{block}</p>;
+                      if (/^A\. /.test(block)) return <p key={i} style={{ fontSize: 12.5, lineHeight: 1.85, color: "#3a3f4a", marginBottom: 10 }}>{block}</p>;
+                      return <p key={i} style={{ fontSize: 13, lineHeight: 1.95, color: "#3a3f4a", marginBottom: 10 }}>{block}</p>;
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 12, color: "#8a8a8a", lineHeight: 1.85 }}>本文を書くとプレビューが出ます。</p>
+                )}
+              </section>
+            </div>
+          ) : tab === "practice" ? (
+            <div className="grid gap-8 md:grid-cols-2">
+              <section style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 24 }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 18 }}>NEW PRACTICE</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <Field label="日付（例：2026-05-15）">
+                    <input value={pDate} onChange={e => setPDate(e.target.value)} style={inp} />
+                  </Field>
+                  <Field label="場所" hint="場所名に「球場」or「野球場」が入っていれば自動的に球場練習扱いになります。">
+                    <input value={pPlace} onChange={e => setPPlace(e.target.value)} placeholder="例: 山王公園球場 / 東平尾公園" style={inp} />
+                  </Field>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <input type="checkbox" id="pIsMatch" checked={pIsMatch} onChange={e => setPIsMatch(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#d10024" }} />
+                    <label htmlFor="pIsMatch" style={{ fontSize: 13, color: "#fff", cursor: "pointer" }}>これは試合（type 列に「試合」と書く）</label>
+                  </div>
+                  <Field label="ステータス">
+                    <select value={pStatus} onChange={e => setPStatus(e.target.value as (typeof PRACTICE_STATUSES)[number]["value"])} style={{ ...inp, cursor: "pointer" }}>
+                      {PRACTICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="時間（任意）">
+                    <input value={pTime} onChange={e => setPTime(e.target.value)} placeholder="例: 18:30〜20:30" style={inp} />
+                  </Field>
+                  <Field label="備考（任意）" hint="「天候次第で中止の可能性あり」など。">
+                    <textarea value={pNote} onChange={e => setPNote(e.target.value)} rows={2} placeholder="" style={{ ...inp, resize: "vertical", minHeight: 60, fontFamily: "var(--font-zen),sans-serif" }} />
+                  </Field>
+                </div>
+              </section>
+
+              <section style={{ background: "#fff", color: "#1f2734", padding: 24 }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d10024", letterSpacing: "0.4em", marginBottom: 14 }}>PREVIEW</p>
+                <div style={{ background: "#0b1e3f", color: "#fff", padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14 }}>
+                  <div style={{ minWidth: 54, textAlign: "center" }}>
+                    {(() => {
+                      const m = pDate.match(/(\d{1,2})-(\d{1,2})$/);
+                      const mm = m ? m[1].padStart(2, "0") : "—";
+                      const dd = m ? m[2].padStart(2, "0") : "—";
+                      return (
+                        <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, lineHeight: 1 }}>{mm}.{dd}</div>
+                      );
+                    })()}
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{pStatus === "canceled" ? "中止" : pStatus === "tentative" ? "未定" : "予定"}</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: inferredPracticeType === "球場練習" ? "#d10024" : inferredPracticeType === "試合" ? "#4a90e2" : "#d4a82a", flexShrink: 0 }} />
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 14 }}>{inferredPracticeType}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>
+                      📍 {pPlace || "（場所未入力）"}{pTime ? ` / ${pTime}` : ""}
+                    </div>
+                    {pNote && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>※ {pNote}</div>}
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: "#8a8a8a", lineHeight: 1.85, marginTop: 12 }}>
+                  種別はチェックボックスと「場所」の文字列から自動判定（「球場」「野球場」を含む → 球場練習 / それ以外 → 公園練習）。
+                </p>
+              </section>
+            </div>
+          ) : tab === "news" ? (
             <div className="grid gap-8 md:grid-cols-2">
               <section style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 24 }}>
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 18 }}>NEW NEWS</p>
