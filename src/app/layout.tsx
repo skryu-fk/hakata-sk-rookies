@@ -90,10 +90,13 @@ const jsonLd = [
     areaServed: { "@type": "City", name: "福岡市" },
     location: {
       "@type": "Place",
+      name: "福岡・博多オフィス",
       address: {
         "@type": "PostalAddress",
-        addressLocality: "福岡市",
+        streetAddress: "博多駅前1丁目23番2号 ParkFront博多駅前1丁目 5F-B",
+        addressLocality: "福岡市博多区",
         addressRegion: "福岡県",
+        postalCode: "812-0011",
         addressCountry: "JP",
       },
     },

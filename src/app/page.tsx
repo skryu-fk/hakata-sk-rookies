@@ -542,6 +542,7 @@ function ContactSection() {
             </div>
             {[["X", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
               ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
+              ["POSTAL", <div key="p" className="font-bold text-navy text-[14px]" style={{ lineHeight: 1.7 }}><div>福岡・博多オフィス</div><div className="font-normal text-[13px] mt-0.5" style={{ color: "#3a3f4a" }}>〒812-0011<br/>福岡県福岡市博多区博多駅前<br/>1丁目23番2号<br/>ParkFront博多駅前1丁目 5F-B</div></div>, "郵便物・物品送付はこちらまで。"],
               ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
               ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
               ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
@@ -588,10 +589,10 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>TEAM INFO</p>
             <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
-              {[["拠点","福岡市"],["本拠地","山王公園野球場（予定）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"]].map(([l,v]) => (
+              {[["拠点","福岡市"],["本拠地","山王公園野球場（予定）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"],["郵便","〒812-0011 福岡市博多区博多駅前1-23-2 ParkFront博多駅前1丁目 5F-B"]].map(([l,v]) => (
                 <div key={l} style={{ display: "flex", gap: 12 }}>
                   <dt style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", width: 38, flexShrink: 0 }}>{l}</dt>
-                  <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>{v}</dd>
+                  <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}>{v}</dd>
                 </div>
               ))}
             </dl>
