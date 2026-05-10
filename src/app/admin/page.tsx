@@ -20,6 +20,15 @@ import { renderMarkdown } from "@/lib/markdown";
 
 type Tab = "news" | "tweets" | "blog" | "practice";
 type Status = { ok: boolean; text: string } | null;
+type ListItem = { rowIndex: number; data: string[] };
+
+/** タブ → スプレッドシート名 */
+const SHEET_FOR: Record<Tab, "news" | "tweets" | "blog" | "practices"> = {
+  news: "news",
+  tweets: "tweets",
+  blog: "blog",
+  practice: "practices",
+};
 
 const NEWS_CATEGORIES = ["サイト", "募集", "活動", "試合", "告知"] as const;
 const BLOG_CATEGORIES = ["コラム", "活動報告", "お役立ち", "試合レポート", "お知らせ"] as const;
@@ -113,6 +122,16 @@ export default function AdminPage() {
   const [pTime, setPTime] = useState("");
   const [pNote, setPNote] = useState("");
 
+  // ── 一覧 / 編集状態 ──
+  const [listing, setListing] = useState<Record<Tab, ListItem[] | null>>({
+    news: null, tweets: null, blog: null, practice: null,
+  });
+  const [listLoading, setListLoading] = useState<Record<Tab, boolean>>({
+    news: false, tweets: false, blog: false, practice: false,
+  });
+  // 編集モード: editing.rowIndex の行を上書きする
+  const [editing, setEditing] = useState<{ tab: Tab; rowIndex: number } | null>(null);
+
   const newsBodyHtml = useMemo(() => renderMarkdown(nBody), [nBody]);
   const finalSlug = nSlug.trim() || autoSlug(nDate, nTitle);
   const finalBlogSlug = bSlug.trim() || autoSlug(bDate, bTitle);
@@ -123,6 +142,88 @@ export default function AdminPage() {
     : /球場/.test(pPlace)
     ? "球場練習"
     : "公園練習";
+
+  // ───────── 一覧 / 編集 / 削除 ヘルパー ─────────
+  async function loadList(t: Tab) {
+    if (!pw) {
+      setStatus({ ok: false, text: "先にパスワードを入力してください。" });
+      return;
+    }
+    setListLoading(prev => ({ ...prev, [t]: true }));
+    try {
+      const res = await fetch("/api/admin/list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        body: JSON.stringify({ sheet: SHEET_FOR[t] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        setListing(prev => ({ ...prev, [t]: data.rows ?? [] }));
+      } else {
+        setStatus({ ok: false, text: data?.error ?? "一覧の取得に失敗しました。" });
+      }
+    } catch {
+      setStatus({ ok: false, text: "ネットワークエラーが発生しました。" });
+    } finally {
+      setListLoading(prev => ({ ...prev, [t]: false }));
+    }
+  }
+
+  function startEdit(t: Tab, item: ListItem) {
+    setEditing({ tab: t, rowIndex: item.rowIndex });
+    const d = item.data;
+    if (t === "news") {
+      setNDate(d[0] ?? ""); setNCat((NEWS_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof NEWS_CATEGORIES[number] : "告知");
+      setNTitle(d[2] ?? ""); setNBody(d[3] ?? ""); setNSlug(d[4] ?? "");
+    } else if (t === "tweets") {
+      setTDate(d[0] ?? ""); setTText(d[1] ?? ""); setTUrl(d[2] ?? "");
+    } else if (t === "blog") {
+      setBDate(d[0] ?? ""); setBCat((BLOG_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof BLOG_CATEGORIES[number] : "コラム");
+      setBTitle(d[2] ?? ""); setBExcerpt(d[3] ?? ""); setBContent(d[4] ?? ""); setBSlug(d[5] ?? "");
+    } else if (t === "practice") {
+      setPDate(d[0] ?? ""); setPIsMatch((d[1] ?? "").trim() === "試合");
+      setPPlace(d[2] ?? "");
+      const st = (d[3] ?? "scheduled") as (typeof PRACTICE_STATUSES)[number]["value"];
+      setPStatus(["scheduled", "tentative", "canceled"].includes(st) ? st : "scheduled");
+      setPTime(d[4] ?? ""); setPNote(d[5] ?? "");
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setStatus(null);
+  }
+
+  async function deleteRow(t: Tab, item: ListItem) {
+    if (!pw) {
+      setStatus({ ok: false, text: "先にパスワードを入力してください。" });
+      return;
+    }
+    const summary = item.data.slice(0, 3).filter(Boolean).join(" / ").slice(0, 60);
+    if (!window.confirm(`削除しますか？\n${summary}`)) return;
+    try {
+      const res = await fetch("/api/admin/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        body: JSON.stringify({ sheet: SHEET_FOR[t], rowIndex: item.rowIndex }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.ok) {
+        setStatus({ ok: true, text: "削除しました。" });
+        if (editing && editing.tab === t && editing.rowIndex === item.rowIndex) {
+          setEditing(null);
+        }
+        loadList(t);
+      } else {
+        setStatus({ ok: false, text: data?.error ?? "削除に失敗しました。" });
+      }
+    } catch {
+      setStatus({ ok: false, text: "ネットワークエラーが発生しました。" });
+    }
+  }
 
   async function submit() {
     setStatus(null);
@@ -152,40 +253,43 @@ export default function AdminPage() {
       }
     }
     setSubmitting(true);
-    const payload =
+    const row =
       tab === "news"
-        ? {
-            sheet: "news" as const,
-            // 列順: date | category | title | body | slug
-            row: [nDate, nCat, nTitle.trim(), nBody.trim(), finalSlug],
-          }
+        ? [nDate, nCat, nTitle.trim(), nBody.trim(), finalSlug]
         : tab === "tweets"
-        ? {
-            sheet: "tweets" as const,
-            // 列順: date | text | url
-            row: [tDate, tText.trim(), tUrl.trim()],
-          }
+        ? [tDate, tText.trim(), tUrl.trim()]
         : tab === "blog"
-        ? {
-            sheet: "blog" as const,
-            // 列順: date | category | title | excerpt | content | slug
-            row: [bDate, bCat, bTitle.trim(), bExcerpt.trim(), bContent.trim(), finalBlogSlug],
-          }
-        : {
-            sheet: "practices" as const,
-            // 列順: date | type | place | status | time | note
-            // type は "試合" のときだけ書く（それ以外は place ベースで自動判定される）
-            row: [pDate, pIsMatch ? "試合" : "", pPlace.trim(), pStatus, pTime.trim(), pNote.trim()],
-          };
+        ? [bDate, bCat, bTitle.trim(), bExcerpt.trim(), bContent.trim(), finalBlogSlug]
+        : // practice
+          // type は "試合" のときだけ書く（それ以外は place ベースで自動判定される）
+          [pDate, pIsMatch ? "試合" : "", pPlace.trim(), pStatus, pTime.trim(), pNote.trim()];
+
+    const isUpdate = !!editing && editing.tab === tab;
+    const url = isUpdate ? "/api/admin/update" : "/api/admin/append";
+    const payload: Record<string, unknown> = {
+      sheet: SHEET_FOR[tab],
+      row,
+    };
+    if (isUpdate) {
+      payload.rowIndex = editing!.rowIndex;
+    }
+
     try {
-      const res = await fetch("/api/admin/append", {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-password": pw },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
-        setStatus({ ok: true, text: "送信しました！サイトに反映されました（最大数秒）。" });
+        setStatus({
+          ok: true,
+          text: isUpdate
+            ? "更新しました！サイトに反映されました（最大数秒）。"
+            : "送信しました！サイトに反映されました（最大数秒）。",
+        });
+        // 編集モードを抜けてフォームクリア
+        setEditing(null);
         if (tab === "news") {
           setNTitle(""); setNBody(""); setNSlug("");
         } else if (tab === "tweets") {
@@ -194,6 +298,10 @@ export default function AdminPage() {
           setBTitle(""); setBExcerpt(""); setBContent(""); setBSlug("");
         } else if (tab === "practice") {
           setPPlace(""); setPTime(""); setPNote(""); setPIsMatch(false); setPStatus("scheduled");
+        }
+        // 一覧があればリフレッシュ
+        if (listing[tab] !== null) {
+          loadList(tab);
         }
       } else {
         setStatus({ ok: false, text: data?.error ?? "送信に失敗しました。" });
@@ -471,6 +579,14 @@ export default function AdminPage() {
 
           {/* Submit */}
           <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+            {editing && editing.tab === tab && (
+              <div style={{ padding: "10px 14px", background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.3)", color: "#d4a82a", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <span><strong>編集モード</strong>　行 {editing.rowIndex} を上書きします。送信すると現在の内容で置き換わります。</span>
+                <button onClick={cancelEdit} style={{ padding: "6px 12px", background: "transparent", border: "1px solid rgba(212,168,42,0.5)", color: "#d4a82a", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  キャンセル
+                </button>
+              </div>
+            )}
             {status && (
               <div style={{ padding: "12px 16px", background: status.ok ? "rgba(36,209,55,0.08)" : "rgba(209,0,36,0.08)", border: `1px solid ${status.ok ? "rgba(36,209,55,0.3)" : "rgba(209,0,36,0.3)"}`, color: status.ok ? "#67e088" : "#ff6982", fontSize: 13 }}>
                 {status.text}
@@ -482,8 +598,8 @@ export default function AdminPage() {
               style={{
                 width: "100%",
                 padding: 16,
-                background: submitting ? "#666" : "#d10024",
-                color: "#fff",
+                background: submitting ? "#666" : editing && editing.tab === tab ? "#d4a82a" : "#d10024",
+                color: editing && editing.tab === tab ? "#0b1e3f" : "#fff",
                 border: "none",
                 fontSize: 15,
                 fontWeight: 700,
@@ -492,11 +608,27 @@ export default function AdminPage() {
                 fontFamily: "var(--font-zen),sans-serif",
               }}
             >
-              {submitting ? "送信中…" : "送信してサイトに反映する →"}
+              {submitting
+                ? "送信中…"
+                : editing && editing.tab === tab
+                ? "この内容で更新する →"
+                : "送信してサイトに反映する →"}
             </button>
           </div>
 
-          <div style={{ marginTop: 32, padding: "16px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
+          {/* ───────── 一覧 / 編集 / 削除 ───────── */}
+          <ListPanel
+            key={tab}
+            tab={tab}
+            items={listing[tab]}
+            loading={listLoading[tab]}
+            editingRowIndex={editing && editing.tab === tab ? editing.rowIndex : null}
+            onLoad={() => loadList(tab)}
+            onEdit={item => startEdit(tab, item)}
+            onDelete={item => deleteRow(tab, item)}
+          />
+
+          <div style={{ marginTop: 24, padding: "16px 20px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.85 }}>
             <strong style={{ color: "#d4a82a" }}>使い分け</strong>
             <span style={{ color: "rgba(255,255,255,0.75)" }}>お知らせ</span>＝短い告知（募集/告知/活動報告など、1〜数行）。
             <span style={{ color: "rgba(255,255,255,0.75)" }}>ブログ</span>＝長文記事（コラム・活動レポート・お役立ち情報）。
@@ -505,5 +637,119 @@ export default function AdminPage() {
         </div>
       </main>
     </>
+  );
+}
+
+// ───────── ListPanel ─────────
+function summarizeRow(tab: Tab, data: string[]): { date: string; head: string; sub?: string } {
+  if (tab === "news") {
+    return { date: data[0] ?? "", head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
+  }
+  if (tab === "tweets") {
+    const text = (data[1] ?? "").replace(/\s+/g, " ");
+    return { date: data[0] ?? "", head: text.slice(0, 60) + (text.length > 60 ? "…" : "") };
+  }
+  if (tab === "blog") {
+    return { date: data[0] ?? "", head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
+  }
+  // practice
+  const isMatch = (data[1] ?? "").trim() === "試合";
+  const place = data[2] ?? "";
+  const type = isMatch ? "試合" : /球場/.test(place) ? "球場練習" : "公園練習";
+  const stLabel = data[3] === "canceled" ? "中止" : data[3] === "tentative" ? "未定" : "予定";
+  return { date: data[0] ?? "", head: `${place || "(場所未入力)"} — ${type}`, sub: `[${stLabel}]${data[4] ? " " + data[4] : ""}` };
+}
+
+function ListPanel({
+  tab, items, loading, editingRowIndex, onLoad, onEdit, onDelete,
+}: {
+  tab: Tab;
+  items: ListItem[] | null;
+  loading: boolean;
+  editingRowIndex: number | null;
+  onLoad: () => void;
+  onEdit: (item: ListItem) => void;
+  onDelete: (item: ListItem) => void;
+}) {
+  return (
+    <section style={{ marginTop: 36, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em" }}>EXISTING</p>
+          <p style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 14, marginTop: 2 }}>
+            既存の{tab === "news" ? "お知らせ" : tab === "tweets" ? "ツイート" : tab === "blog" ? "ブログ" : "練習"}一覧
+          </p>
+        </div>
+        <button
+          onClick={onLoad}
+          disabled={loading}
+          style={{
+            padding: "8px 16px",
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.2)",
+            color: loading ? "rgba(255,255,255,0.4)" : "#fff",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            cursor: loading ? "wait" : "pointer",
+          }}
+        >
+          {loading ? "読み込み中…" : items === null ? "一覧を読み込む" : "再読み込み"}
+        </button>
+      </div>
+      {items === null ? (
+        <div style={{ padding: "32px 20px", color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center" }}>
+          上のボタンで一覧を読み込んでください。
+        </div>
+      ) : items.length === 0 ? (
+        <div style={{ padding: "32px 20px", color: "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center" }}>
+          まだ登録されていません。
+        </div>
+      ) : (
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {items.map(item => {
+            const s = summarizeRow(tab, item.data);
+            const isCurrent = editingRowIndex === item.rowIndex;
+            return (
+              <li key={item.rowIndex} style={{
+                padding: "12px 20px",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 10,
+                alignItems: "center",
+                background: isCurrent ? "rgba(212,168,42,0.07)" : "transparent",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "rgba(255,255,255,0.55)", letterSpacing: "0.06em", flexShrink: 0 }}>#{item.rowIndex}</span>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", letterSpacing: "0.06em", flexShrink: 0 }}>{s.date || "—"}</span>
+                    {s.sub && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{s.sub}</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.head}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={() => onEdit(item)}
+                    disabled={isCurrent}
+                    style={{ padding: "6px 12px", background: isCurrent ? "#d4a82a" : "rgba(212,168,42,0.15)", color: isCurrent ? "#0b1e3f" : "#d4a82a", border: "1px solid rgba(212,168,42,0.4)", fontSize: 12, fontWeight: 700, cursor: isCurrent ? "default" : "pointer" }}
+                  >
+                    {isCurrent ? "編集中" : "編集"}
+                  </button>
+                  <button
+                    onClick={() => onDelete(item)}
+                    style={{ padding: "6px 12px", background: "rgba(209,0,36,0.15)", color: "#ff6982", border: "1px solid rgba(209,0,36,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    削除
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

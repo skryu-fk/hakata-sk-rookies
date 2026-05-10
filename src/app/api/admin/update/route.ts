@@ -1,5 +1,5 @@
 /**
- * /api/admin/append — 新規行をシート先頭に追加する。
+ * /api/admin/update — 既存行(rowIndex 指定)を上書きする。
  */
 
 import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow } from "@/lib/admin-shared";
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const authErr = ensureAuth(request.headers);
   if (authErr) return authErr;
 
-  let body: { sheet?: string; row?: unknown[] };
+  let body: { sheet?: string; rowIndex?: number; row?: unknown[] };
   try {
     body = await request.json();
   } catch {
@@ -21,13 +21,18 @@ export async function POST(request: Request) {
   const sheetErr = ensureSheet(body.sheet);
   if (sheetErr) return sheetErr;
 
+  const rowIndex = Number(body.rowIndex);
+  if (!Number.isFinite(rowIndex) || rowIndex < 2) {
+    return Response.json({ ok: false, error: "rowIndex が不正です。" }, { status: 400 });
+  }
   if (!Array.isArray(body.row) || body.row.length === 0 || body.row.length > 16) {
     return Response.json({ ok: false, error: "row が不正です。" }, { status: 400 });
   }
 
   const result = await callAppsScript({
-    op: "append",
+    op: "update",
     sheet: body.sheet,
+    rowIndex,
     row: safeRow(body.row),
   });
   if (!result.ok) {
