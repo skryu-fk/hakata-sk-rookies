@@ -47,13 +47,22 @@ function todayIso(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function autoSlug(date: string, title: string): string {
+  // URLに使うので必ず ASCII（英数字とハイフン）だけのスラグを返す。
+  // 日本語タイトルはエンコード時の取り回しが面倒なので、
+  //   ・ASCIIだけ抜き出せた場合はそれを使う
+  //   ・抜き出せない場合は時刻ベースのランダム文字列にフォールバック
   const d = date.replace(/[./]/g, "-");
-  const base = title
+  const ascii = title
     .toLowerCase()
     .replace(/[\s　]+/g, "-")
-    .replace(/[^\w\-ぁ-んァ-ヶー一-龯]/g, "")
+    .replace(/[^a-z0-9\-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
     .slice(0, 24);
-  return `${d}-${base || "post"}`;
+  if (ascii.length >= 3) return `${d}-${ascii}`;
+  // 非ASCIIタイトル → タイムスタンプ(base36)でユニーク化（衝突しない短い文字列）
+  const t = Date.now().toString(36).slice(-6);
+  return `${d}-${t}`;
 }
 
 const inp: React.CSSProperties = {

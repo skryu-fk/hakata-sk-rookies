@@ -67,7 +67,9 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
 /** 書き込み系の操作後に呼ぶキャッシュ無効化。 */
 export function flushCaches(sheet: string) {
   try {
-    revalidateTag(`sheet:${sheet}`, "max");
+    // `{ expire: 0 }` で即時失効。"max" だと stale-while-revalidate になり、
+    // 直後にアクセスしたユーザーが「追加前」のキャッシュを掴まされて404になる。
+    revalidateTag(`sheet:${sheet}`, { expire: 0 });
     revalidatePath("/");
     if (sheet === "news") {
       revalidatePath("/news/[slug]", "page");
