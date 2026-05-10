@@ -128,7 +128,21 @@ function autoSlug(date: string, idx: number): string {
 export async function getBlogs(): Promise<BlogPost[]> {
   const rows = await fetchSheetCSV("blog");
   if (rows.length <= 1) return blogPosts;
-  // 1行目はヘッダ。列: date | category | title | excerpt | content | slug
+
+  // ── 防御: gviz は存在しないシート名を指定するとデフォルト（先頭）シートを
+  //          返してしまう仕様があるため、1行目のヘッダを確認して
+  //          本当にブログシートかを判定する。
+  const header = (rows[0] ?? []).map(c => c.toLowerCase().trim());
+  const looksLikeBlog =
+    header.includes("content") || header.includes("excerpt") ||
+    // 見出しが日本語の場合も許容
+    header.some(h => h.includes("本文") || h.includes("excerpt") || h.includes("抜粋"));
+  if (!looksLikeBlog) {
+    // 別シートのデータを掴まされている可能性 → 静的フォールバックに退避
+    return blogPosts;
+  }
+
+  // 列: date | category | title | excerpt | content | slug
   const parsed = rows.slice(1)
     .map<BlogPost | null>((r, i) => {
       const date = (r[0] ?? "").trim();

@@ -99,6 +99,12 @@ function autoSlug(date: string, idx: number): string {
 export async function getNews(): Promise<NewsItem[]> {
   const rows = await fetchSheetCSV("news");
   if (rows.length <= 1) return news;
+  // gviz が存在しないシート名でデフォルトシートを返す事故に備えてヘッダを検証
+  const header = (rows[0] ?? []).map(c => c.toLowerCase().trim());
+  const looksLikeNews =
+    (header.includes("category") || header.some(h => h.includes("カテゴリ"))) &&
+    (header.includes("title") || header.some(h => h.includes("タイトル")));
+  if (!looksLikeNews) return news;
   // 1行目はヘッダなのでスキップ
   // 列構成: date | category | title | body | slug
   const parsed = rows.slice(1)

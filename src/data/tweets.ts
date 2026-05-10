@@ -51,6 +51,11 @@ function normalizeDate(v: string): string {
 export async function getTweets(): Promise<Tweet[]> {
   const rows = await fetchSheetCSV("tweets");
   if (rows.length <= 1) return tweets;
+  // gviz の暴発（存在しないシート名でデフォルト返却）対策
+  const header = (rows[0] ?? []).map(c => c.toLowerCase().trim());
+  const looksLikeTweets =
+    header.includes("text") || header.some(h => h.includes("本文") || h.includes("ツイート"));
+  if (!looksLikeTweets) return tweets;
   const parsed = rows.slice(1)
     .map<Tweet | null>(r => {
       const date = normalizeDate(r[0] ?? "");

@@ -85,6 +85,11 @@ function normalizeDate(v: string): string {
 export async function getPractices(): Promise<Practice[]> {
   const rows = await fetchSheetCSV("practices");
   if (rows.length <= 1) return practices;
+  // gviz の暴発対策
+  const header = (rows[0] ?? []).map(c => c.toLowerCase().trim());
+  const looksLikePractices =
+    header.includes("place") || header.some(h => h.includes("場所"));
+  if (!looksLikePractices) return practices;
   const parsed = rows.slice(1)
     .map<Practice | null>(r => {
       const date = normalizeDate(r[0] ?? "");
