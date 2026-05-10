@@ -85,11 +85,18 @@ function normalizeDate(v: string): string {
 export async function getPractices(): Promise<Practice[]> {
   const rows = await fetchSheetCSV("practices");
   if (rows.length <= 1) return practices;
-  // gviz の暴発対策
+  // gviz の暴発（存在しないシート名でデフォルトシートを返却）対策。
+  // 「明らかに別シート(news/blog/tweets)の見出し」のときだけ拒否する。
+  // これで practices シートのヘッダーが日本語でも空でも通る。
   const header = (rows[0] ?? []).map(c => c.toLowerCase().trim());
-  const looksLikePractices =
-    header.includes("place") || header.some(h => h.includes("場所"));
-  if (!looksLikePractices) return practices;
+  const looksLikeOtherSheet =
+    // news: date|category|title
+    (header[1] === "category" && header[2] === "title") ||
+    // blog: date|category|title|excerpt|content|slug
+    header[3] === "excerpt" ||
+    // tweets: date|text|url
+    (header[1] === "text" && header[2] === "url");
+  if (looksLikeOtherSheet) return practices;
   const parsed = rows.slice(1)
     .map<Practice | null>(r => {
       const date = normalizeDate(r[0] ?? "");
