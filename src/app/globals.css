@@ -152,21 +152,7 @@ html, body {
     center;
   background-repeat: repeat, repeat, repeat, no-repeat, no-repeat;
   /* .field-grid divs already have `absolute inset-0` from the markup,
-     which creates the positioning context for the pseudo-elements below. */
-}
-.field-grid::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  /* Slow scanline sweep — adds a subtle "alive" feel */
-  background: linear-gradient(
-    180deg,
-    transparent 40%,
-    rgba(212,168,42,0.04) 50%,
-    transparent 60%
-  );
-  animation: fieldSweep 14s linear infinite;
+     which creates the positioning context for the pseudo-element below. */
 }
 .field-grid::after {
   content: "";
@@ -181,12 +167,6 @@ html, body {
     transparent 82%,
     rgba(11,30,63,0.55) 100%
   );
-}
-@keyframes fieldSweep {
-  0%   { transform: translateY(-100%); opacity: 0; }
-  8%   { opacity: 1; }
-  92%  { opacity: 1; }
-  100% { transform: translateY(100%); opacity: 0; }
 }
 
 /* ── Section ghost text ───────────────────────────────── */

@@ -4,7 +4,6 @@ import HeroSection from "@/components/HeroSection";
 import FaqSection  from "@/components/FaqSection";
 import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
-import TweetsSection from "@/components/TweetsSection";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
@@ -646,7 +645,6 @@ export default async function Home() {
       <main>
         <HeroSection memberCount={MEMBER_COUNT} />
         <NewsSection news={news} />
-        <TweetsSection />
         <ScheduleSection practices={practices} />
         <AboutSection />
         <ActivitySection />
