@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const zenKaku = Zen_Kaku_Gothic_New({
@@ -201,6 +202,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         {children}
+        <Analytics />
       </body>
     </html>
   );
