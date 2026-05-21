@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TERMS, type BaseballTerm } from "@/data/baseball-terms";
+import { generateRomajiVariants, pickVisualVariant } from "@/lib/romaji";
 
 const DURATION = 30; // seconds
 const BEST_KEY = "hakata-typing-best";
@@ -48,6 +49,8 @@ export default function TypingGame() {
   const [shake, setShake] = useState(false);
   const [bestScore, setBestScore] = useState(0);
 
+  const [acceptedVariants, setAcceptedVariants] = useState<string[]>([]);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startMsRef = useRef(0);
@@ -93,6 +96,13 @@ export default function TypingGame() {
       setQuizOptions(makeQuizOptions(current));
     }
   }, [current, mode]);
+
+  // current 変化時にローマ字の受理バリエーションを再計算
+  useEffect(() => {
+    if (current) {
+      setAcceptedVariants(generateRomajiVariants(current.romaji));
+    }
+  }, [current]);
 
   function start() {
     const q = shuffle(TERMS);
@@ -164,13 +174,22 @@ export default function TypingGame() {
     wordStartRef.current = Date.now();
   }, [current]);
 
-  // ── タイピング入力（ローマ字 a-z 小文字） ──
+  // 受理バリエーションのいずれかが完成しているか
+  function isComplete(v: string) {
+    return acceptedVariants.includes(v);
+  }
+  // 受理バリエーションのいずれかの prefix になっているか
+  function isValidPrefix(v: string) {
+    return v === "" || acceptedVariants.some(a => a.startsWith(v));
+  }
+
+  // ── タイピング入力（ローマ字 a-z + "-" 小文字） ──
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (phase !== "playing" || !current) return;
-    const v = e.target.value.toLowerCase().replace(/[^a-z]/g, "");
+    const v = e.target.value.toLowerCase().replace(/[^a-z\-]/g, "");
     setInput(v);
-    if (v === current.romaji) advance(true);
-    else if (!current.romaji.startsWith(v)) {
+    if (isComplete(v)) advance(true);
+    else if (!isValidPrefix(v)) {
       setShake(true);
       setTimeout(() => setShake(false), 200);
     }
@@ -181,12 +200,12 @@ export default function TypingGame() {
     if (phase !== "playing" || !current) return;
     const c = char.toLowerCase();
     setInput(prev => {
-      const next = (prev + c).replace(/[^a-z]/g, "");
-      if (next === current.romaji) {
+      const next = (prev + c).replace(/[^a-z\-]/g, "");
+      if (isComplete(next)) {
         setTimeout(() => advance(true), 0);
         return next;
       }
-      if (!current.romaji.startsWith(next)) {
+      if (!isValidPrefix(next)) {
         setShake(true);
         setTimeout(() => setShake(false), 200);
       }
@@ -263,6 +282,7 @@ export default function TypingGame() {
             input={input}
             shake={shake}
             isTouch={isTouch}
+            acceptedVariants={acceptedVariants}
             inputRef={inputRef}
             onInputChange={onInputChange}
             onKeyDown={onKeyDown}
@@ -394,13 +414,14 @@ function IdleScreen({
 
 // ─── タイピング画面（寿司打スタイル） ─────────
 function TypingPlayingScreen({
-  current, input, shake, isTouch, inputRef, onInputChange, onKeyDown, onSkip,
+  current, input, shake, isTouch, acceptedVariants, inputRef, onInputChange, onKeyDown, onSkip,
   onVirtualKey, onVirtualBackspace,
 }: {
   current: BaseballTerm;
   input: string;
   shake: boolean;
   isTouch: boolean;
+  acceptedVariants: string[];
   inputRef: React.RefObject<HTMLInputElement | null>;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -408,6 +429,8 @@ function TypingPlayingScreen({
   onVirtualKey: (c: string) => void;
   onVirtualBackspace: () => void;
 }) {
+  // 入力の進行に合わせて視覚的なローマ字表示を切り替え（ka-bu / kaabu）
+  const visual = pickVisualVariant(input, acceptedVariants, current.romaji);
   return (
     <div style={{ background: "#fff", border: "1px solid #e0dcd4", padding: "24px 22px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -437,7 +460,7 @@ function TypingPlayingScreen({
           letterSpacing: "0.15em",
           lineHeight: 1.2,
         }}>
-          {current.romaji.split("").map((c, i) => {
+          {visual.split("").map((c, i) => {
             const typed = i < input.length;
             const correct = typed && input[i] === c;
             return (
@@ -511,6 +534,21 @@ function OnscreenKeyboard({
   onBackspace: () => void;
   onSkip: () => void;
 }) {
+  const keyStyle: React.CSSProperties = {
+    flex: 1,
+    aspectRatio: "1",
+    maxHeight: 52,
+    fontFamily: "var(--font-oswald),sans-serif",
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#0b1e3f",
+    background: "#fff",
+    border: "1px solid #d8d4cb",
+    cursor: "pointer",
+    touchAction: "manipulation",
+    userSelect: "none",
+    textTransform: "lowercase",
+  };
   return (
     <div className="kbd-wrap" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {KB_ROWS.map((row, ri) => (
@@ -521,45 +559,41 @@ function OnscreenKeyboard({
               key={ch}
               onClick={() => onKey(ch)}
               className="kbd-key"
-              style={{
-                flex: 1,
-                aspectRatio: "1",
-                maxHeight: 52,
-                fontFamily: "var(--font-oswald),sans-serif",
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#0b1e3f",
-                background: "#fff",
-                border: "1px solid #d8d4cb",
-                cursor: "pointer",
-                touchAction: "manipulation",
-                userSelect: "none",
-                textTransform: "lowercase",
-              }}
+              style={keyStyle}
             >
               {ch}
             </button>
           ))}
           {ri === 1 && <span style={{ flex: "0.5 1 0" }} />}
           {ri === 2 && (
-            <button
-              onClick={onBackspace}
-              className="kbd-key"
-              style={{
-                flex: 1.6,
-                aspectRatio: "auto",
-                maxHeight: 52,
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#fff",
-                background: "#5b6373",
-                border: "none",
-                cursor: "pointer",
-                touchAction: "manipulation",
-              }}
-            >
-              ⌫
-            </button>
+            <>
+              <button
+                onClick={() => onKey("-")}
+                className="kbd-key"
+                style={{ ...keyStyle, background: "#fdf6e3", color: "#0b1e3f" }}
+                aria-label="long vowel mark"
+              >
+                ー
+              </button>
+              <button
+                onClick={onBackspace}
+                className="kbd-key"
+                style={{
+                  flex: 1.4,
+                  aspectRatio: "auto",
+                  maxHeight: 52,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#fff",
+                  background: "#5b6373",
+                  border: "none",
+                  cursor: "pointer",
+                  touchAction: "manipulation",
+                }}
+              >
+                ⌫
+              </button>
+            </>
           )}
         </div>
       ))}

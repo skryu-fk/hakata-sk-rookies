@@ -60,12 +60,20 @@ export default function TypingPage() {
             </h2>
             <ol style={{ fontSize: 14, color: "#3a3f4a", lineHeight: 1.95, paddingLeft: 22, margin: 0 }}>
               <li>「スタート」を押すと <strong>30秒</strong> のカウントダウンが始まります。</li>
-              <li>画面に <strong>野球用語の日本語</strong>（例：レフト）が大きく表示され、その下に <strong>ローマ字</strong>（例：refuto）が出ます。</li>
-              <li>そのローマ字を <strong>IME OFF のまま半角英字</strong> で打ってください。「ー」は母音を2回（カーブ→<code>kaabu</code>）、「っ」は次の子音を2回（ピッチャー→<code>picchaa</code>）。</li>
-              <li>正解すると次のお題に進みます。Enterキーは不要。</li>
-              <li>スキップしたい時は <kbd style={{ background: "#e0dcd4", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>Tab</kbd> キー（スマホはボタン）。</li>
+              <li>画面に <strong>野球用語の日本語</strong>（例：レフト）が大きく表示され、その下に <strong>ローマ字</strong>（例：<code>refuto</code>）が出ます。</li>
+              <li>そのローマ字を <strong>IME OFF のまま半角英字</strong> で打ってください。打った文字に合わせて表示も自動で切り替わります。</li>
+              <li>
+                <strong>入力の柔軟性：</strong>IMEと同じく複数の書き方を受理します。
+                <ul style={{ marginTop: 4 }}>
+                  <li>長音「ー」 → 母音2回 OR ハイフン（カーブ → <code>kaabu</code> / <code>ka-bu</code>）</li>
+                  <li>撥音「ん」 → <code>n</code> OR <code>nn</code>（本塁打 → <code>honruida</code> / <code>honnruida</code>）</li>
+                  <li>訓令式/ヘボン式 → <code>ti</code>/<code>chi</code>、<code>si</code>/<code>shi</code>、<code>tu</code>/<code>tsu</code>、<code>zi</code>/<code>ji</code>、<code>hu</code>/<code>fu</code> どちらも可</li>
+                  <li>拗音 → <code>sha</code>/<code>sya</code>、<code>cha</code>/<code>tya</code>、<code>ja</code>/<code>jya</code>/<code>zya</code> どれでも</li>
+                </ul>
+              </li>
+              <li>正解すると次のお題に進みます。Enterキーは不要。スキップは <kbd style={{ background: "#e0dcd4", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>Tab</kbd> キー（スマホはボタン）。</li>
               <li>終了後にスコア・正解率・各お題の所要秒数が一覧表示されます。自己ベストはブラウザに保存。</li>
-              <li>スマホ・タブレットでは <strong>4択クイズモード</strong> がデフォルトで、設定で <strong>オンスクリーン鍵盤タイピング</strong> にも切り替え可能です。</li>
+              <li>スマホ・タブレットでは <strong>4択クイズモード</strong> がデフォルトで、設定で <strong>オンスクリーン鍵盤タイピング</strong> にも切り替え可能（鍵盤に「ー」キーも付いています）。</li>
             </ol>
           </div>
         </section>
