@@ -264,6 +264,21 @@ html, body {
   transform: translateX(4px);
 }
 
+/* ── Important news row ───────────────────────────────── */
+@keyframes importantPulse {
+  0%, 100% { box-shadow: inset 4px 0 0 #d10024, 0 0 0 0 rgba(209,0,36,0); }
+  50%      { box-shadow: inset 4px 0 0 #d10024, 0 0 0 4px rgba(209,0,36,0.08); }
+}
+.news-row-important {
+  background: linear-gradient(90deg, rgba(209,0,36,0.06), rgba(209,0,36,0.02) 60%, transparent);
+  box-shadow: inset 4px 0 0 #d10024;
+  animation: importantPulse 2.6s ease-in-out infinite;
+  position: relative;
+}
+.news-row-important:hover {
+  background: linear-gradient(90deg, rgba(209,0,36,0.1), rgba(209,0,36,0.04) 60%, transparent);
+}
+
 /* ── Tweet card ───────────────────────────────────────── */
 .tweet-card {
   transition: border-color 0.2s, transform 0.2s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.2s;
@@ -273,6 +288,13 @@ html, body {
   transform: translateY(-3px);
   box-shadow: 0 12px 32px rgba(11,30,63,0.08);
 }
+
+/* ── Legal pages (privacy / commercial) ──────────────── */
+.legal-body ul { margin: 8px 0 8px 22px; padding: 0; }
+.legal-body li { margin-bottom: 4px; line-height: 1.85; }
+.legal-body p { margin-bottom: 12px; }
+.legal-body strong { color: #0b1e3f; font-weight: 700; }
+.legal-body a { color: #d10024; font-weight: 700; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
 
 /* ── News / blog body typography ─────────────────────── */
 .news-body { color: #1f2734; font-size: 15.5px; line-height: 1.95; }

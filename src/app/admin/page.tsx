@@ -30,7 +30,7 @@ const SHEET_FOR: Record<Tab, "news" | "tweets" | "blog" | "practices"> = {
   practice: "practices",
 };
 
-const NEWS_CATEGORIES = ["サイト", "募集", "活動", "試合", "告知"] as const;
+const NEWS_CATEGORIES = ["重要", "サイト", "募集", "活動", "試合", "告知"] as const;
 const BLOG_CATEGORIES = ["コラム", "活動報告", "お役立ち", "試合レポート", "お知らせ"] as const;
 const PRACTICE_STATUSES = [
   { value: "scheduled", label: "予定" },

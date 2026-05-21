@@ -15,6 +15,7 @@
 import { fetchSheetCSV } from "@/lib/sheets";
 
 export const NEWS_CATEGORIES = [
+  "重要",
   "サイト",
   "募集",
   "活動",
@@ -77,6 +78,7 @@ export const news: NewsItem[] = [
 ];
 
 export const CATEGORY_STYLES: Record<NewsCategory, string> = {
+  重要: "bg-red text-white",
   サイト: "bg-navy text-white",
   募集: "bg-red text-white",
   活動: "bg-navy-3 text-white",

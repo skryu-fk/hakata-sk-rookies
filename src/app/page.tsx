@@ -134,17 +134,21 @@ function NewsSection({ news }: { news: NewsItem[] }) {
           {news.map((n, i) => {
             const cs = CATEGORY_STYLES[n.category] as string;
             const hasBody = !!n.body;
+            const isImportant = n.category === "重要";
             const inner = (
               <>
-                <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#0b1e3f", letterSpacing: "0.06em" }}>{n.date}</span>
-                <span className={`order-2 inline-block text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>{n.category}</span>
-                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug">
+                <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: isImportant ? "#d10024" : "#0b1e3f", letterSpacing: "0.06em", fontWeight: isImportant ? 700 : 400 }}>{n.date}</span>
+                <span className={`order-2 inline-flex items-center gap-1 text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>
+                  {isImportant && <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>⚠</span>}
+                  {n.category}
+                </span>
+                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug" style={{ color: isImportant ? "#0b1e3f" : undefined }}>
                   {n.title}
                   {hasBody && <span className="ml-2 text-red text-xs font-bold tracking-wider">詳しく →</span>}
                 </span>
               </>
             );
-            const cls = "news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr]";
+            const cls = `news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr] ${isImportant ? "news-row-important" : ""}`;
             return hasBody ? (
               <Link key={n.slug} href={`/news/${n.slug}`} className={cls} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
                 {inner}
@@ -419,10 +423,10 @@ function AboutSection() {
 /* ── ActivitySection ──────────────────────────────────── */
 const ACTIVITY = [
   { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
-  { label: "ホーム球場", main: "山王公園野球場（予定）",    sub: "正式なホーム契約は結んでいませんが、博多区の山王公園野球場をメインに使わせていただく予定です。空き状況によっては市内の別グラウンドでも活動します。" },
+  { label: "主な活動球場", main: "舞鶴公園 / 山王公園 / 東平尾公園（ベスト電器スタジアム）", sub: "中央区の舞鶴公園野球場、博多区の山王公園野球場、そして博多区の東平尾公園 ベスト電器スタジアム野球場をメインに、市内の各グラウンドで活動します。空き状況に応じて他球場も使用します。" },
   { label: "活動頻度",   main: "週 1〜2回 ＋ 月 3〜4回",    sub: "公園でのキャッチボール練習が週1〜2回、野球場を借りてのノック・バッティング練習が月3〜4回。平日夜・週末どちらも活動あり。参加は出れる時だけでOK。" },
   { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
-  { label: "費用",       main: "月額 ¥500 + 都度 数百円",   sub: "チーム運営費として月額500円。加えて活動ごとにグラウンド代を割り勘で数百円いただきます。※2026年5月12日以降の新規入団者は別途 入会費 2,000円をいただきます（既存メンバーは対象外）。" },
+  { label: "費用",       main: "入会費 ¥2,000 + 月額 ¥500", sub: "新規入団者は入会費2,000円（5月15日以降の入団者から適用、既存メンバーは対象外）＋ チーム運営費として月額500円。※活動に参加するたび、参加人数に関わらず1人あたりグラウンド代400円をいただきます。" },
   { label: "装備",       main: "グローブ持参推奨",           sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。" },
 ];
 
@@ -599,7 +603,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>TEAM INFO</p>
             <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
-              {[["拠点","福岡市"],["本拠地","山王公園野球場（予定）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"],["郵便","〒812-0011 福岡市博多区博多駅前1-23-2 ParkFront博多駅前1丁目 5F-B"]].map(([l,v]) => (
+              {[["拠点","福岡市"],["主な球場","舞鶴公園 / 山王公園 / 東平尾公園（ベスト電器スタジアム）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"],["郵便","〒812-0011 福岡市博多区博多駅前1-23-2 ParkFront博多駅前1丁目 5F-B"]].map(([l,v]) => (
                 <div key={l} style={{ display: "flex", gap: 12 }}>
                   <dt style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", width: 38, flexShrink: 0 }}>{l}</dt>
                   <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}>{v}</dd>
@@ -625,8 +629,13 @@ function Footer() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2 pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
-          <span>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}. All rights reserved.</span>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
+            <span>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}.</span>
+            <Link href="/privacy" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>プライバシーポリシー</Link>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <Link href="/commercial" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>特定商取引法に基づく表記</Link>
+          </div>
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.3em" }}>FUKUOKA — EST. {FOUNDED}</span>
         </div>
       </div>
