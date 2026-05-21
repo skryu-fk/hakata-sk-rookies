@@ -302,6 +302,13 @@ html, body {
   transform: translateY(-2px);
   box-shadow: 0 10px 30px rgba(209,0,36,0.35);
 }
+.kbd-key { transition: background 0.08s, transform 0.08s; }
+.kbd-key:active {
+  background: #0b1e3f !important;
+  color: #fff !important;
+  transform: scale(0.94);
+}
+.kbd-wrap { user-select: none; -webkit-user-select: none; }
 
 /* ── Legal pages (privacy / commercial) ──────────────── */
 .legal-body ul { margin: 8px 0 8px 22px; padding: 0; }
