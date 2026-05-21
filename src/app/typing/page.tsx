@@ -40,8 +40,8 @@ export default function TypingPage() {
               野球用語タイピング
             </h1>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", marginTop: 14, lineHeight: 1.9 }}>
-              30秒のチャレンジ。表示される<strong style={{ color: "#fff" }}>日本語のヒント</strong>を見て、対応する野球用語（英語）をタイピングしてください。
-              覚えながら速く打てたら最高。
+              30秒のチャレンジ。画面に表示される<strong style={{ color: "#fff" }}>野球用語（日本語）</strong>を、
+              下に出る<strong style={{ color: "#d4a82a" }}>ローマ字</strong>を見ながらタイピングしてください。寿司打スタイルの学習＆タイピングゲーム。
             </p>
           </div>
         </div>
@@ -60,10 +60,12 @@ export default function TypingPage() {
             </h2>
             <ol style={{ fontSize: 14, color: "#3a3f4a", lineHeight: 1.95, paddingLeft: 22, margin: 0 }}>
               <li>「スタート」を押すと <strong>30秒</strong> のカウントダウンが始まります。</li>
-              <li>画面に表示される野球用語の<strong>日本語ヒント</strong>を読んで、対応する<strong>英単語</strong>を入力してください（IME OFFのまま半角英字でOK）。</li>
-              <li>正解すると次のお題に進みます。Enterキーを押す必要はなし。</li>
-              <li>制限時間内に何問正解できるかチャレンジ！スキップしたい時は <kbd style={{ background: "#e0dcd4", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>Tab</kbd> キー。</li>
-              <li>終了後にスコアと正解率が表示されます。ベストスコアはブラウザに保存されます。</li>
+              <li>画面に <strong>野球用語の日本語</strong>（例：レフト）が大きく表示され、その下に <strong>ローマ字</strong>（例：refuto）が出ます。</li>
+              <li>そのローマ字を <strong>IME OFF のまま半角英字</strong> で打ってください。「ー」は母音を2回（カーブ→<code>kaabu</code>）、「っ」は次の子音を2回（ピッチャー→<code>picchaa</code>）。</li>
+              <li>正解すると次のお題に進みます。Enterキーは不要。</li>
+              <li>スキップしたい時は <kbd style={{ background: "#e0dcd4", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>Tab</kbd> キー（スマホはボタン）。</li>
+              <li>終了後にスコア・正解率・各お題の所要秒数が一覧表示されます。自己ベストはブラウザに保存。</li>
+              <li>スマホ・タブレットでは <strong>4択クイズモード</strong> がデフォルトで、設定で <strong>オンスクリーン鍵盤タイピング</strong> にも切り替え可能です。</li>
             </ol>
           </div>
         </section>

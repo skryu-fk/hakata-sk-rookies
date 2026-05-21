@@ -19,10 +19,14 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** 4択クイズの選択肢を作る（同カテゴリ優先、足りなければ別カテゴリから補充） */
+/** 4択クイズの選択肢を作る（同カテゴリ優先、ヒント被りは除外） */
 function makeQuizOptions(target: BaseballTerm): string[] {
-  const sameCategory = TERMS.filter(t => t.cat === target.cat && t.word !== target.word);
-  const others = TERMS.filter(t => t.cat !== target.cat && t.word !== target.word);
+  const sameCategory = TERMS.filter(
+    t => t.cat === target.cat && t.word !== target.word && t.hint !== target.hint
+  );
+  const others = TERMS.filter(
+    t => t.cat !== target.cat && t.word !== target.word && t.hint !== target.hint
+  );
   const pool = shuffle([...sameCategory, ...others]).slice(0, 3);
   return shuffle([target.word, ...pool.map(t => t.word)]);
 }
@@ -49,7 +53,7 @@ export default function TypingGame() {
   const startMsRef = useRef(0);
   const wordStartRef = useRef(0);
 
-  // タッチデバイス判定 → モバイルはクイズをデフォルトに
+  // タッチ判定 → デフォルトでクイズ
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -60,7 +64,7 @@ export default function TypingGame() {
     } catch {/* ignore */}
   }, []);
 
-  // ベストスコア読み込み
+  // ベストスコア
   useEffect(() => {
     try {
       const raw = localStorage.getItem(BEST_KEY);
@@ -83,7 +87,7 @@ export default function TypingGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // current が変わるたびにクイズの選択肢を生成
+  // current 変化時にクイズ選択肢を生成
   useEffect(() => {
     if (current && mode === "quiz") {
       setQuizOptions(makeQuizOptions(current));
@@ -125,14 +129,18 @@ export default function TypingGame() {
     });
   }
 
-  // 次のお題へ
+  // スコア算出。ローマ字長 × 8 + 速さボーナス
+  function scoreFor(romajiLen: number, ms: number) {
+    const speedBonus = Math.max(0, Math.round(40 - ms / 100));
+    return romajiLen * 8 + speedBonus;
+  }
+
   const advance = useCallback((ok: boolean) => {
     if (!current) return;
     const ms = Date.now() - wordStartRef.current;
     setLog(prev => [...prev, { word: current.word, hint: current.hint, ok, ms }]);
     if (ok) {
-      const speedBonus = Math.max(0, Math.round(30 - ms / 100));
-      setScore(s => s + current.word.length * 10 + speedBonus);
+      setScore(s => s + scoreFor(current.romaji.length, ms));
       setStreak(s => {
         const next = s + 1;
         setBestStreak(b => Math.max(b, next));
@@ -156,29 +164,29 @@ export default function TypingGame() {
     wordStartRef.current = Date.now();
   }, [current]);
 
-  // ── タイピング入力 ──
+  // ── タイピング入力（ローマ字 a-z 小文字） ──
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (phase !== "playing" || !current) return;
-    const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, "");
+    const v = e.target.value.toLowerCase().replace(/[^a-z]/g, "");
     setInput(v);
-    if (v === current.word) advance(true);
-    else if (!current.word.startsWith(v)) {
+    if (v === current.romaji) advance(true);
+    else if (!current.romaji.startsWith(v)) {
       setShake(true);
       setTimeout(() => setShake(false), 200);
     }
   }
 
-  // スマホ用オンスクリーンキーボード
+  // オンスクリーンキーボード（スマホ）
   function virtualType(char: string) {
     if (phase !== "playing" || !current) return;
+    const c = char.toLowerCase();
     setInput(prev => {
-      const next = (prev + char).toUpperCase().replace(/[^A-Z]/g, "");
-      if (next === current.word) {
-        // advance() は state を読むので setInput 後に呼ぶ
+      const next = (prev + c).replace(/[^a-z]/g, "");
+      if (next === current.romaji) {
         setTimeout(() => advance(true), 0);
         return next;
       }
-      if (!current.word.startsWith(next)) {
+      if (!current.romaji.startsWith(next)) {
         setShake(true);
         setTimeout(() => setShake(false), 200);
       }
@@ -196,15 +204,13 @@ export default function TypingGame() {
     }
   }
 
-  // ── クイズ選択 ──
   function onQuizPick(opt: string) {
     if (phase !== "playing" || !current || quizFeedback) return;
     const ok = opt === current.word;
     setQuizFeedback({ pick: opt, ok });
-    setTimeout(() => advance(ok), 350); // 軽く判定演出
+    setTimeout(() => advance(ok), 350);
   }
 
-  // 統計
   const stats = useMemo(() => {
     const total = log.length;
     const correct = log.filter(l => l.ok).length;
@@ -215,14 +221,12 @@ export default function TypingGame() {
 
   return (
     <div className="typing-game">
-      {/* ステータスバー */}
       <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
         <Stat label="TIME" value={`${time.toFixed(1)}s`} accent={time < 10 ? "#d10024" : "#0b1e3f"} />
         <Stat label="SCORE" value={String(score)} accent="#d4a82a" />
         <Stat label="STREAK" value={`x${streak}`} accent="#0b1e3f" />
       </div>
 
-      {/* 残り時間バー */}
       <div style={{ height: 6, background: "rgba(11,30,63,0.08)", marginBottom: 24, overflow: "hidden" }}>
         <div
           style={{
@@ -327,7 +331,7 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   return (
     <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
       {tab("quiz", "4択クイズ", "タップで選ぶ／指で快適")}
-      {tab("typing", "タイピング", "英字入力／オンスクリーン鍵盤対応")}
+      {tab("typing", "タイピング", "ローマ字入力／日本語学習向き")}
     </div>
   );
 }
@@ -350,9 +354,9 @@ function IdleScreen({
       <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 26, fontWeight: 900, color: "#0b1e3f", marginBottom: 10 }}>
         30秒チャレンジ
       </h2>
-      <p style={{ fontSize: 14, color: "#5b6373", lineHeight: 1.9, marginBottom: 24, maxWidth: 460, marginInline: "auto" }}>
-        野球用語の日本語ヒントを見て、対応する英単語を答えよう。<br />
-        覚えながら速く回答できたら最高。
+      <p style={{ fontSize: 14, color: "#5b6373", lineHeight: 1.9, marginBottom: 24, maxWidth: 480, marginInline: "auto" }}>
+        野球用語の日本語を見て、対応する<strong>ローマ字</strong>を入力。<br />
+        覚えながら速く打てたら最高。
       </p>
 
       {isTouch && (
@@ -388,7 +392,7 @@ function IdleScreen({
   );
 }
 
-// ─── タイピング画面 ───────────────────────────
+// ─── タイピング画面（寿司打スタイル） ─────────
 function TypingPlayingScreen({
   current, input, shake, isTouch, inputRef, onInputChange, onKeyDown, onSkip,
   onVirtualKey, onVirtualBackspace,
@@ -405,18 +409,35 @@ function TypingPlayingScreen({
   onVirtualBackspace: () => void;
 }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #e0dcd4", padding: "28px 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+    <div style={{ background: "#fff", border: "1px solid #e0dcd4", padding: "24px 22px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em" }}>HINT</span>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#d4a82a", background: "rgba(212,168,42,0.12)", padding: "2px 8px" }}>{current.cat}</span>
       </div>
-      <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 18, fontWeight: 700, color: "#0b1e3f", lineHeight: 1.6, marginBottom: 22 }}>
+      <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 13, color: "#5b6373", lineHeight: 1.6, marginBottom: 18 }}>
         {current.hint}
       </p>
 
-      <div className={shake ? "shake" : ""} style={{ background: "#0b1e3f", padding: "22px 24px", marginBottom: 18, textAlign: "center", letterSpacing: "0.15em" }}>
-        <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: "clamp(26px,5vw,42px)", fontWeight: 700, lineHeight: 1.2 }}>
-          {current.word.split("").map((c, i) => {
+      {/* 寿司打スタイル: 日本語の単語をデカく、その下にローマ字をハイライト */}
+      <div className={shake ? "shake" : ""} style={{ background: "#0b1e3f", padding: "26px 24px 24px", marginBottom: 18, textAlign: "center" }}>
+        <div style={{
+          fontFamily: "var(--font-zen),sans-serif",
+          fontSize: "clamp(28px,5.5vw,42px)",
+          fontWeight: 900,
+          color: "#fff",
+          lineHeight: 1.25,
+          letterSpacing: "0.04em",
+          marginBottom: 16,
+        }}>
+          {current.word}
+        </div>
+        <div style={{
+          fontFamily: "var(--font-oswald),sans-serif",
+          fontSize: "clamp(20px,4vw,30px)",
+          letterSpacing: "0.15em",
+          lineHeight: 1.2,
+        }}>
+          {current.romaji.split("").map((c, i) => {
             const typed = i < input.length;
             const correct = typed && input[i] === c;
             return (
@@ -436,7 +457,6 @@ function TypingPlayingScreen({
         </div>
       </div>
 
-      {/* 物理キーボードがあるPC: input使う / タッチデバイス: オンスクリーン鍵盤 */}
       {!isTouch ? (
         <input
           ref={inputRef}
@@ -445,9 +465,8 @@ function TypingPlayingScreen({
           onChange={onInputChange}
           onKeyDown={onKeyDown}
           autoComplete="off"
-          autoCapitalize="characters"
           spellCheck={false}
-          placeholder="英字で入力 (IME OFF)"
+          placeholder="ローマ字で入力 (IME OFF)"
           style={{
             width: "100%",
             padding: "16px 18px",
@@ -457,7 +476,6 @@ function TypingPlayingScreen({
             textAlign: "center",
             border: "2px solid #d10024",
             outline: "none",
-            textTransform: "uppercase",
             background: "#fafafa",
           }}
         />
@@ -483,8 +501,8 @@ function TypingPlayingScreen({
   );
 }
 
-// ─── オンスクリーン A-Z キーボード ───────────
-const KB_ROWS = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+// ─── オンスクリーン キーボード ───────────────
+const KB_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
 function OnscreenKeyboard({
   onKey, onBackspace, onSkip,
@@ -494,7 +512,7 @@ function OnscreenKeyboard({
   onSkip: () => void;
 }) {
   return (
-    <div className="kbd-wrap" style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+    <div className="kbd-wrap" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {KB_ROWS.map((row, ri) => (
         <div key={ri} style={{ display: "flex", justifyContent: "center", gap: 4 }}>
           {ri === 1 && <span style={{ flex: "0.5 1 0" }} />}
@@ -516,6 +534,7 @@ function OnscreenKeyboard({
                 cursor: "pointer",
                 touchAction: "manipulation",
                 userSelect: "none",
+                textTransform: "lowercase",
               }}
             >
               {ch}
@@ -594,18 +613,20 @@ function QuizPlayingScreen({
               onClick={() => onPick(opt)}
               disabled={!!feedback}
               style={{
-                padding: "18px 16px",
+                padding: "18px 14px",
                 background: bg,
                 color,
                 border,
-                fontFamily: "var(--font-oswald),sans-serif",
+                fontFamily: "var(--font-zen),sans-serif",
                 fontSize: "clamp(15px,3.5vw,20px)",
                 fontWeight: 700,
-                letterSpacing: "0.08em",
+                letterSpacing: "0.04em",
                 cursor: feedback ? "default" : "pointer",
                 transition: "all 0.15s",
                 minHeight: 64,
                 touchAction: "manipulation",
+                whiteSpace: "normal",
+                lineHeight: 1.3,
               }}
             >
               {opt}
@@ -678,7 +699,7 @@ function ResultScreen({
                   <span style={{ color: l.ok ? "#1a9f3a" : "#d10024", fontWeight: 700, width: 16 }}>
                     {l.ok ? "✓" : "✕"}
                   </span>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#0b1e3f", fontWeight: 700, minWidth: 110 }}>
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", color: "#0b1e3f", fontWeight: 700, minWidth: 100 }}>
                     {l.word}
                   </span>
                   <span style={{ color: "#5b6373", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
