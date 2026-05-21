@@ -10,6 +10,7 @@ const MENU: [string, string][] = [
   ["#recruit", "メンバー募集"],
   ["#support", "支援"],
   ["#faq", "FAQ"],
+  ["/typing", "⚾ ミニゲーム（タイピング）"],
   ["#contact", "お問い合わせ"],
 ];
 

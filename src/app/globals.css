@@ -289,6 +289,20 @@ html, body {
   box-shadow: 0 12px 32px rgba(11,30,63,0.08);
 }
 
+/* ── Typing game ─────────────────────────────────────── */
+@keyframes typingShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-6px); }
+  75%      { transform: translateX(6px); }
+}
+.typing-game .shake { animation: typingShake 0.2s ease-in-out; }
+.typing-start-btn { transition: all 0.15s; }
+.typing-start-btn:hover {
+  background: #a80019 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(209,0,36,0.35);
+}
+
 /* ── Legal pages (privacy / commercial) ──────────────── */
 .legal-body ul { margin: 8px 0 8px 22px; padding: 0; }
 .legal-body li { margin-bottom: 4px; line-height: 1.85; }
