@@ -52,6 +52,7 @@ const rows: { label: string; value: React.ReactNode }[] = [
         <li><strong>入会費</strong>：2,000円（2026年5月15日以降に新規入団される方のみ／既存メンバーは対象外）</li>
         <li><strong>月会費</strong>：500円／月</li>
         <li><strong>練習参加費</strong>：1人400円／回（参加人数に関わらず一律）</li>
+        <li><strong>既存メンバー向け選択プラン</strong>：月額500円のほか、運営協力として半年一括3,000円プランを選択可能</li>
       </ul>
     ),
   },
