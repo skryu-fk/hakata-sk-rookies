@@ -184,15 +184,30 @@ export default function TypingGame() {
   }
 
   // ── タイピング入力（ローマ字 a-z + "-" 小文字） ──
+  // 間違ったキーは「入力に反映しない」方式（寿司打スタイル）。
+  // 受理されない打鍵は state を更新せず、短い shake だけ出してフィードバック。
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (phase !== "playing" || !current) return;
     const v = e.target.value.toLowerCase().replace(/[^a-z\-]/g, "");
-    setInput(v);
-    if (isComplete(v)) advance(true);
-    else if (!isValidPrefix(v)) {
-      setShake(true);
-      setTimeout(() => setShake(false), 200);
+    // 削除操作（短くなる場合）は常に受理
+    if (v.length < input.length) {
+      setInput(v);
+      return;
     }
+    // 完成なら正解として次へ
+    if (isComplete(v)) {
+      setInput(v);
+      advance(true);
+      return;
+    }
+    // 有効な前方一致なら反映
+    if (isValidPrefix(v)) {
+      setInput(v);
+      return;
+    }
+    // それ以外（誤入力）は state を更新せず、軽く揺らすだけ
+    setShake(true);
+    setTimeout(() => setShake(false), 150);
   }
 
   // オンスクリーンキーボード（スマホ）
@@ -205,11 +220,13 @@ export default function TypingGame() {
         setTimeout(() => advance(true), 0);
         return next;
       }
-      if (!isValidPrefix(next)) {
-        setShake(true);
-        setTimeout(() => setShake(false), 200);
+      if (isValidPrefix(next)) {
+        return next;
       }
-      return next;
+      // 受理しない → 前の入力のまま維持
+      setShake(true);
+      setTimeout(() => setShake(false), 150);
+      return prev;
     });
   }
   function virtualBackspace() {
