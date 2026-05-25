@@ -29,6 +29,10 @@ export const metadata: Metadata = {
   title: "博多SKルーキーズ | HAKATA SK ROOKIES — 福岡市の草野球チーム",
   description:
     "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しむ仲間を募集中。月額500円、グローブがあれば始められます。",
+  applicationName: "博多SKルーキーズ",
+  authors: [{ name: "博多SKルーキーズ" }],
+  creator: "博多SKルーキーズ",
+  publisher: "博多SKルーキーズ",
   keywords: [
     "草野球",
     "草野球チーム",
@@ -45,6 +49,16 @@ export const metadata: Metadata = {
   ],
   alternates: {
     canonical: "/",
+  },
+  // ファビコン（app/ icon.png, apple-icon.png から自動生成されるが、念のため明示）
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png", sizes: "any" },
+    ],
+    shortcut: "/icon.png",
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
   openGraph: {
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
@@ -73,6 +87,33 @@ export const metadata: Metadata = {
 };
 
 const jsonLd = [
+  // ── WebSite ── Google検索結果のサイト名（「Vercel」ではなく「博多SKルーキーズ」）に効く
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "博多SKルーキーズ",
+    alternateName: ["HAKATA SK ROOKIES", "博多SKルーキーズ公式サイト"],
+    url: SITE_URL,
+    inLanguage: "ja-JP",
+    publisher: {
+      "@type": "Organization",
+      name: "博多SKルーキーズ",
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+    },
+  },
+  // ── Organization ── 検索結果のロゴ表示と団体名認識のため
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "博多SKルーキーズ",
+    alternateName: "HAKATA SK ROOKIES",
+    url: SITE_URL,
+    logo: `${SITE_URL}/logo.png`,
+    sameAs: [
+      "https://x.com/SK_rookies_FK",
+      "https://www.instagram.com/hakata_sk_rookies/",
+    ],
+  },
   {
     "@context": "https://schema.org",
     "@type": "SportsTeam",
