@@ -112,7 +112,7 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden lg:flex items-stretch h-full">
-          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -597,7 +597,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["#recruit","メンバー募集"],["/typing","⚾ タイピング"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["/typing","⚾ タイピング"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>

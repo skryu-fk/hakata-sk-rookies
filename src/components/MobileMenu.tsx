@@ -7,6 +7,7 @@ const MENU: [string, string][] = [
   ["/blog", "ブログ"],
   ["#about", "チーム紹介"],
   ["#activity", "活動概要"],
+  ["/uniform", "ユニフォーム紹介"],
   ["#recruit", "メンバー募集"],
   ["#support", "支援"],
   ["#faq", "FAQ"],
