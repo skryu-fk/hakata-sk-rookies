@@ -70,6 +70,9 @@ export default function UniformPage() {
                 priority
               />
             </div>
+            <p style={{ fontSize: 11, color: "#8a8a8a", textAlign: "right", marginTop: 8 }}>
+              ※ 画像はイメージです。実物の仕上がりとは多少異なる場合があります。
+            </p>
           </div>
         </section>
 
@@ -89,6 +92,9 @@ export default function UniformPage() {
                 className="w-full h-auto"
               />
             </div>
+            <p style={{ fontSize: 11, color: "#8a8a8a", textAlign: "right", marginTop: 8 }}>
+              ※ 画像はイメージです。生地・色味は実物と多少異なる場合があります。
+            </p>
             <ul className="mt-8 grid gap-3 grid-cols-1 md:grid-cols-2" style={{ listStyle: "none", padding: 0 }}>
               {[
                 ["フロント", "ピンストライプ＋胸の SK ROOKIES ロゴ。袖はブラック×ジオメトリック模様。"],
@@ -162,6 +168,7 @@ export default function UniformPage() {
               <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em", marginBottom: 8 }}>NOTE</p>
               <ul style={{ fontSize: 13, color: "#3a3f4a", lineHeight: 1.95, margin: 0, paddingLeft: 18 }}>
                 <li>ユニフォームの<strong>購入は強制ではありません</strong>。希望者のみの注文制です。</li>
+                <li>掲載している<strong>画像はすべてイメージ</strong>です。実物の生地感・色味・仕上がりは多少異なる場合があります。</li>
                 <li>注文・サイズの相談は<Link href="/#contact" style={{ color: "#d10024", fontWeight: 700, textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>お問い合わせフォーム</Link>または公式LINEからお願いします。</li>
               </ul>
             </div>
