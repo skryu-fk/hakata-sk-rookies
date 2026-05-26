@@ -5,7 +5,12 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 
-export const ALLOWED_SHEETS = new Set(["news", "tweets", "blog", "practices"]);
+export const ALLOWED_SHEETS = new Set([
+  // コンテンツ系
+  "news", "tweets", "blog", "practices",
+  // チーム運営系（/admin/team で使用）
+  "members", "attendance", "batting",
+]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
 
