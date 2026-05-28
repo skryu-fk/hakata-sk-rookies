@@ -32,6 +32,15 @@ const SHEET_FOR: Record<Tab, "news" | "tweets" | "blog" | "practices"> = {
 
 const NEWS_CATEGORIES = ["重要", "サイト", "募集", "活動", "試合", "告知"] as const;
 const BLOG_CATEGORIES = ["コラム", "活動報告", "お役立ち", "試合レポート", "お知らせ"] as const;
+// 練習種別: "" は自動判定（場所ベース）。明示すればその種別になる。
+const PRACTICE_TYPES = [
+  { value: "",        label: "自動判定（場所から決まる）" },
+  { value: "球場練習", label: "球場練習" },
+  { value: "キャッチボール", label: "公園練習（キャッチボール）" },
+  { value: "全体練習", label: "全体練習（全員集合）" },
+  { value: "練習試合", label: "練習試合（他チーム）" },
+  { value: "試合",    label: "試合（公式戦）" },
+] as const;
 const PRACTICE_STATUSES = [
   { value: "scheduled", label: "予定" },
   { value: "tentative", label: "未定（要相談）" },
@@ -126,7 +135,7 @@ export default function AdminPage() {
   // Practice form
   const [pDate, setPDate] = useState(todayIso);
   const [pPlace, setPPlace] = useState("");
-  const [pIsMatch, setPIsMatch] = useState(false);
+  const [pType, setPType] = useState<(typeof PRACTICE_TYPES)[number]["value"]>("");
   const [pStatus, setPStatus] = useState<(typeof PRACTICE_STATUSES)[number]["value"]>("scheduled");
   const [pTime, setPTime] = useState("");
   const [pNote, setPNote] = useState("");
@@ -145,12 +154,13 @@ export default function AdminPage() {
   const finalSlug = nSlug.trim() || autoSlug(nDate, nTitle);
   const finalBlogSlug = bSlug.trim() || autoSlug(bDate, bTitle);
 
-  // 練習種別は place ベース（球場 or 野球場 → 球場練習、それ以外 → 公園練習）
-  const inferredPracticeType = pIsMatch
-    ? "試合"
-    : /球場/.test(pPlace)
-    ? "球場練習"
-    : "公園練習";
+  // 練習種別: 明示が優先、空なら place ベース
+  const inferredPracticeType =
+    pType
+      ? (pType === "キャッチボール" ? "公園練習" : pType)
+      : /球場/.test(pPlace)
+      ? "球場練習"
+      : "公園練習";
 
   // ───────── 一覧 / 編集 / 削除 ヘルパー ─────────
   async function loadList(t: Tab) {
@@ -190,7 +200,13 @@ export default function AdminPage() {
       setBDate(d[0] ?? ""); setBCat((BLOG_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof BLOG_CATEGORIES[number] : "コラム");
       setBTitle(d[2] ?? ""); setBExcerpt(d[3] ?? ""); setBContent(d[4] ?? ""); setBSlug(d[5] ?? "");
     } else if (t === "practice") {
-      setPDate(d[0] ?? ""); setPIsMatch((d[1] ?? "").trim() === "試合");
+      setPDate(d[0] ?? "");
+      // type 列に書かれていればそれを採用。"" は自動判定モード扱い。
+      {
+        const raw = (d[1] ?? "").trim();
+        const known = PRACTICE_TYPES.map(t => t.value);
+        setPType((known as readonly string[]).includes(raw) ? (raw as (typeof PRACTICE_TYPES)[number]["value"]) : "");
+      }
       setPPlace(d[2] ?? "");
       const st = (d[3] ?? "scheduled") as (typeof PRACTICE_STATUSES)[number]["value"];
       setPStatus(["scheduled", "tentative", "canceled"].includes(st) ? st : "scheduled");
@@ -271,7 +287,7 @@ export default function AdminPage() {
         ? [bDate, bCat, bTitle.trim(), bExcerpt.trim(), bContent.trim(), finalBlogSlug]
         : // practice
           // type は "試合" のときだけ書く（それ以外は place ベースで自動判定される）
-          [pDate, pIsMatch ? "試合" : "", pPlace.trim(), pStatus, pTime.trim(), pNote.trim()];
+          [pDate, pType, pPlace.trim(), pStatus, pTime.trim(), pNote.trim()];
 
     const isUpdate = !!editing && editing.tab === tab;
     const url = isUpdate ? "/api/admin/update" : "/api/admin/append";
@@ -306,7 +322,7 @@ export default function AdminPage() {
         } else if (tab === "blog") {
           setBTitle(""); setBExcerpt(""); setBContent(""); setBSlug("");
         } else if (tab === "practice") {
-          setPPlace(""); setPTime(""); setPNote(""); setPIsMatch(false); setPStatus("scheduled");
+          setPPlace(""); setPTime(""); setPNote(""); setPType(""); setPStatus("scheduled");
         }
         // 一覧があればリフレッシュ
         if (listing[tab] !== null) {
@@ -450,10 +466,11 @@ export default function AdminPage() {
                   <Field label="場所" hint="場所名に「球場」or「野球場」が入っていれば自動的に球場練習扱いになります。">
                     <input value={pPlace} onChange={e => setPPlace(e.target.value)} placeholder="例: 山王公園球場 / 東平尾公園" style={inp} />
                   </Field>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                    <input type="checkbox" id="pIsMatch" checked={pIsMatch} onChange={e => setPIsMatch(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#d10024" }} />
-                    <label htmlFor="pIsMatch" style={{ fontSize: 13, color: "#fff", cursor: "pointer" }}>これは試合（type 列に「試合」と書く）</label>
-                  </div>
+                  <Field label="種別" hint="自動判定のままでもOK。明示すると場所判定よりこちらが優先されます。">
+                    <select value={pType} onChange={e => setPType(e.target.value as (typeof PRACTICE_TYPES)[number]["value"])} style={{ ...inp, cursor: "pointer" }}>
+                      {PRACTICE_TYPES.map(t => <option key={t.value || "auto"} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </Field>
                   <Field label="ステータス">
                     <select value={pStatus} onChange={e => setPStatus(e.target.value as (typeof PRACTICE_STATUSES)[number]["value"])} style={{ ...inp, cursor: "pointer" }}>
                       {PRACTICE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -484,7 +501,15 @@ export default function AdminPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: inferredPracticeType === "球場練習" ? "#d10024" : inferredPracticeType === "試合" ? "#4a90e2" : "#d4a82a", flexShrink: 0 }} />
+                      <span style={{
+                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                        background:
+                          inferredPracticeType === "球場練習" ? "#d10024" :
+                          inferredPracticeType === "試合" ? "#4a90e2" :
+                          inferredPracticeType === "練習試合" ? "#9b59b6" :
+                          inferredPracticeType === "全体練習" ? "#27ae60" :
+                          "#d4a82a", // 公園練習
+                      }} />
                       <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 14 }}>{inferredPracticeType}</span>
                     </div>
                     <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>

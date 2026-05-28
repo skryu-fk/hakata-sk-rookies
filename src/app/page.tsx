@@ -249,7 +249,7 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>{p.type === "キャッチボール" ? "公園練習" : p.type}</span>
+                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>{p.type === "キャッチボール" ? "公園練習" : p.type /* 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま */}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
                   </div>
                   <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: p.note ? 4 : 0 }}>
@@ -307,11 +307,11 @@ function RecentPractices({ practices }: { practices: Practice[] }) {
           {stats.total}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginLeft: 4, letterSpacing: "0.1em" }}>回 実施</span>
         </span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: "auto" }}>
-          {(["球場練習", "キャッチボール", "試合"] as const).map(t =>
+          {(["球場練習", "キャッチボール", "全体練習", "練習試合", "試合"] as const).map(t =>
             stats[t] ? (
               <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} />
-                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : "試合"} {stats[t]}
+                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : t === "全体練習" ? "全体" : t === "練習試合" ? "練習試合" : "試合"} {stats[t]}
               </span>
             ) : null
           )}
@@ -333,7 +333,7 @@ function RecentPractices({ practices }: { practices: Practice[] }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{p.type === "キャッチボール" ? "公園練習" : p.type}</span>
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{p.type === "キャッチボール" ? "公園練習" : p.type /* 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま */}</span>
                   <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", padding: "2px 7px" }}>実施済</span>
                 </div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>

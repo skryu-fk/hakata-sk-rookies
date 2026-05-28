@@ -10,7 +10,7 @@
 
 import { fetchSheetCSV } from "@/lib/sheets";
 
-export type PracticeType = "球場練習" | "キャッチボール" | "試合";
+export type PracticeType = "球場練習" | "キャッチボール" | "試合" | "練習試合" | "全体練習";
 export type PracticeStatus = "scheduled" | "tentative" | "canceled";
 
 export type Practice = {
@@ -27,15 +27,19 @@ export type Practice = {
 };
 
 export const PRACTICE_TYPE_COLOR: Record<PracticeType, string> = {
-  球場練習: "#d10024",
-  キャッチボール: "#d4a82a",
-  試合: "#4a90e2",
+  球場練習: "#d10024",     // 赤
+  キャッチボール: "#d4a82a", // 金（公園練習）
+  試合: "#4a90e2",          // 青（公式戦・対外試合）
+  練習試合: "#9b59b6",      // 紫（他チームとの非公式戦）
+  全体練習: "#27ae60",      // 緑（全員集合での合同練習）
 };
 
 export const PRACTICE_TYPE_LABEL: Record<PracticeType, string> = {
   球場練習: "球場練習",
   キャッチボール: "公園練習",
   試合: "試合",
+  練習試合: "練習試合",
+  全体練習: "全体練習",
 };
 
 /** フォールバック */
@@ -51,16 +55,24 @@ export const practices: Practice[] = [
 
 /**
  * 練習種別を決定する。
- * 試合は type 列が "試合" / "match" のときのみ。
- * それ以外は place（開催場所）ベース：
+ * type 列に明示的に書かれていればそれを優先：
+ *   "試合" / "match"        → 試合
+ *   "練習試合" / "scrim"    → 練習試合
+ *   "全体練習" / "team"     → 全体練習
+ *   "球場練習" / "field"    → 球場練習
+ *   "キャッチボール"/"公園練習" → キャッチボール
+ * それ以外（空 or 認識できない値）は place（開催場所）ベース：
  *   - "球場" "野球場" を含む場合 → 球場練習
  *   - それ以外                  → 公園練習（キャッチボール扱い）
- * これにより、type 列を空にしてもシートが正しく分類される。
  */
 function resolveType(typeColumn: string, place: string): PracticeType {
   const t = typeColumn.trim();
   if (t === "試合" || t === "match") return "試合";
-  // "野球場" は "球場" にマッチするので /球場/ だけで両方拾える
+  if (t === "練習試合" || t === "scrim" || t === "practice-game") return "練習試合";
+  if (t === "全体練習" || t === "team" || t === "全体") return "全体練習";
+  if (t === "球場練習" || t === "field") return "球場練習";
+  if (t === "キャッチボール" || t === "公園練習" || t === "公園" || t === "park") return "キャッチボール";
+  // フォールバック: place ベース。"野球場" は "球場" にマッチするので /球場/ で両方拾える
   if (/球場/.test(place)) return "球場練習";
   return "キャッチボール"; // = 公園練習
 }
