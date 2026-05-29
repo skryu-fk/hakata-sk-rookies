@@ -126,12 +126,17 @@ function Header() {
 
 /* ── NewsSection ──────────────────────────────────────── */
 function NewsSection({ news }: { news: NewsItem[] }) {
+  // ホームでは直近6件のみ表示。それ以上は /news の一覧ページに誘導。
+  const HOME_LIMIT = 6;
+  const shown = news.slice(0, HOME_LIMIT);
+  const hasMore = news.length > HOME_LIMIT;
+
   return (
     <section id="news" className="bg-white border-b border-line-2">
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="お知らせ" en="News" />
         <div>
-          {news.map((n, i) => {
+          {shown.map((n, i) => {
             const cs = CATEGORY_STYLES[n.category] as string;
             const hasBody = !!n.body;
             const isImportant = n.category === "重要";
@@ -161,6 +166,17 @@ function NewsSection({ news }: { news: NewsItem[] }) {
           })}
           <div className="border-t border-line-2" />
         </div>
+        {/* 一覧ページへの導線 */}
+        {hasMore && (
+          <div className="mt-8 text-center">
+            <p style={{ fontSize: 12, color: "#8a8a8a", marginBottom: 14 }}>
+              直近 {HOME_LIMIT} 件を表示しています（全 {news.length} 件）
+            </p>
+            <Link href="/news" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#0b1e3f", color: "#fff", padding: "12px 28px", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em" }}>
+              これ以前のお知らせも確認する →
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );
