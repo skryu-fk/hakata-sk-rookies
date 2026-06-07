@@ -131,15 +131,43 @@ function avg3(v: number): string {
 
 const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
 
-/** "2026-05-29" → "2026/5/29（金）" 形式で表示。パースできない値は素のまま返す。 */
+/**
+ * 様々なフォーマットの日付文字列を "YYYY-MM-DD" に正規化する。
+ * 受理する形式:
+ *   - "2026-05-29" / "2026-5-29"
+ *   - "2026/05/29" / "2026.05.29"
+ *   - JS Date.toString() 形式（"Fri May 29 2026 00:00:00 GMT+0900 (Japan Standard Time)"）
+ *     — Apps Script が Sheets の Date セルを String() した時に出るやつ
+ * パースできない値は元のまま返す。
+ */
+function normalizeDate(s: string): string {
+  if (!s) return "";
+  // 既に YYYY-MM-DD っぽい
+  const cleaned = s.replace(/[./]/g, "-");
+  const m = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) {
+    return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  }
+  // JS Date.toString() 系のフォーマットを Date 経由でパース
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${mm}-${dd}`;
+  }
+  return s; // 諦め
+}
+
+/** "2026-05-29" → "2026/5/29（金）" 形式で表示。 */
 function formatDateJp(dateStr: string): string {
   if (!dateStr) return "";
-  const m = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const normalized = normalizeDate(dateStr);
+  const m = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (!m) return dateStr;
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
-  // タイムゾーンの影響を受けないようローカル日付で生成
   const dt = new Date(y, mo - 1, d);
   if (isNaN(dt.getTime())) return dateStr;
   return `${y}/${mo}/${d}（${WEEKDAY_JP[dt.getDay()]}）`;
@@ -148,7 +176,8 @@ function formatDateJp(dateStr: string): string {
 /** 短縮形 "5/29(金)" */
 function formatDateShort(dateStr: string): string {
   if (!dateStr) return "";
-  const m = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const normalized = normalizeDate(dateStr);
+  const m = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (!m) return dateStr;
   const mo = Number(m[2]);
   const d = Number(m[3]);
@@ -362,7 +391,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       nickname: r.data[2] ?? "",
       jerseyNumber: r.data[3] ?? "",
       position: r.data[4] ?? "",
-      joinedDate: r.data[5] ?? "",
+      joinedDate: normalizeDate(r.data[5] ?? ""),
       active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
       _row: r.rowIndex,
     } as Member));
@@ -375,7 +404,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     setLoadingFor("attendance", false);
     if (!data) return;
     setAttendance((data.rows ?? []).map(r => ({
-      date: r.data[0] ?? "",
+      date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
       memberName: r.data[2] ?? "",
       status: r.data[3] ?? "",
@@ -390,7 +419,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     setLoadingFor("batting", false);
     if (!data) return;
     setBatting((data.rows ?? []).map(r => ({
-      date: r.data[0] ?? "",
+      date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
       memberName: r.data[2] ?? "",
       opponent: r.data[3] ?? "",
@@ -413,7 +442,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     if (!data) return;
     setLineups((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
-      date: r.data[1] ?? "",
+      date: normalizeDate(r.data[1] ?? ""),
       team: r.data[2] ?? "",
       order: num(r.data[3]),
       memberId: r.data[4] ?? "",
@@ -430,7 +459,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     if (!data) return;
     setGames((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
-      date: r.data[1] ?? "",
+      date: normalizeDate(r.data[1] ?? ""),
       homeTeam: r.data[2] ?? "",
       awayTeam: r.data[3] ?? "",
       homeScores: (r.data[4] ?? "").split(",").map(num).filter((_, i, arr) => i < arr.length),
@@ -452,7 +481,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     if (!data) return;
     setPayments((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
-      date: r.data[1] ?? "",
+      date: normalizeDate(r.data[1] ?? ""),
       memberId: r.data[2] ?? "",
       memberName: r.data[3] ?? "",
       amount: num(r.data[4]),
@@ -467,7 +496,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     setLoadingFor("practices", false);
     if (!data) return;
     setPractices((data.rows ?? []).map(r => ({
-      date: r.data[0] ?? "",
+      date: normalizeDate(r.data[0] ?? ""),
       type: r.data[1] ?? "",
       place: r.data[2] ?? "",
       status: r.data[3] ?? "",

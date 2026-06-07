@@ -55,6 +55,30 @@ function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+/**
+ * 編集時にシートから読み込んだ日付を、フォームの入力欄に渡せる形に正規化。
+ *   - "2026.05.29" / "2026/05/29" / "2026-05-29" → そのまま統一形式に
+ *   - JS Date.toString() 形式（"Fri May 29 2026 ..."） → "YYYY-MM-DD"
+ *   - お知らせ用に "." 区切りが欲しい時は dot=true
+ */
+function normalizeDateStr(s: string, dot = false): string {
+  if (!s) return "";
+  const sep = dot ? "." : "-";
+  const cleaned = s.replace(/[./]/g, "-");
+  let m = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}${sep}${mm}${sep}${dd}`;
+    }
+    return s;
+  }
+  return `${m[1]}${sep}${m[2].padStart(2, "0")}${sep}${m[3].padStart(2, "0")}`;
+}
 function autoSlug(date: string, title: string): string {
   // URLに使うので必ず ASCII（英数字とハイフン）だけのスラグを返す。
   // 日本語タイトルはエンコード時の取り回しが面倒なので、
@@ -192,15 +216,15 @@ export default function AdminPage() {
     setEditing({ tab: t, rowIndex: item.rowIndex });
     const d = item.data;
     if (t === "news") {
-      setNDate(d[0] ?? ""); setNCat((NEWS_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof NEWS_CATEGORIES[number] : "告知");
+      setNDate(normalizeDateStr(d[0] ?? "", true)); setNCat((NEWS_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof NEWS_CATEGORIES[number] : "告知");
       setNTitle(d[2] ?? ""); setNBody(d[3] ?? ""); setNSlug(d[4] ?? "");
     } else if (t === "tweets") {
-      setTDate(d[0] ?? ""); setTText(d[1] ?? ""); setTUrl(d[2] ?? "");
+      setTDate(normalizeDateStr(d[0] ?? "")); setTText(d[1] ?? ""); setTUrl(d[2] ?? "");
     } else if (t === "blog") {
-      setBDate(d[0] ?? ""); setBCat((BLOG_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof BLOG_CATEGORIES[number] : "コラム");
+      setBDate(normalizeDateStr(d[0] ?? "", true)); setBCat((BLOG_CATEGORIES as readonly string[]).includes(d[1]) ? d[1] as typeof BLOG_CATEGORIES[number] : "コラム");
       setBTitle(d[2] ?? ""); setBExcerpt(d[3] ?? ""); setBContent(d[4] ?? ""); setBSlug(d[5] ?? "");
     } else if (t === "practice") {
-      setPDate(d[0] ?? "");
+      setPDate(normalizeDateStr(d[0] ?? ""));
       // type 列に書かれていればそれを採用。"" は自動判定モード扱い。
       {
         const raw = (d[1] ?? "").trim();
@@ -676,22 +700,25 @@ export default function AdminPage() {
 
 // ───────── ListPanel ─────────
 function summarizeRow(tab: Tab, data: string[]): { date: string; head: string; sub?: string } {
+  // 一覧表示時もシートから読んだ日付は ugly な Date.toString() 形式かもしれないので normalize する
+  const dateRaw = data[0] ?? "";
+  const date = normalizeDateStr(dateRaw, tab === "news" || tab === "blog");
   if (tab === "news") {
-    return { date: data[0] ?? "", head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
+    return { date, head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
   }
   if (tab === "tweets") {
     const text = (data[1] ?? "").replace(/\s+/g, " ");
-    return { date: data[0] ?? "", head: text.slice(0, 60) + (text.length > 60 ? "…" : "") };
+    return { date, head: text.slice(0, 60) + (text.length > 60 ? "…" : "") };
   }
   if (tab === "blog") {
-    return { date: data[0] ?? "", head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
+    return { date, head: data[2] ?? "(無題)", sub: data[1] ? `[${data[1]}]` : undefined };
   }
   // practice
   const isMatch = (data[1] ?? "").trim() === "試合";
   const place = data[2] ?? "";
   const type = isMatch ? "試合" : /球場/.test(place) ? "球場練習" : "公園練習";
   const stLabel = data[3] === "canceled" ? "中止" : data[3] === "tentative" ? "未定" : "予定";
-  return { date: data[0] ?? "", head: `${place || "(場所未入力)"} — ${type}`, sub: `[${stLabel}]${data[4] ? " " + data[4] : ""}` };
+  return { date, head: `${place || "(場所未入力)"} — ${type}`, sub: `[${stLabel}]${data[4] ? " " + data[4] : ""}` };
 }
 
 function ListPanel({

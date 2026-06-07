@@ -32,6 +32,23 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * セルの値を文字列に変換する。
+ * Google Sheets の Date 型セルは Apps Script では Date オブジェクトとして返るため、
+ * 単に String() すると "Fri May 29 2026 00:00:00 GMT+0900 (Japan Standard Time)" のような
+ * 表示困難な文字列になる。Date は "YYYY-MM-DD" に明示変換する。
+ */
+function cellToString(v) {
+  if (v == null) return "";
+  if (Object.prototype.toString.call(v) === "[object Date]" && !isNaN(v.getTime())) {
+    var y = v.getFullYear();
+    var m = v.getMonth() + 1;
+    var d = v.getDate();
+    return y + "-" + (m < 10 ? "0" + m : m) + "-" + (d < 10 ? "0" + d : d);
+  }
+  return String(v);
+}
+
 function getOrCreateSheet(name) {
   const ss = SpreadsheetApp.openById(SHEET_ID);
   let sh = ss.getSheetByName(name);
@@ -66,10 +83,11 @@ function doPost(e) {
     if (op === "list") {
       const data = sh.getDataRange().getValues();
       // 1行目はヘッダ。データ部に rowIndex を付けて返す（rowIndex は 1-based の表行番号）。
+      // セル値は cellToString() で文字列化（Date オブジェクトは "YYYY-MM-DD" に変換）。
       const rows = data.slice(1).map(function (row, i) {
         return {
-          rowIndex: i + 2, // 2 = 最初のデータ行
-          data: row.map(function (v) { return v == null ? "" : String(v); }),
+          rowIndex: i + 2,
+          data: row.map(cellToString),
         };
       });
       return jsonResponse({ ok: true, rows: rows });
