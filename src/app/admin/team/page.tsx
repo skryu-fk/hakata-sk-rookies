@@ -129,6 +129,34 @@ function avg3(v: number): string {
   return v.toFixed(3).replace(/^0/, "");
 }
 
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+
+/** "2026-05-29" → "2026/5/29（金）" 形式で表示。パースできない値は素のまま返す。 */
+function formatDateJp(dateStr: string): string {
+  if (!dateStr) return "";
+  const m = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return dateStr;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  // タイムゾーンの影響を受けないようローカル日付で生成
+  const dt = new Date(y, mo - 1, d);
+  if (isNaN(dt.getTime())) return dateStr;
+  return `${y}/${mo}/${d}（${WEEKDAY_JP[dt.getDay()]}）`;
+}
+
+/** 短縮形 "5/29(金)" */
+function formatDateShort(dateStr: string): string {
+  if (!dateStr) return "";
+  const m = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return dateStr;
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(Number(m[1]), mo - 1, d);
+  if (isNaN(dt.getTime())) return dateStr;
+  return `${mo}/${d}(${WEEKDAY_JP[dt.getDay()]})`;
+}
+
 // ────────────────────────────────────────────────────────
 // メインコンポーネント
 // ────────────────────────────────────────────────────────
@@ -834,7 +862,7 @@ function MembersTab({
                       </span>
                     </Td>
                     <Td>{m.position || "—"}</Td>
-                    <Td><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{m.joinedDate || "—"}</span></Td>
+                    <Td><span style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}>{formatDateJp(m.joinedDate) || "—"}</span></Td>
                     <Td>
                       {m.active ? (
                         <span style={{ fontSize: 10, padding: "3px 8px", background: "rgba(26,159,58,0.15)", color: "#67e088", letterSpacing: "0.06em" }}>現役</span>
@@ -947,7 +975,7 @@ function AttendanceTab({
               <option value="">— 練習一覧から選択 —</option>
               {sortedPractices.slice(0, 30).map(p => (
                 <option key={p._row} value={p.date}>
-                  {p.date}　{p.place || "(場所未登録)"}{p.time ? ` / ${p.time}` : ""}
+                  {formatDateShort(p.date)}　{p.place || "(場所未登録)"}{p.time ? ` / ${p.time}` : ""}
                 </option>
               ))}
             </select>
@@ -1207,7 +1235,7 @@ function LineupTab({
               <select value="" onChange={e => { if (e.target.value) setDate(e.target.value); }} style={{ ...inputStyle, cursor: "pointer" }}>
                 <option value="">— 練習から選ぶ —</option>
                 {sortedPractices.slice(0, 30).map(p => (
-                  <option key={p._row} value={p.date}>{p.date} {p.place}</option>
+                  <option key={p._row} value={p.date}>{formatDateShort(p.date)} {p.place}</option>
                 ))}
               </select>
             </div>
@@ -1272,12 +1300,16 @@ function ScoreboardTab({
   const [homeErrors, setHomeErrors] = useState(0);
   const [awayErrors, setAwayErrors] = useState(0);
   const [note, setNote] = useState("");
-  // 試合中ライブ指標
+  // ライブ指標
   const [balls, setBalls] = useState(0);
   const [strikes, setStrikes] = useState(0);
   const [outs, setOuts] = useState(0);
   const [currentInning, setCurrentInning] = useState(1);
-  const [isTop, setIsTop] = useState(true); // 表/裏
+  const [isTop, setIsTop] = useState(true); // true=表（ビジター攻撃）, false=裏（ホーム攻撃）
+  // 塁ランナー (true = 走者あり)
+  const [base1, setBase1] = useState(false);
+  const [base2, setBase2] = useState(false);
+  const [base3, setBase3] = useState(false);
 
   useEffect(() => {
     setHomeScores(prev => {
@@ -1297,9 +1329,15 @@ function ScoreboardTab({
   const homeTotal = homeScores.reduce((a, b) => a + b, 0);
   const awayTotal = awayScores.reduce((a, b) => a + b, 0);
 
-  function bumpRun(team: "home" | "away", delta: number) {
-    const setter = team === "home" ? setHomeScores : setAwayScores;
+  // 攻撃側＝表ならビジター、裏ならホーム
+  const offenseLabel = isTop ? awayTeam : homeTeam;
+
+  function bumpRun(delta: number) {
+    const setter = isTop ? setAwayScores : setHomeScores;
     setter(prev => prev.map((v, i) => i === currentInning - 1 ? Math.max(0, v + delta) : v));
+  }
+  function clearBases() {
+    setBase1(false); setBase2(false); setBase3(false);
   }
   function nextHalf() {
     if (isTop) setIsTop(false);
@@ -1308,13 +1346,24 @@ function ScoreboardTab({
       setCurrentInning(i => Math.min(innings, i + 1));
     }
     setBalls(0); setStrikes(0); setOuts(0);
+    clearBases();
   }
 
   function addBall() {
     setBalls(b => {
       if (b >= 3) {
-        // フォアボール - 走者進塁などは手動で反映
-        showToast(true, "フォアボール！");
+        // フォアボール → 走者は1つずつ進塁、満塁なら得点
+        if (base1 && base2 && base3) {
+          bumpRun(1);
+          showToast(true, "フォアボール → 押し出し1点！");
+        } else {
+          showToast(true, "フォアボール！");
+        }
+        // 押し出し進塁の処理（1->2, 2->3, 3->本塁）
+        const newB1 = true;
+        const newB2 = base1 || base2;
+        const newB3 = (base1 && base2) || base3;
+        setBase1(newB1); setBase2(newB2); setBase3(newB3);
         return 0;
       }
       return b + 1;
@@ -1323,7 +1372,6 @@ function ScoreboardTab({
   function addStrike() {
     setStrikes(s => {
       if (s >= 2) {
-        // 三振
         showToast(true, "三振！");
         setOuts(o => {
           if (o >= 2) { showToast(true, "スリーアウト！次の回へ。"); nextHalf(); return 0; }
@@ -1348,6 +1396,7 @@ function ScoreboardTab({
     setHomeScores(Array(innings).fill(0));
     setAwayScores(Array(innings).fill(0));
     setHomeHits(0); setAwayHits(0); setHomeErrors(0); setAwayErrors(0);
+    clearBases();
   }
 
   async function save() {
@@ -1369,7 +1418,7 @@ function ScoreboardTab({
   }
 
   async function remove(g: GameRow) {
-    if (!window.confirm(`${g.date} の試合（${g.homeTeam} vs ${g.awayTeam}）を削除しますか？`)) return;
+    if (!window.confirm(`${formatDateJp(g.date)} の試合（${g.homeTeam} vs ${g.awayTeam}）を削除しますか？`)) return;
     const ok = await api("/api/admin/delete", { sheet: "games", rowIndex: g._row });
     if (ok) { showToast(true, "削除しました。"); reload(); }
   }
@@ -1383,14 +1432,15 @@ function ScoreboardTab({
           <div>
             <label style={labelStyle}>日付</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
           </div>
           <div>
-            <label style={labelStyle}>ホーム（自チーム）</label>
-            <input value={homeTeam} onChange={e => setHomeTeam(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>ビジター（相手）</label>
+            <label style={labelStyle}>ビジター（相手 / 上段）</label>
             <input value={awayTeam} onChange={e => setAwayTeam(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>ホーム（自チーム / 下段）</label>
+            <input value={homeTeam} onChange={e => setHomeTeam(e.target.value)} style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>回数</label>
@@ -1400,7 +1450,7 @@ function ScoreboardTab({
           </div>
         </div>
 
-        {/* スコアテーブル */}
+        {/* スコアテーブル: ビジターが上、ホームが下（標準のベースボールスコアボード） */}
         <div style={{ overflowX: "auto", marginBottom: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -1415,55 +1465,92 @@ function ScoreboardTab({
               </tr>
             </thead>
             <tbody>
-              {([
-                ["home", homeTeam, homeScores, setHomeScores, homeTotal, homeHits, setHomeHits, homeErrors, setHomeErrors],
-                ["away", awayTeam, awayScores, setAwayScores, awayTotal, awayHits, setAwayHits, awayErrors, setAwayErrors],
-              ] as const).map(([key, name, scores, setScores, total, hits, setHits, errs, setErrs]) => (
-                <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <td style={{ padding: 8, fontWeight: 700, maxWidth: 160 }}>{name}</td>
-                  {scores.map((s, i) => (
-                    <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && ((key === "home") !== isTop) ? "rgba(212,168,42,0.06)" : undefined }}>
-                      <input
-                        type="number"
-                        min={0}
-                        value={s}
-                        onChange={e => setScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
-                        style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
-                      />
-                    </td>
-                  ))}
-                  <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{total}</td>
-                  <td style={{ padding: 4, textAlign: "center" }}>
-                    <input type="number" min={0} value={hits} onChange={e => setHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+              {/* 1行目: ビジター（表 = away batting） */}
+              <tr style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <td style={{ padding: 8, fontWeight: 700, maxWidth: 160 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {isTop && <span style={{ fontSize: 10, padding: "2px 6px", background: "#d10024", color: "#fff", letterSpacing: "0.1em" }}>攻撃</span>}
+                    {awayTeam}
+                  </span>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>VISITOR / 表</div>
+                </td>
+                {awayScores.map((s, i) => (
+                  <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && isTop ? "rgba(212,168,42,0.1)" : undefined }}>
+                    <input
+                      type="number" min={0} value={s}
+                      onChange={e => setAwayScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
+                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
+                    />
                   </td>
-                  <td style={{ padding: 4, textAlign: "center" }}>
-                    <input type="number" min={0} value={errs} onChange={e => setErrs(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                ))}
+                <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{awayTotal}</td>
+                <td style={{ padding: 4, textAlign: "center" }}>
+                  <input type="number" min={0} value={awayHits} onChange={e => setAwayHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                </td>
+                <td style={{ padding: 4, textAlign: "center" }}>
+                  <input type="number" min={0} value={awayErrors} onChange={e => setAwayErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                </td>
+              </tr>
+              {/* 2行目: ホーム（裏 = home batting） */}
+              <tr style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <td style={{ padding: 8, fontWeight: 700, maxWidth: 160 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {!isTop && <span style={{ fontSize: 10, padding: "2px 6px", background: "#d10024", color: "#fff", letterSpacing: "0.1em" }}>攻撃</span>}
+                    {homeTeam}
+                  </span>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>HOME / 裏</div>
+                </td>
+                {homeScores.map((s, i) => (
+                  <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && !isTop ? "rgba(212,168,42,0.1)" : undefined }}>
+                    <input
+                      type="number" min={0} value={s}
+                      onChange={e => setHomeScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
+                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
+                    />
                   </td>
-                </tr>
-              ))}
+                ))}
+                <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{homeTotal}</td>
+                <td style={{ padding: 4, textAlign: "center" }}>
+                  <input type="number" min={0} value={homeHits} onChange={e => setHomeHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                </td>
+                <td style={{ padding: 4, textAlign: "center" }}>
+                  <input type="number" min={0} value={homeErrors} onChange={e => setHomeErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
 
-        {/* ライブ指標：B/S/O */}
+        {/* ライブ指標：B/S/O ＋ 塁ランナー */}
         <div style={{ background: "rgba(0,0,0,0.3)", padding: "16px 18px", border: "1px solid rgba(255,255,255,0.1)", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em" }}>LIVE COUNT</p>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-              {currentInning}回{isTop ? "表" : "裏"}
+              <strong style={{ color: "#fff" }}>{currentInning}回{isTop ? "表" : "裏"}</strong>
+              <span style={{ marginLeft: 8, color: "#d4a82a" }}>攻撃: {offenseLabel}</span>
               <button onClick={() => setIsTop(t => !t)} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 8 }}>表⇔裏</button>
               <button onClick={() => setCurrentInning(i => Math.min(innings, i + 1))} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 4 }}>+1回</button>
               <button onClick={() => setCurrentInning(i => Math.max(1, i - 1))} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 4 }}>-1回</button>
             </div>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+
+          {/* B/S/O ＋ 塁ランナー（ダイヤモンド） */}
+          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr 1fr 180px" }}>
             <BSOCounter label="BALL" value={balls} max={4} color="#27ae60" onClick={addBall} onReset={() => setBalls(0)} />
             <BSOCounter label="STRIKE" value={strikes} max={3} color="#d4a82a" onClick={addStrike} onReset={() => setStrikes(0)} />
             <BSOCounter label="OUT" value={outs} max={3} color="#d10024" onClick={addOut} onReset={() => setOuts(0)} />
+            <BaseDiamond
+              base1={base1} base2={base2} base3={base3}
+              onToggle1={() => setBase1(v => !v)}
+              onToggle2={() => setBase2(v => !v)}
+              onToggle3={() => setBase3(v => !v)}
+              onClear={clearBases}
+            />
           </div>
+
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <button onClick={() => { bumpRun(isTop ? "away" : "home", 1); }} style={btnPrimaryStyle}>得点 +1</button>
-            <button onClick={() => { bumpRun(isTop ? "away" : "home", -1); }} style={btnSubStyle}>得点 -1</button>
+            <button onClick={() => bumpRun(1)} style={btnPrimaryStyle}>得点 +1 ({offenseLabel})</button>
+            <button onClick={() => bumpRun(-1)} style={btnSubStyle}>得点 -1</button>
             <button onClick={resetCount} style={btnSubStyle}>カウントリセット (B/S)</button>
             <button onClick={nextHalf} style={btnSubStyle}>次の半回 →</button>
             <button onClick={resetAll} style={{ ...btnSubStyle, marginLeft: "auto" }}>全リセット</button>
@@ -1492,7 +1579,7 @@ function ScoreboardTab({
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <Th>日付</Th>
-                  <Th>カード</Th>
+                  <Th>カード（ビジター vs ホーム）</Th>
                   <Th>スコア</Th>
                   <Th>勝者</Th>
                   <Th>メモ</Th>
@@ -1502,11 +1589,11 @@ function ScoreboardTab({
               <tbody>
                 {[...games].sort((a, b) => b.date.localeCompare(a.date)).map(g => (
                   <tr key={g.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <Td><span style={{ color: "rgba(255,255,255,0.6)" }}>{g.date}</span></Td>
-                    <Td><strong>{g.homeTeam}</strong> vs <strong>{g.awayTeam}</strong></Td>
+                    <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateJp(g.date)}</span></Td>
+                    <Td><strong>{g.awayTeam}</strong> <span style={{ color: "rgba(255,255,255,0.4)" }}>vs</span> <strong>{g.homeTeam}</strong></Td>
                     <Td>
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>
-                        {g.homeScores.reduce((a, b) => a + b, 0)} - {g.awayScores.reduce((a, b) => a + b, 0)}
+                        {g.awayScores.reduce((a, b) => a + b, 0)} - {g.homeScores.reduce((a, b) => a + b, 0)}
                       </span>
                     </Td>
                     <Td>{g.winner}</Td>
@@ -1519,6 +1606,62 @@ function ScoreboardTab({
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** 塁ダイヤモンド表示 — 2塁が上、1塁が右、3塁が左、本塁が下。 */
+function BaseDiamond({
+  base1, base2, base3, onToggle1, onToggle2, onToggle3, onClear,
+}: {
+  base1: boolean; base2: boolean; base3: boolean;
+  onToggle1: () => void; onToggle2: () => void; onToggle3: () => void;
+  onClear: () => void;
+}) {
+  const baseStyle = (on: boolean): React.CSSProperties => ({
+    position: "absolute",
+    width: 32, height: 32,
+    background: on ? "#d4a82a" : "rgba(255,255,255,0.06)",
+    border: on ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)",
+    cursor: "pointer",
+    transition: "all 0.15s",
+    transform: "rotate(45deg)",
+  });
+  const labelStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "50%", left: "50%",
+    transform: "translate(-50%, -50%) rotate(-45deg)",
+    fontFamily: "var(--font-oswald),sans-serif",
+    fontSize: 11,
+    fontWeight: 700,
+    pointerEvents: "none",
+  };
+  const runners = (base1 ? 1 : 0) + (base2 ? 1 : 0) + (base3 ? 1 : 0);
+  return (
+    <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: 8, position: "relative" }}>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.18em", textAlign: "center", marginBottom: 4 }}>RUNNERS</div>
+      <div style={{ position: "relative", width: 110, height: 110, margin: "0 auto" }}>
+        {/* 2塁 (top) */}
+        <button onClick={onToggle2} style={{ ...baseStyle(base2), top: 4, left: "50%", marginLeft: -16 }} title="2塁">
+          <span style={{ ...labelStyle, color: base2 ? "#0b1e3f" : "rgba(255,255,255,0.55)" }}>2</span>
+        </button>
+        {/* 3塁 (left) */}
+        <button onClick={onToggle3} style={{ ...baseStyle(base3), top: "50%", left: 4, marginTop: -16 }} title="3塁">
+          <span style={{ ...labelStyle, color: base3 ? "#0b1e3f" : "rgba(255,255,255,0.55)" }}>3</span>
+        </button>
+        {/* 1塁 (right) */}
+        <button onClick={onToggle1} style={{ ...baseStyle(base1), top: "50%", right: 4, marginTop: -16 }} title="1塁">
+          <span style={{ ...labelStyle, color: base1 ? "#0b1e3f" : "rgba(255,255,255,0.55)" }}>1</span>
+        </button>
+        {/* 本塁 (bottom) - 飾りのみ */}
+        <div style={{ position: "absolute", bottom: 4, left: "50%", marginLeft: -10, width: 20, height: 20, background: "rgba(255,255,255,0.04)", border: "1.5px solid rgba(255,255,255,0.2)", borderRadius: "50% 50% 0 50%", transform: "rotate(45deg)" }} title="本塁" />
+      </div>
+      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+        <span style={{ flex: 1, fontSize: 10, textAlign: "center", color: runners === 0 ? "rgba(255,255,255,0.4)" : "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700 }}>
+          {runners}人 出塁中
+        </span>
+        <button onClick={onClear} style={{ padding: "2px 8px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.15)", fontSize: 10, cursor: "pointer" }}>C</button>
+      </div>
     </div>
   );
 }
@@ -1642,7 +1785,7 @@ function PaymentsTab({
               <select value="" onChange={e => { if (e.target.value) setDate(e.target.value); }} style={{ ...inputStyle, cursor: "pointer" }}>
                 <option value="">— 練習一覧から —</option>
                 {sortedPractices.slice(0, 30).map(p => (
-                  <option key={p._row} value={p.date}>{p.date} {p.place}</option>
+                  <option key={p._row} value={p.date}>{formatDateShort(p.date)} {p.place}</option>
                 ))}
               </select>
             </div>
@@ -1773,7 +1916,7 @@ function BattingTab({
   }
 
   async function remove(b: BattingRow) {
-    if (!window.confirm(`${b.date} ${b.memberName} の記録を削除しますか？`)) return;
+    if (!window.confirm(`${formatDateJp(b.date)} ${b.memberName} の記録を削除しますか？`)) return;
     const ok = await api("/api/admin/delete", { sheet: "batting", rowIndex: b._row });
     if (ok) {
       showToast(true, "削除しました。");
@@ -1852,7 +1995,7 @@ function BattingTab({
               <tbody>
                 {sortedBatting.map((b, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <Td><span style={{ color: "rgba(255,255,255,0.6)" }}>{b.date}</span></Td>
+                    <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(b.date)}</span></Td>
                     <Td><strong>{b.memberName}</strong></Td>
                     <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{b.opponent || "—"}</span></Td>
                     <Td>{b.atBats}</Td>
