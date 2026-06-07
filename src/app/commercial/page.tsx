@@ -51,8 +51,21 @@ const rows: { label: string; value: React.ReactNode }[] = [
       <ul style={{ margin: 0, paddingLeft: 18 }}>
         <li><strong>入会費</strong>：2,000円（2026年5月15日以降に新規入団される方のみ／既存メンバーは対象外）</li>
         <li><strong>スポーツ集団保険料</strong>：2,000円／年（2026年6月15日以降、全メンバー必須）</li>
-        <li><strong>月会費</strong>：500円／月　※<strong>2026年8月分より1,000円</strong>に改定予定</li>
-        <li><strong>練習参加費（グラウンド代）</strong>：1人400円／回（参加人数に関わらず一律）</li>
+        <li>
+          <strong>月会費</strong>：500円／月　※<strong>2026年8月分より1,000円</strong>に改定<br />
+          <span style={{ fontSize: 12, color: "#5b6373" }}>
+            既存メンバーの適用時期：<br />
+            ・月額500円プラン選択者 → <strong>2026年8月分から</strong>1,000円<br />
+            ・半年3,000円プラン選択者 → 現行プランは2026年10月末まで適用、<strong>2026年11月分から</strong>新料金（月額1,000円）に移行
+          </span>
+        </li>
+        <li>
+          <strong>練習参加費（グラウンド代）</strong>：参加人数に関わらず1人一律<br />
+          <span style={{ fontSize: 12, color: "#5b6373" }}>
+            ・2時間練習：400円／回<br />
+            ・4時間練習：500円／回
+          </span>
+        </li>
       </ul>
     ),
   },
