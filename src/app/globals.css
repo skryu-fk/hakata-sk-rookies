@@ -289,6 +289,22 @@ html, body {
   box-shadow: 0 12px 32px rgba(11,30,63,0.08);
 }
 
+/* ── Admin dark-form dropdowns ───────────────────────── */
+/* 管理画面のセレクトボックスは本体が濃紺なので、option もダーク背景に統一して
+   白文字が白背景に乗って見えなくなる問題を回避する。 */
+.admin-dark select option,
+.admin-dark option {
+  background: #131a2c;
+  color: #fff;
+}
+.admin-dark select option:checked {
+  background: #d10024;
+  color: #fff;
+}
+.admin-dark select option:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
 /* ── Legal pages (privacy / commercial) ──────────────── */
 .legal-body ul { margin: 8px 0 8px 22px; padding: 0; }
 .legal-body li { margin-bottom: 4px; line-height: 1.85; }

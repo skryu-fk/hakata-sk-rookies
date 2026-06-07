@@ -368,7 +368,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <main style={{ background: "#0b1e3f", minHeight: "calc(100vh - 64px)", color: "#fff" }}>
+      <main className="admin-dark" style={{ background: "#0b1e3f", minHeight: "calc(100vh - 64px)", color: "#fff" }}>
         <div className="max-w-[1100px] mx-auto px-5 md:px-8" style={{ paddingTop: 32, paddingBottom: 64 }}>
           {/* Password + tab bar */}
           <div className="grid gap-4 md:[grid-template-columns:1fr_auto] items-center mb-8">

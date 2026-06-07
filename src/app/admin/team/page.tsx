@@ -193,7 +193,7 @@ function LoginGate({
   error: string;
 }) {
   return (
-    <div style={{
+    <div className="admin-dark" style={{
       minHeight: "100vh",
       background:
         "radial-gradient(ellipse at top, rgba(209,0,36,0.12), transparent 50%), " +
@@ -465,7 +465,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 
   // ── レンダリング ──
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0e1a", color: "#fff" }}>
+    <div className="admin-dark" style={{ minHeight: "100vh", background: "#0a0e1a", color: "#fff" }}>
       {/* Top bar */}
       <header style={{ background: "#0b1e3f", borderBottom: "3px solid #d10024" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 64, gap: 16 }}>
