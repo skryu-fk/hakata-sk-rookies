@@ -10,6 +10,10 @@ export const ALLOWED_SHEETS = new Set([
   "news", "tweets", "blog", "practices",
   // チーム運営系（/admin/team で使用）
   "members", "attendance", "batting",
+  // 試合・運営拡張
+  "lineups",   // スタメン登録（紅白戦のA/B振り分けにも）
+  "games",     // スコアボード／試合記録
+  "payments",  // グラウンド代の集金記録
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
