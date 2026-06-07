@@ -291,18 +291,34 @@ html, body {
 
 /* ── Admin dark-form dropdowns ───────────────────────── */
 /* 管理画面のセレクトボックスは本体が濃紺なので、option もダーク背景に統一して
-   白文字が白背景に乗って見えなくなる問題を回避する。 */
+   白文字が白背景に乗って見えなくなる問題を回避する。
+   ブラウザ User-Agent stylesheet を確実に上書きするため !important 必須。 */
 .admin-dark select option,
 .admin-dark option {
-  background: #131a2c;
-  color: #fff;
+  background-color: #131a2c !important;
+  color: #ffffff !important;
 }
-.admin-dark select option:checked {
-  background: #d10024;
-  color: #fff;
+.admin-dark select option:hover,
+.admin-dark select option:focus,
+.admin-dark select option:active {
+  background-color: #d10024 !important;
+  color: #ffffff !important;
+}
+.admin-dark select option:checked,
+.admin-dark select option[selected] {
+  background-color: #d10024 !important;
+  /* Firefox 用 — checked 時の背景画像を明示 */
+  background-image: linear-gradient(#d10024, #d10024) !important;
+  color: #ffffff !important;
 }
 .admin-dark select option:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255, 255, 255, 0.3) !important;
+  background-color: #131a2c !important;
+}
+/* セレクト本体（閉じてる状態）のテキスト色も明示しておく */
+.admin-dark select {
+  color: #ffffff;
+  color-scheme: dark;  /* ブラウザにダークテーマだと教える → option もダーク基調に */
 }
 
 /* ── Legal pages (privacy / commercial) ──────────────── */
