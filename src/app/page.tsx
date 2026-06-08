@@ -110,7 +110,7 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden lg:flex items-stretch h-full">
-          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#support","支援"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -554,6 +554,138 @@ function SupportSection() {
   );
 }
 
+/* ── SponsorsSection ──────────────────────────────────── */
+type Sponsor = {
+  key: string;
+  name: string;
+  tagline: string;     // 短いタグライン
+  logo: string;        // /sponsors/xxx.png
+  url: string;
+  body: string;        // 紹介文
+  badge?: string;      // 例: "公式パートナー"
+};
+
+const SPONSORS: Sponsor[] = [
+  {
+    key: "ovrn",
+    name: "OVRN.",
+    tagline: "APPAREL BRAND",
+    logo: "/sponsors/ovrn.png",
+    url: "https://ovrnofficial.base.shop/",
+    body: "代表 柏木が運営する少量生産のアパレルブランド。1着ごとにデザインと素材へ徹底的にこだわった、販売開始と同時に完売することの多いストリートブランド。専属工場との連携で品質を担保しています。今夏に向けて新作のリリースを準備中。",
+    badge: "公式パートナー",
+  },
+];
+
+function SponsorsSection() {
+  return (
+    <section id="sponsors" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="公式スポンサー" en="Sponsors" />
+        <p className="reveal text-[#5b6373] mb-12 text-[15px] leading-[1.9] max-w-2xl" style={{ marginTop: -28 }}>
+          博多SKルーキーズの活動を応援してくださっているパートナー様のご紹介です。各ブランド・店舗様、心より感謝申し上げます。
+        </p>
+
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {SPONSORS.map((s, i) => (
+            <a
+              key={s.key}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sponsor-card reveal"
+              data-delay={String(i * 120)}
+              style={{
+                background: "#fff",
+                border: "1px solid #e0dcd4",
+                textDecoration: "none",
+                color: "inherit",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              {/* ロゴ枠（白背景でロゴを大きく） */}
+              <div style={{
+                position: "relative",
+                background: "#fff",
+                borderBottom: "1px solid #f0ece6",
+                padding: "44px 24px",
+                display: "grid",
+                placeItems: "center",
+                minHeight: 220,
+              }}>
+                <Image
+                  src={s.logo}
+                  alt={s.name}
+                  width={300}
+                  height={150}
+                  className="object-contain max-w-full h-auto"
+                  style={{ maxHeight: 130 }}
+                />
+                {s.badge && (
+                  <span style={{
+                    position: "absolute",
+                    top: 14, left: 14,
+                    fontFamily: "var(--font-oswald),sans-serif",
+                    fontSize: 10,
+                    letterSpacing: "0.3em",
+                    color: "#d10024",
+                    background: "rgba(209,0,36,0.08)",
+                    padding: "3px 9px",
+                  }}>
+                    {s.badge}
+                  </span>
+                )}
+              </div>
+              {/* 本文 */}
+              <div style={{ padding: "24px 26px 22px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em" }}>
+                  {s.tagline}
+                </p>
+                <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.25 }}>
+                  {s.name}
+                </h3>
+                <p style={{ fontSize: 13, color: "#3a3f4a", lineHeight: 1.9, flex: 1 }}>
+                  {s.body}
+                </p>
+                <span style={{
+                  fontFamily: "var(--font-oswald),sans-serif",
+                  fontSize: 12,
+                  color: "#d10024",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  marginTop: 4,
+                }}>
+                  公式ショップを見る →
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+
+        {/* スポンサー募集の導線 */}
+        <div className="reveal mt-12" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "24px 28px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em", marginBottom: 6 }}>
+              SPONSOR — BE THE NEXT PARTNER
+            </p>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 17, fontWeight: 900, color: "#0b1e3f", marginBottom: 4 }}>
+              スポンサーシップ募集中
+            </p>
+            <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>
+              年間 ¥10,000 〜。ユニフォームへのロゴ掲出、サイト・SNSでのご紹介、活動報告での感謝紹介など。
+            </p>
+          </div>
+          <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em" }}>
+            お問い合わせ →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ── ContactSection ───────────────────────────────────── */
 function ContactSection() {
   return (
@@ -611,7 +743,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -675,6 +807,7 @@ export default async function Home() {
         <ActivitySection />
         <RecruitSection />
         <SupportSection />
+        <SponsorsSection />
         <FaqSection />
         <BlogPreview posts={blogs} />
         <ContactSection />

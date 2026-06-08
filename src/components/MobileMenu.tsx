@@ -10,6 +10,7 @@ const MENU: [string, string][] = [
   ["/uniform", "ユニフォーム紹介"],
   ["#recruit", "メンバー募集"],
   ["#support", "支援"],
+  ["#sponsors", "公式スポンサー"],
   ["#faq", "FAQ"],
   ["#contact", "お問い合わせ"],
 ];

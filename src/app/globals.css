@@ -244,6 +244,18 @@ html, body {
 .recruit-row:hover .recruit-num { color: var(--red); }
 .recruit-row:hover .recruit-arrow { opacity: 1; }
 
+/* ── Sponsor card hover ───────────────────────────────── */
+.sponsor-card {
+  transition: transform 0.25s cubic-bezier(0.2,0.8,0.2,1),
+              box-shadow 0.25s cubic-bezier(0.2,0.8,0.2,1),
+              border-color 0.25s;
+}
+.sponsor-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(11,30,63,0.12);
+  border-color: var(--red) !important;
+}
+
 /* ── Support card hover ───────────────────────────────── */
 .support-card {
   transition: background 0.25s, transform 0.25s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.25s, border-color 0.25s;
