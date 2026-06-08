@@ -558,10 +558,13 @@ function SupportSection() {
 type Sponsor = {
   key: string;
   name: string;
-  tagline: string;     // 短いタグライン
+  reading?: string;    // 読み方（例: "オーヴァーン"）
+  tagline: string;     // 短いタグライン（例: "APPAREL BRAND"）
   logo: string;        // /sponsors/xxx.png
   url: string;
   body: string;        // 紹介文
+  slogan?: string;     // スローガン（強調表示）
+  sloganJp?: string;   // スローガン日本語
   badge?: string;      // 例: "公式パートナー"
 };
 
@@ -569,10 +572,13 @@ const SPONSORS: Sponsor[] = [
   {
     key: "ovrn",
     name: "OVRN.",
+    reading: "オーヴァーン",
     tagline: "APPAREL BRAND",
     logo: "/sponsors/ovrn.png",
     url: "https://ovrnofficial.base.shop/",
-    body: "代表 柏木が運営する少量生産のアパレルブランド。1着ごとにデザインと素材へ徹底的にこだわった、販売開始と同時に完売することの多いストリートブランド。専属工場との連携で品質を担保しています。今夏に向けて新作のリリースを準備中。",
+    body: "「Over + Own」を由来とする、ストリートブランド。「他人の真似ではなく、自分を超えていくこと」をテーマに、自分らしく生きようとする人の姿をファッションで表現。トレンドのコピーではなく、リアルに毎日着られるストリートを軸に、シルエット・素材・グラフィックの一つひとつにこだわった、自分を貫ける一着 をデザインしています。",
+    slogan: "Go OVR your limit.",
+    sloganJp: "自分の軸を曲げずに、限界を越えていけ。",
     badge: "公式パートナー",
   },
 ];
@@ -643,19 +649,46 @@ function SponsorsSection() {
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em" }}>
                   {s.tagline}
                 </p>
-                <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.25 }}>
-                  {s.name}
-                </h3>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.25 }}>
+                    {s.name}
+                  </h3>
+                  {s.reading && (
+                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 12, color: "#8a8a8a" }}>
+                      ／ {s.reading}
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: 13, color: "#3a3f4a", lineHeight: 1.9, flex: 1 }}>
                   {s.body}
                 </p>
+                {s.slogan && (
+                  <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: "3px solid #d10024" }}>
+                    <p style={{
+                      fontFamily: "var(--font-oswald),sans-serif",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      fontStyle: "italic",
+                      color: "#0b1e3f",
+                      letterSpacing: "0.02em",
+                      lineHeight: 1.3,
+                    }}>
+                      {s.slogan}
+                    </p>
+                    {s.sloganJp && (
+                      <p style={{ fontSize: 11, color: "#5b6373", marginTop: 4, lineHeight: 1.6 }}>
+                        {s.sloganJp}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <span style={{
                   fontFamily: "var(--font-oswald),sans-serif",
                   fontSize: 12,
                   color: "#d10024",
                   fontWeight: 700,
                   letterSpacing: "0.12em",
-                  marginTop: 4,
+                  marginTop: 8,
                 }}>
                   公式ショップを見る →
                 </span>
