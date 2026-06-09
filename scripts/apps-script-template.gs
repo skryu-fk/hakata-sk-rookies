@@ -24,7 +24,7 @@
 const SHEET_ID = "ここをスプレッドシートのIDに置き換える";
 const PASSWORD = "ここをADMIN_PASSWORDと同じ値に置き換える";
 
-const ALLOWED_SHEETS = ["news", "tweets", "blog", "practices", "members", "attendance", "batting", "lineups", "games", "payments"];
+const ALLOWED_SHEETS = ["news", "tweets", "blog", "practices", "members", "attendance", "batting", "lineups", "games", "payments", "participants"];
 
 function jsonResponse(obj) {
   return ContentService
@@ -64,6 +64,7 @@ function getOrCreateSheet(name) {
   else if (name === "lineups")    sh.appendRow(["id", "date", "team", "order", "memberId", "memberName", "position"]);
   else if (name === "games")      sh.appendRow(["id", "date", "homeTeam", "awayTeam", "homeScores", "awayScores", "homeHits", "awayHits", "homeErrors", "awayErrors", "winner", "note"]);
   else if (name === "payments")   sh.appendRow(["id", "date", "memberId", "memberName", "amount", "note"]);
+  else if (name === "participants") sh.appendRow(["date", "memberId", "memberName", "note"]);
   return sh;
 }
 

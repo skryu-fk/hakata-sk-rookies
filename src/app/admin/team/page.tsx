@@ -106,6 +106,14 @@ type PracticeRow = {
   _row: number;
 };
 
+type ParticipantRow = {
+  date: string;
+  memberId: string;
+  memberName: string;
+  note: string;
+  _row: number;
+};
+
 const POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"] as const;
 const ATTENDANCE_STATUSES = ["出席", "欠席", "遅刻", "未定"] as const;
 
@@ -346,6 +354,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [games, setGames] = useState<GameRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
+  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -506,9 +515,29 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     })));
   }, [api]);
 
+  const loadParticipants = useCallback(async () => {
+    setLoadingFor("participants", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "participants" });
+    setLoadingFor("participants", false);
+    if (!data) return;
+    setParticipants((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      memberId: r.data[1] ?? "",
+      memberName: r.data[2] ?? "",
+      note: r.data[3] ?? "",
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
   // 初回ロード
   useEffect(() => { loadMembers(); }, [loadMembers]);
-  useEffect(() => { if (tab === "attendance") { if (attendance.length === 0) loadAttendance(); if (practices.length === 0) loadPractices(); } }, [tab, attendance.length, practices.length, loadAttendance, loadPractices]);
+  useEffect(() => {
+    if (tab === "attendance") {
+      if (attendance.length === 0) loadAttendance();
+      if (practices.length === 0) loadPractices();
+      if (participants.length === 0) loadParticipants();
+    }
+  }, [tab, attendance.length, practices.length, participants.length, loadAttendance, loadPractices, loadParticipants]);
   useEffect(() => { if (tab === "batting" && batting.length === 0) loadBatting(); }, [tab, batting.length, loadBatting]);
   useEffect(() => { if (tab === "lineup" && lineups.length === 0) loadLineups(); }, [tab, lineups.length, loadLineups]);
   useEffect(() => { if (tab === "scoreboard" && games.length === 0) loadGames(); }, [tab, games.length, loadGames]);
@@ -596,10 +625,13 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             members={members}
             attendance={attendance}
             practices={practices}
+            participants={participants}
             loading={!!loading.attendance}
+            participantsLoading={!!loading.participants}
             api={api}
             reload={loadAttendance}
             reloadPractices={loadPractices}
+            reloadParticipants={loadParticipants}
             showToast={showToast}
           />
         )}
@@ -926,51 +958,104 @@ function Td({ children }: { children: React.ReactNode }) {
 // ────────────────────────────────────────────────────────
 // 出欠確認タブ
 // ────────────────────────────────────────────────────────
+type AttendanceMode = "register" | "checkin";
+
 function AttendanceTab({
-  members, attendance, practices, loading, api, reload, reloadPractices, showToast,
+  members, attendance, practices, participants, loading, participantsLoading,
+  api, reload, reloadPractices, reloadParticipants, showToast,
 }: {
   members: Member[];
   attendance: AttendanceRow[];
   practices: PracticeRow[];
+  participants: ParticipantRow[];
   loading: boolean;
+  participantsLoading: boolean;
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
   reload: () => void;
   reloadPractices: () => void;
+  reloadParticipants: () => void;
   showToast: (ok: boolean, text: string) => void;
 }) {
   const [date, setDate] = useState(todayIso());
+  const [mode, setMode] = useState<AttendanceMode>("register");
+  // 事前登録: 参加予定の memberId set
+  const [draftPreReg, setDraftPreReg] = useState<Set<string>>(new Set());
+  // 当日出欠: memberId → status
   const [draftStatuses, setDraftStatuses] = useState<Record<string, string>>({});
+  // 当日モードで「非登録メンバーも表示する」フラグ
+  const [showAllInCheckin, setShowAllInCheckin] = useState(false);
 
-  // 練習一覧から日付を選んだら反映する
+  // 練習一覧
   const sortedPractices = useMemo(
     () => [...practices].filter(p => p.status !== "canceled").sort((a, b) => b.date.localeCompare(a.date)),
     [practices]
   );
 
-  // 選択日の既存記録
-  const existingForDate = useMemo(() => {
+  // 選択日の既存出欠
+  const existingAttForDate = useMemo(() => {
     const m: Record<string, AttendanceRow> = {};
     for (const a of attendance) if (a.date === date) m[a.memberId] = a;
     return m;
   }, [attendance, date]);
 
-  // active メンバーのみ
+  // 選択日の事前登録メンバー
+  const preRegisteredForDate = useMemo(() => {
+    return participants.filter(p => p.date === date);
+  }, [participants, date]);
+
+  const preRegisteredIds = useMemo(
+    () => new Set(preRegisteredForDate.map(p => p.memberId)),
+    [preRegisteredForDate]
+  );
+
   const activeMembers = members.filter(m => m.active);
 
+  // 日付が変わったら draft をリセット＆事前登録から初期化
+  useEffect(() => {
+    setDraftPreReg(new Set(preRegisteredIds));
+    setDraftStatuses({});
+  }, [date, preRegisteredIds]);
+
+  // 当日モードで表示するメンバー
+  const checkinMembers = showAllInCheckin
+    ? activeMembers
+    : activeMembers.filter(m => preRegisteredIds.has(m.id));
+
   function statusFor(m: Member): string {
-    return draftStatuses[m.id] ?? existingForDate[m.id]?.status ?? "未定";
+    return draftStatuses[m.id] ?? existingAttForDate[m.id]?.status ?? "未定";
   }
 
-  async function save() {
-    if (!date) {
-      showToast(false, "日付を選んでください。");
-      return;
+  // ── 事前登録モード: 保存 ──
+  async function savePreRegistration() {
+    if (!date) { showToast(false, "日付を選んでください。"); return; }
+    // 同日の既存 participants を全削除 → draftPreReg をすべて追加
+    const existing = participants.filter(p => p.date === date);
+    // 削除は行番号の大きい順に（インデックスズレ回避）
+    const sortedDel = [...existing].sort((a, b) => b._row - a._row);
+    for (const e of sortedDel) {
+      await api("/api/admin/delete", { sheet: "participants", rowIndex: e._row });
     }
+    // 追加
+    let added = 0;
+    for (const id of draftPreReg) {
+      const m = members.find(mm => mm.id === id);
+      if (!m) continue;
+      const r = await api("/api/admin/append", { sheet: "participants", row: [date, id, m.name, ""] });
+      if (r) added++;
+    }
+    showToast(true, `参加予定 ${added}名で保存しました。`);
+    reloadParticipants();
+  }
+
+  // ── 当日モード: 出欠保存 ──
+  async function saveAttendance() {
+    if (!date) { showToast(false, "日付を選んでください。"); return; }
     let written = 0;
-    for (const m of activeMembers) {
+    const targets = showAllInCheckin ? activeMembers : checkinMembers;
+    for (const m of targets) {
       const newStatus = draftStatuses[m.id];
-      if (newStatus === undefined) continue; // 変更なし
-      const existing = existingForDate[m.id];
+      if (newStatus === undefined) continue;
+      const existing = existingAttForDate[m.id];
       const row = [date, m.id, m.name, newStatus, existing?.note ?? ""];
       const r = existing
         ? await api("/api/admin/update", { sheet: "attendance", rowIndex: existing._row, row })
@@ -986,98 +1071,224 @@ function AttendanceTab({
     }
   }
 
-  const countBy = (s: string) =>
-    activeMembers.filter(m => statusFor(m) === s).length;
+  function togglePreReg(id: string) {
+    setDraftPreReg(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAllPreReg(checked: boolean) {
+    if (checked) setDraftPreReg(new Set(activeMembers.map(m => m.id)));
+    else setDraftPreReg(new Set());
+  }
+
+  const colors: Record<string, string> = {
+    "出席": "#1a9f3a", "欠席": "#d10024", "遅刻": "#d4a82a", "未定": "#5b6373",
+  };
+  const countBy = (s: string) => checkinMembers.filter(m => statusFor(m) === s).length;
 
   return (
     <div className="grid gap-5 grid-cols-1">
+      {/* 共通: 日付＋モード切替 */}
       <section style={cardStyle}>
-        <H3>練習日の出欠を記録</H3>
-        {sortedPractices.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>登録済み練習から選ぶ</label>
-            <select
-              value=""
-              onChange={e => { if (e.target.value) setDate(e.target.value); }}
-              style={{ ...inputStyle, cursor: "pointer" }}
-            >
-              <option value="">— 練習一覧から選択 —</option>
-              {sortedPractices.slice(0, 30).map(p => (
-                <option key={p._row} value={p.date}>
-                  {formatDateShort(p.date)}　{p.place || "(場所未登録)"}{p.time ? ` / ${p.time}` : ""}
-                </option>
-              ))}
-            </select>
-            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-              ※ 練習リストは「/admin」の練習タブで登録できます。<button onClick={reloadPractices} style={{ background: "transparent", border: "none", color: "#d4a82a", fontSize: 10, cursor: "pointer", textDecoration: "underline" }}>練習一覧を再読込</button>
-            </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+          <H3>練習出欠</H3>
+          {/* モード切替 */}
+          <div style={{ display: "inline-flex", border: "1px solid rgba(255,255,255,0.15)", overflow: "hidden" }}>
+            {([
+              ["register", "📝 事前登録"],
+              ["checkin", "✅ 当日出欠"],
+            ] as [AttendanceMode, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setMode(key)}
+                style={{
+                  padding: "8px 16px",
+                  background: mode === key ? "#d10024" : "transparent",
+                  color: mode === key ? "#fff" : "rgba(255,255,255,0.6)",
+                  border: "none",
+                  fontFamily: "var(--font-zen),sans-serif",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  letterSpacing: "0.08em",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        )}
-        <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "1fr auto auto", flexWrap: "wrap" }}>
+        </div>
+
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
           <div>
             <label style={labelStyle}>練習日</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
           </div>
-          <button onClick={save} style={btnPrimaryStyle}>この日付で保存 →</button>
-          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
+          {sortedPractices.length > 0 && (
+            <div>
+              <label style={labelStyle}>登録済み練習から選ぶ</label>
+              <select value="" onChange={e => { if (e.target.value) setDate(e.target.value); }} style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">— 練習一覧から選択 —</option>
+                {sortedPractices.slice(0, 30).map(p => (
+                  <option key={p._row} value={p.date}>
+                    {formatDateShort(p.date)}　{p.place || "(場所未登録)"}{p.time ? ` / ${p.time}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
-        {/* サマリ */}
-        <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-          {ATTENDANCE_STATUSES.map(s => (
-            <div key={s} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px", textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.16em", textTransform: "uppercase" }}>{s}</div>
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{countBy(s)}</div>
-            </div>
-          ))}
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          {mode === "register" ? (
+            <>
+              <button onClick={savePreRegistration} style={btnPrimaryStyle}>💾 参加予定者として保存</button>
+              <button onClick={() => toggleAllPreReg(true)} style={btnSubStyle}>全員を予定に</button>
+              <button onClick={() => toggleAllPreReg(false)} style={btnSubStyle}>全員解除</button>
+            </>
+          ) : (
+            <>
+              <button onClick={saveAttendance} style={btnPrimaryStyle}>💾 出欠を保存</button>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", border: "1px solid rgba(255,255,255,0.15)", fontSize: 12, cursor: "pointer" }}>
+                <input type="checkbox" checked={showAllInCheckin} onChange={e => setShowAllInCheckin(e.target.checked)} style={{ accentColor: "#d10024" }} />
+                飛び込み参加者も表示
+              </label>
+            </>
+          )}
+          <button onClick={reload} style={{ ...btnSubStyle, marginLeft: "auto" }}>{loading ? "..." : "🔄 出欠再読込"}</button>
+          <button onClick={reloadParticipants} style={btnSubStyle}>{participantsLoading ? "..." : "🔄 参加予定再読込"}</button>
+          <button onClick={reloadPractices} style={btnSubStyle}>練習リスト更新</button>
         </div>
+
+        {/* サマリ（当日モードのみ） */}
+        {mode === "checkin" && (
+          <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            {ATTENDANCE_STATUSES.map(s => (
+              <div key={s} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.16em", textTransform: "uppercase" }}>{s}</div>
+                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{countBy(s)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 事前登録モードの案内 */}
+        {mode === "register" && (
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>
+            この日の<strong style={{ color: "#d4a82a" }}>参加予定者</strong>を選んでください。保存後、当日に「✅ 当日出欠」モードへ切り替えると、ここで登録した人だけがリストアップされ、出席／欠席／遅刻を素早く確認できます。
+          </div>
+        )}
       </section>
 
+      {/* メンバーリスト */}
       <section style={cardStyle}>
-        <H3>メンバー別出欠（{activeMembers.length}名）</H3>
-        {activeMembers.length === 0 ? (
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>アクティブなメンバーがいません。「メンバー名簿」タブから追加してください。</p>
+        {mode === "register" ? (
+          <>
+            <H3>参加予定の登録（{draftPreReg.size} / {activeMembers.length}名）</H3>
+            {activeMembers.length === 0 ? (
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>アクティブなメンバーがいません。「名簿」タブから追加してください。</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {activeMembers.map((m, i) => {
+                  const checked = draftPreReg.has(m.id);
+                  return (
+                    <li
+                      key={m.id || i}
+                      onClick={() => togglePreReg(m.id)}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "32px 1fr",
+                        gap: 12,
+                        alignItems: "center",
+                        padding: "12px 10px",
+                        borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)",
+                        cursor: "pointer",
+                        background: checked ? "rgba(212,168,42,0.07)" : "transparent",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePreReg(m.id)}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: 18, height: 18, accentColor: "#d4a82a", cursor: "pointer" }}
+                      />
+                      <div>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
+                        <span style={{ fontWeight: 700 }}>{m.name}</span>
+                        {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
         ) : (
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {activeMembers.map((m, i) => {
-              const cur = statusFor(m);
-              return (
-                <li key={m.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-                  <div>
-                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
-                    <span style={{ fontWeight: 700 }}>{m.name}</span>
-                    {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {ATTENDANCE_STATUSES.map(s => {
-                      const active = cur === s;
-                      const colors: Record<string, string> = {
-                        "出席": "#1a9f3a", "欠席": "#d10024", "遅刻": "#d4a82a", "未定": "#5b6373",
-                      };
-                      return (
-                        <button
-                          key={s}
-                          onClick={() => setDraftStatuses(prev => ({ ...prev, [m.id]: s }))}
-                          style={{
-                            padding: "6px 12px",
-                            background: active ? colors[s] : "transparent",
-                            color: active ? "#fff" : "rgba(255,255,255,0.5)",
-                            border: active ? "none" : "1px solid rgba(255,255,255,0.15)",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            letterSpacing: "0.06em",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {s}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <H3>
+              当日出欠（{checkinMembers.length}名{showAllInCheckin ? `／全${activeMembers.length}名` : "・参加予定者のみ"}）
+            </H3>
+            {preRegisteredIds.size === 0 && !showAllInCheckin ? (
+              <div style={{ padding: 20, textAlign: "center", background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.1)" }}>
+                <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: 10 }}>
+                  この日の参加予定が登録されていません。
+                </p>
+                <button onClick={() => setMode("register")} style={btnPrimaryStyle}>📝 事前登録モードへ</button>
+                <button onClick={() => setShowAllInCheckin(true)} style={{ ...btnSubStyle, marginLeft: 6 }}>全メンバーで進める</button>
+              </div>
+            ) : checkinMembers.length === 0 ? (
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>表示できるメンバーがいません。</p>
+            ) : (
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {checkinMembers.map((m, i) => {
+                  const cur = statusFor(m);
+                  const isPreReg = preRegisteredIds.has(m.id);
+                  return (
+                    <li key={m.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+                      <div>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
+                        <span style={{ fontWeight: 700 }}>{m.name}</span>
+                        {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
+                        {isPreReg ? (
+                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "rgba(212,168,42,0.15)", color: "#d4a82a", letterSpacing: "0.06em" }}>予定</span>
+                        ) : (
+                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", letterSpacing: "0.06em" }}>飛び込み</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {ATTENDANCE_STATUSES.map(s => {
+                          const active = cur === s;
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => setDraftStatuses(prev => ({ ...prev, [m.id]: s }))}
+                              style={{
+                                padding: "6px 12px",
+                                background: active ? colors[s] : "transparent",
+                                color: active ? "#fff" : "rgba(255,255,255,0.5)",
+                                border: active ? "none" : "1px solid rgba(255,255,255,0.15)",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: "0.06em",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {s}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
         )}
       </section>
     </div>
