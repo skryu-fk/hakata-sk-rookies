@@ -24,7 +24,7 @@
 const SHEET_ID = "ここをスプレッドシートのIDに置き換える";
 const PASSWORD = "ここをADMIN_PASSWORDと同じ値に置き換える";
 
-const ALLOWED_SHEETS = ["news", "tweets", "blog", "practices", "members", "attendance", "batting", "lineups", "games", "payments", "participants"];
+const ALLOWED_SHEETS = ["news", "tweets", "blog", "practices", "members", "attendance", "batting", "lineups", "games", "payments", "participants", "pitching", "catching"];
 
 function jsonResponse(obj) {
   return ContentService
@@ -60,11 +60,13 @@ function getOrCreateSheet(name) {
   else if (name === "practices")  sh.appendRow(["date", "type", "place", "status", "time", "note"]);
   else if (name === "members")    sh.appendRow(["id", "name", "nickname", "jerseyNumber", "position", "joinedDate", "active"]);
   else if (name === "attendance") sh.appendRow(["date", "memberId", "memberName", "status", "note"]);
-  else if (name === "batting")    sh.appendRow(["date", "memberId", "memberName", "opponent", "atBats", "hits", "doubles", "triples", "hr", "rbi", "bb", "so"]);
+  else if (name === "batting")    sh.appendRow(["date", "memberId", "memberName", "opponent", "atBats", "hits", "doubles", "triples", "hr", "rbi", "bb", "so", "hbp", "sh", "sb", "cs"]);
   else if (name === "lineups")    sh.appendRow(["id", "date", "team", "order", "memberId", "memberName", "position"]);
   else if (name === "games")      sh.appendRow(["id", "date", "homeTeam", "awayTeam", "homeScores", "awayScores", "homeHits", "awayHits", "homeErrors", "awayErrors", "winner", "note"]);
   else if (name === "payments")   sh.appendRow(["id", "date", "memberId", "memberName", "amount", "note"]);
   else if (name === "participants") sh.appendRow(["date", "memberId", "memberName", "note"]);
+  else if (name === "pitching")   sh.appendRow(["date", "memberId", "memberName", "opponent", "ipOuts", "hits", "runs", "er", "so", "bb", "hbp"]);
+  else if (name === "catching")   sh.appendRow(["date", "memberId", "memberName", "opponent", "sba", "cs"]);
   return sh;
 }
 

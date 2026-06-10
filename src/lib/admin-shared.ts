@@ -15,6 +15,9 @@ export const ALLOWED_SHEETS = new Set([
   "games",     // スコアボード／試合記録
   "payments",  // グラウンド代の集金記録
   "participants", // 練習への事前登録（参加予定）
+  // 成績データ
+  "pitching",     // 投手成績（防御率・奪三振率の計算用）
+  "catching",     // 捕手成績（盗塁阻止率の計算用）
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
@@ -26,6 +29,27 @@ export function ensureAuth(headers: Headers): Response | null {
     console.error("[admin] ADMIN_PASSWORD is not set");
     return Response.json(
       { ok: false, error: "サーバー設定エラー（ADMIN_PASSWORD 未設定）" },
+      { status: 500 }
+    );
+  }
+  if (pw !== expected) {
+    return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
+  }
+  return null;
+}
+
+/**
+ * メンバー閲覧用のパスワード検証。/stats など read-only ページで使う。
+ * 管理者パスとは別の `MEMBER_PASSWORD` 環境変数を見る（権限分離）。
+ * 管理者パスでも通すフォールバックは敢えて入れない — 二者を必ず別運用にするため。
+ */
+export function ensureMemberAuth(headers: Headers): Response | null {
+  const pw = headers.get("x-member-password") ?? "";
+  const expected = process.env.MEMBER_PASSWORD;
+  if (!expected) {
+    console.error("[member] MEMBER_PASSWORD is not set");
+    return Response.json(
+      { ok: false, error: "サーバー設定エラー（MEMBER_PASSWORD 未設定）" },
       { status: 500 }
     );
   }

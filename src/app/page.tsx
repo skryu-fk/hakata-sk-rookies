@@ -872,6 +872,8 @@ function Footer() {
             <Link href="/privacy" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>プライバシーポリシー</Link>
             <span style={{ opacity: 0.4 }}>·</span>
             <Link href="/commercial" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>特定商取引法に基づく表記</Link>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <Link href="/stats" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>メンバー成績アプリ（要パスワード）</Link>
           </div>
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.3em" }}>FUKUOKA — EST. {FOUNDED}</span>
         </div>

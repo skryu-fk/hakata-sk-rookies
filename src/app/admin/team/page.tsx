@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "payments" | "stats";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "payments" | "stats";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -56,6 +56,35 @@ type BattingRow = {
   rbi: number;
   bb: number;
   so: number;
+  hbp: number;
+  sh: number;
+  sb: number;
+  cs: number;
+  _row: number;
+};
+
+type PitchingRow = {
+  date: string;
+  memberId: string;
+  memberName: string;
+  opponent: string;
+  ipOuts: number;  // 投球回をアウト数で記録（6 outs = 2.0回）
+  hits: number;
+  runs: number;
+  er: number;      // 自責点
+  so: number;      // 奪三振
+  bb: number;      // 与四球
+  hbp: number;     // 与死球
+  _row: number;
+};
+
+type CatchingRow = {
+  date: string;
+  memberId: string;
+  memberName: string;
+  opponent: string;
+  sba: number;     // 盗塁試行された数
+  cs: number;      // 盗塁阻止数
   _row: number;
 };
 
@@ -355,7 +384,10 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [pitching, setPitching] = useState<PitchingRow[]>([]);
+  const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [saving, setSaving] = useState(false);  // 書き込み中フラグ（ボタン disable / ローダー表示用）
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -366,7 +398,15 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   }
 
   // ── 共通 API 呼び出し ──
+  // list 系（読み取り）は loading flag のみ、append/update/delete（書き込み）は saving を立てる。
+  // 連続して呼ばれる可能性があるので Symbol で参照カウントせず、各呼び出しの try/finally で確実に下げる。
+  const writingCount = useRef(0);
   const api = useCallback(async <T,>(path: string, body: Record<string, unknown>): Promise<T | null> => {
+    const isWrite = path !== "/api/admin/list" && path !== "/api/admin/verify";
+    if (isWrite) {
+      writingCount.current += 1;
+      setSaving(true);
+    }
     try {
       const res = await fetch(path, {
         method: "POST",
@@ -382,6 +422,11 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     } catch {
       showToast(false, "ネットワークエラーが発生しました。");
       return null;
+    } finally {
+      if (isWrite) {
+        writingCount.current = Math.max(0, writingCount.current - 1);
+        if (writingCount.current === 0) setSaving(false);
+      }
     }
   }, [pw]);
 
@@ -440,6 +485,48 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       rbi: num(r.data[9]),
       bb: num(r.data[10]),
       so: num(r.data[11]),
+      // 拡張フィールド（既存シートに列がなければ 0）
+      hbp: num(r.data[12]),
+      sh: num(r.data[13]),
+      sb: num(r.data[14]),
+      cs: num(r.data[15]),
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
+  const loadPitching = useCallback(async () => {
+    setLoadingFor("pitching", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "pitching" });
+    setLoadingFor("pitching", false);
+    if (!data) return;
+    setPitching((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      memberId: r.data[1] ?? "",
+      memberName: r.data[2] ?? "",
+      opponent: r.data[3] ?? "",
+      ipOuts: num(r.data[4]),
+      hits: num(r.data[5]),
+      runs: num(r.data[6]),
+      er: num(r.data[7]),
+      so: num(r.data[8]),
+      bb: num(r.data[9]),
+      hbp: num(r.data[10]),
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
+  const loadCatching = useCallback(async () => {
+    setLoadingFor("catching", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "catching" });
+    setLoadingFor("catching", false);
+    if (!data) return;
+    setCatching((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      memberId: r.data[1] ?? "",
+      memberName: r.data[2] ?? "",
+      opponent: r.data[3] ?? "",
+      sba: num(r.data[4]),
+      cs: num(r.data[5]),
       _row: r.rowIndex,
     })));
   }, [api]);
@@ -539,6 +626,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     }
   }, [tab, attendance.length, practices.length, participants.length, loadAttendance, loadPractices, loadParticipants]);
   useEffect(() => { if (tab === "batting" && batting.length === 0) loadBatting(); }, [tab, batting.length, loadBatting]);
+  useEffect(() => { if (tab === "pitching" && pitching.length === 0) loadPitching(); }, [tab, pitching.length, loadPitching]);
+  useEffect(() => { if (tab === "catching" && catching.length === 0) loadCatching(); }, [tab, catching.length, loadCatching]);
   useEffect(() => { if (tab === "lineup" && lineups.length === 0) loadLineups(); }, [tab, lineups.length, loadLineups]);
   useEffect(() => { if (tab === "scoreboard" && games.length === 0) loadGames(); }, [tab, games.length, loadGames]);
   useEffect(() => { if (tab === "payments" && payments.length === 0) loadPayments(); }, [tab, payments.length, loadPayments]);
@@ -546,8 +635,10 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     if (tab === "stats") {
       if (attendance.length === 0) loadAttendance();
       if (batting.length === 0) loadBatting();
+      if (pitching.length === 0) loadPitching();
+      if (catching.length === 0) loadCatching();
     }
-  }, [tab, attendance.length, batting.length, loadAttendance, loadBatting]);
+  }, [tab, attendance.length, batting.length, pitching.length, catching.length, loadAttendance, loadBatting, loadPitching, loadCatching]);
 
   // ── レンダリング ──
   return (
@@ -583,6 +674,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["lineup", "スタメン", lineups.length],
             ["scoreboard", "スコアボード", games.length],
             ["batting", "打席記録", batting.length],
+            ["pitching", "投手記録", pitching.length],
+            ["catching", "捕手記録", catching.length],
             ["payments", "集金", payments.length],
             ["stats", "統計", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
@@ -661,8 +754,31 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             members={members}
             batting={batting}
             loading={!!loading.batting}
+            saving={saving}
             api={api}
             reload={loadBatting}
+            showToast={showToast}
+          />
+        )}
+        {tab === "pitching" && (
+          <PitchingTab
+            members={members}
+            pitching={pitching}
+            loading={!!loading.pitching}
+            saving={saving}
+            api={api}
+            reload={loadPitching}
+            showToast={showToast}
+          />
+        )}
+        {tab === "catching" && (
+          <CatchingTab
+            members={members}
+            catching={catching}
+            loading={!!loading.catching}
+            saving={saving}
+            api={api}
+            reload={loadCatching}
             showToast={showToast}
           />
         )}
@@ -687,6 +803,49 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           />
         )}
       </main>
+
+      {/* Saving overlay — 書き込み中の視覚フィードバック */}
+      {saving && (
+        <div
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(10,14,26,0.55)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{
+            background: "#131a2c",
+            border: "1px solid rgba(212,168,42,0.4)",
+            padding: "16px 24px",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
+            fontFamily: "var(--font-zen),sans-serif",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            color: "#d4a82a",
+            fontSize: 13,
+          }}>
+            <span style={{
+              width: 18, height: 18,
+              border: "2px solid rgba(212,168,42,0.25)",
+              borderTopColor: "#d4a82a",
+              borderRadius: "50%",
+              animation: "skr-spin 0.8s linear infinite",
+            }} />
+            保存中…
+          </div>
+          <style>{`@keyframes skr-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -2105,11 +2264,12 @@ function PaymentsTab({
 // 打席記録タブ
 // ────────────────────────────────────────────────────────
 function BattingTab({
-  members, batting, loading, api, reload, showToast,
+  members, batting, loading, saving, api, reload, showToast,
 }: {
   members: Member[];
   batting: BattingRow[];
   loading: boolean;
+  saving: boolean;
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
   reload: () => void;
   showToast: (ok: boolean, text: string) => void;
@@ -2126,6 +2286,10 @@ function BattingTab({
     rbi: 0,
     bb: 0,
     so: 0,
+    hbp: 0,
+    sh: 0,
+    sb: 0,
+    cs: 0,
   });
 
   async function submit() {
@@ -2142,15 +2306,22 @@ function BattingTab({
       showToast(false, "ヒット数が打席数を超えています。");
       return;
     }
+    // 単打 + 二塁打 + 三塁打 + 本塁打 ≦ ヒット数
+    const longHits = form.doubles + form.triples + form.hr;
+    if (longHits > form.hits) {
+      showToast(false, "長打の合計がヒット数を超えています。");
+      return;
+    }
     const row = [
       form.date, member.id, member.name, form.opponent.trim(),
       String(form.atBats), String(form.hits), String(form.doubles), String(form.triples),
       String(form.hr), String(form.rbi), String(form.bb), String(form.so),
+      String(form.hbp), String(form.sh), String(form.sb), String(form.cs),
     ];
     const ok = await api("/api/admin/append", { sheet: "batting", row });
     if (ok) {
       showToast(true, `${member.name} の打席を記録しました。`);
-      setForm(prev => ({ ...prev, opponent: "", atBats: 0, hits: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0 }));
+      setForm(prev => ({ ...prev, opponent: "", atBats: 0, hits: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0, hbp: 0, sh: 0, sb: 0, cs: 0 }));
       reload();
     }
   }
@@ -2199,8 +2370,12 @@ function BattingTab({
             <NumField label="打点 (RBI)" v={form.rbi} on={n => setForm({ ...form, rbi: n })} />
             <NumField label="四球 (BB)" v={form.bb} on={n => setForm({ ...form, bb: n })} />
             <NumField label="三振 (SO)" v={form.so} on={n => setForm({ ...form, so: n })} />
+            <NumField label="死球 (HBP)" v={form.hbp} on={n => setForm({ ...form, hbp: n })} />
+            <NumField label="犠打 (SH)" v={form.sh} on={n => setForm({ ...form, sh: n })} />
+            <NumField label="盗塁成功 (SB)" v={form.sb} on={n => setForm({ ...form, sb: n })} />
+            <NumField label="盗塁失敗 (CS)" v={form.cs} on={n => setForm({ ...form, cs: n })} />
           </div>
-          <button onClick={submit} style={{ ...btnPrimaryStyle, marginTop: 4 }}>記録する →</button>
+          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "保存中…" : "記録する →"}</button>
         </div>
       </section>
 
@@ -2229,6 +2404,9 @@ function BattingTab({
                   <Th>RBI</Th>
                   <Th>BB</Th>
                   <Th>SO</Th>
+                  <Th>HBP</Th>
+                  <Th>SB</Th>
+                  <Th>CS</Th>
                   <Th>{""}</Th>
                 </tr>
               </thead>
@@ -2246,11 +2424,311 @@ function BattingTab({
                     <Td>{b.rbi}</Td>
                     <Td>{b.bb}</Td>
                     <Td>{b.so}</Td>
+                    <Td>{b.hbp}</Td>
+                    <Td><span style={{ color: b.sb > 0 ? "#67e088" : undefined }}>{b.sb}</span></Td>
+                    <Td>{b.cs}</Td>
                     <Td>
                       <button onClick={() => remove(b)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
                     </Td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// 投手記録タブ
+// ────────────────────────────────────────────────────────
+function PitchingTab({
+  members, pitching, loading, saving, api, reload, showToast,
+}: {
+  members: Member[];
+  pitching: PitchingRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  // 投球回は X.Y 形式（Y は 0/1/2）で入力させ、内部では outs（=X*3+Y）に変換する。
+  const [form, setForm] = useState({
+    date: todayIso(),
+    memberId: "",
+    opponent: "",
+    ipWhole: 0,    // 完投したイニング数
+    ipFraction: 0, // 端数のアウト数（0/1/2）
+    hits: 0,
+    runs: 0,
+    er: 0,
+    so: 0,
+    bb: 0,
+    hbp: 0,
+  });
+
+  async function submit() {
+    const member = members.find(m => m.id === form.memberId);
+    if (!member) { showToast(false, "メンバーを選んでください。"); return; }
+    if (!form.date) { showToast(false, "日付は必須です。"); return; }
+    const ipOuts = form.ipWhole * 3 + form.ipFraction;
+    if (ipOuts <= 0) { showToast(false, "投球回を入力してください。"); return; }
+    if (form.er > form.runs) { showToast(false, "自責点が失点を超えています。"); return; }
+    const row = [
+      form.date, member.id, member.name, form.opponent.trim(),
+      String(ipOuts),
+      String(form.hits), String(form.runs), String(form.er),
+      String(form.so), String(form.bb), String(form.hbp),
+    ];
+    const ok = await api("/api/admin/append", { sheet: "pitching", row });
+    if (ok) {
+      showToast(true, `${member.name} の投球を記録しました。`);
+      setForm(prev => ({ ...prev, opponent: "", ipWhole: 0, ipFraction: 0, hits: 0, runs: 0, er: 0, so: 0, bb: 0, hbp: 0 }));
+      reload();
+    }
+  }
+
+  async function remove(p: PitchingRow) {
+    if (!window.confirm(`${formatDateJp(p.date)} ${p.memberName} の投球記録を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "pitching", rowIndex: p._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  const sortedPitching = [...pitching].sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
+      <section style={cardStyle}>
+        <H3>新しい投手記録</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={labelStyle}>日付</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>投手</label>
+            <select value={form.memberId} onChange={e => setForm({ ...form, memberId: e.target.value })} style={inputStyle as React.CSSProperties}>
+              <option value="">— 選んでください —</option>
+              {members.filter(m => m.active).map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}{m.position === "投手" ? " ★" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>対戦相手 / 試合名</label>
+            <input value={form.opponent} onChange={e => setForm({ ...form, opponent: e.target.value })} placeholder="例: 〇〇クラブ戦" style={inputStyle} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <NumField label="投球回 (完了イニング)" v={form.ipWhole} on={n => setForm({ ...form, ipWhole: n })} />
+            <div>
+              <label style={labelStyle}>端数アウト (0/1/2)</label>
+              <select value={form.ipFraction} onChange={e => setForm({ ...form, ipFraction: Number(e.target.value) })} style={inputStyle as React.CSSProperties}>
+                <option value={0}>0 (.0回)</option>
+                <option value={1}>1 (.1回)</option>
+                <option value={2}>2 (.2回)</option>
+              </select>
+            </div>
+            <NumField label="被安打 (H)" v={form.hits} on={n => setForm({ ...form, hits: n })} />
+            <NumField label="失点 (R)" v={form.runs} on={n => setForm({ ...form, runs: n })} />
+            <NumField label="自責点 (ER)" v={form.er} on={n => setForm({ ...form, er: n })} />
+            <NumField label="奪三振 (SO)" v={form.so} on={n => setForm({ ...form, so: n })} />
+            <NumField label="与四球 (BB)" v={form.bb} on={n => setForm({ ...form, bb: n })} />
+            <NumField label="与死球 (HBP)" v={form.hbp} on={n => setForm({ ...form, hbp: n })} />
+          </div>
+          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", margin: "4px 0 0" }}>
+            投球回は「完了回 + 端数アウト」で入力（例: 5.2 回 = 5回 + 2 out）。防御率は ER×27 / outs で計算します。
+          </p>
+          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+            {saving ? "保存中…" : "記録する →"}
+          </button>
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <H3>投手記録一覧（{pitching.length}件）</H3>
+          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
+        </div>
+        {pitching.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", padding: 24 }}>
+            投手記録がありません。左から登録してください。
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <Th>日付</Th>
+                  <Th>投手</Th>
+                  <Th>対戦</Th>
+                  <Th>IP</Th>
+                  <Th>H</Th>
+                  <Th>R</Th>
+                  <Th>ER</Th>
+                  <Th>SO</Th>
+                  <Th>BB</Th>
+                  <Th>HBP</Th>
+                  <Th>{""}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedPitching.map((p, i) => {
+                  const ipDisplay = `${Math.floor(p.ipOuts / 3)}.${p.ipOuts % 3}`;
+                  return (
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(p.date)}</span></Td>
+                      <Td><strong>{p.memberName}</strong></Td>
+                      <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{p.opponent || "—"}</span></Td>
+                      <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a" }}>{ipDisplay}</span></Td>
+                      <Td>{p.hits}</Td>
+                      <Td>{p.runs}</Td>
+                      <Td>{p.er}</Td>
+                      <Td><span style={{ color: p.so >= 5 ? "#67e088" : undefined, fontWeight: p.so >= 5 ? 700 : 400 }}>{p.so}</span></Td>
+                      <Td>{p.bb}</Td>
+                      <Td>{p.hbp}</Td>
+                      <Td>
+                        <button onClick={() => remove(p)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// 捕手記録タブ（盗塁阻止率用）
+// ────────────────────────────────────────────────────────
+function CatchingTab({
+  members, catching, loading, saving, api, reload, showToast,
+}: {
+  members: Member[];
+  catching: CatchingRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [form, setForm] = useState({
+    date: todayIso(),
+    memberId: "",
+    opponent: "",
+    sba: 0, // 盗塁試行された数
+    cs: 0,  // うち阻止した数
+  });
+
+  async function submit() {
+    const member = members.find(m => m.id === form.memberId);
+    if (!member) { showToast(false, "メンバーを選んでください。"); return; }
+    if (!form.date) { showToast(false, "日付は必須です。"); return; }
+    if (form.cs > form.sba) { showToast(false, "阻止数が試行数を超えています。"); return; }
+    if (form.sba === 0) { showToast(false, "盗塁試行数を入力してください。"); return; }
+    const row = [
+      form.date, member.id, member.name, form.opponent.trim(),
+      String(form.sba), String(form.cs),
+    ];
+    const ok = await api("/api/admin/append", { sheet: "catching", row });
+    if (ok) {
+      showToast(true, `${member.name} の捕手記録を保存しました。`);
+      setForm(prev => ({ ...prev, opponent: "", sba: 0, cs: 0 }));
+      reload();
+    }
+  }
+
+  async function remove(c: CatchingRow) {
+    if (!window.confirm(`${formatDateJp(c.date)} ${c.memberName} の捕手記録を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "catching", rowIndex: c._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  const sortedCatching = [...catching].sort((a, b) => b.date.localeCompare(a.date));
+  const csRate = form.sba > 0 ? (form.cs / form.sba) : 0;
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
+      <section style={cardStyle}>
+        <H3>新しい捕手記録</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={labelStyle}>日付</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>捕手</label>
+            <select value={form.memberId} onChange={e => setForm({ ...form, memberId: e.target.value })} style={inputStyle as React.CSSProperties}>
+              <option value="">— 選んでください —</option>
+              {members.filter(m => m.active).map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}{m.position === "捕手" ? " ★" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>対戦相手 / 試合名</label>
+            <input value={form.opponent} onChange={e => setForm({ ...form, opponent: e.target.value })} placeholder="例: 〇〇クラブ戦" style={inputStyle} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <NumField label="盗塁試行 (SBA)" v={form.sba} on={n => setForm({ ...form, sba: n })} />
+            <NumField label="盗塁阻止 (CS)" v={form.cs} on={n => setForm({ ...form, cs: n })} />
+          </div>
+          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12 }}>
+            この試合の盗塁阻止率: <strong style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{(csRate * 100).toFixed(1)}%</strong>
+          </div>
+          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+            {saving ? "保存中…" : "記録する →"}
+          </button>
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <H3>捕手記録一覧（{catching.length}件）</H3>
+          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
+        </div>
+        {catching.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", padding: 24 }}>
+            捕手記録がありません。左から登録してください。
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <Th>日付</Th>
+                  <Th>捕手</Th>
+                  <Th>対戦</Th>
+                  <Th>盗塁試行</Th>
+                  <Th>阻止</Th>
+                  <Th>阻止率</Th>
+                  <Th>{""}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCatching.map((c, i) => {
+                  const rate = c.sba > 0 ? c.cs / c.sba : 0;
+                  return (
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(c.date)}</span></Td>
+                      <Td><strong>{c.memberName}</strong></Td>
+                      <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{c.opponent || "—"}</span></Td>
+                      <Td>{c.sba}</Td>
+                      <Td>{c.cs}</Td>
+                      <Td><span style={{ color: rate >= 0.3 ? "#67e088" : "#d4a82a", fontFamily: "var(--font-oswald),sans-serif" }}>{(rate * 100).toFixed(1)}%</span></Td>
+                      <Td>
+                        <button onClick={() => remove(c)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+                      </Td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
