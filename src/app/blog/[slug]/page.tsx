@@ -69,7 +69,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
             <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
             <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={23} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
+              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
             </div>
           </Link>

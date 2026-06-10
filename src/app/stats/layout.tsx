@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "博多SKルーキーズメンバー成績アプリ",
@@ -10,6 +10,23 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#070b16",
+};
+
 export default function StatsLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return (
+    <>
+      {/* /stats 配下では html/body をダークに固定。
+          ルートの body は明色 (bg-base) のため、スマホのオーバースクロール
+          （ゴムバンド）時に白い背景が見えてしまうのを防ぐ。 */}
+      <style>{`
+        html, body {
+          background: #070b16 !important;
+          overscroll-behavior-y: none;
+        }
+      `}</style>
+      {children}
+    </>
+  );
 }

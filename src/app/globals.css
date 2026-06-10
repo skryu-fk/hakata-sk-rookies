@@ -45,10 +45,11 @@ html, body {
   from { opacity: 0; transform: translateY(60px) skewY(1.5deg); }
   to   { opacity: 1; transform: translateY(0) skewY(0deg); }
 }
-/* 見出しの「下から拭き上げ」クリップ演出 */
-@keyframes heroClipUp {
-  from { opacity: 0; clip-path: inset(100% 0 0 0); transform: translateY(34px); }
-  to   { opacity: 1; clip-path: inset(0 0 0 0);    transform: translateY(0); }
+/* 見出しの「ブラー + 下からスライド」演出
+   ※ clip-path 方式は line-height < 1 のグリフ上下を切ってしまうため使わない */
+@keyframes heroBlurUp {
+  from { opacity: 0; transform: translateY(48px) skewY(1.2deg); filter: blur(8px); }
+  to   { opacity: 1; transform: translateY(0) skewY(0deg); filter: blur(0); }
 }
 @keyframes heroFadeIn {
   from { opacity: 0; transform: translateY(20px); }
@@ -139,9 +140,9 @@ html, body {
 
 /* ── Hero classes ─────────────────────────────────────── */
 .hero-badge  { animation: badgeIn     0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s  both; }
-.hero-line-1 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.4s  both; }
-.hero-line-2 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.58s both; }
-.hero-line-3 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.76s both; }
+.hero-line-1 { animation: heroBlurUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.4s  both; }
+.hero-line-2 { animation: heroBlurUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.58s both; }
+.hero-line-3 { animation: heroBlurUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.76s both; }
 .hero-sub    { animation: heroFadeIn  0.8s ease 1.0s  both; }
 .hero-btns   { animation: heroFadeIn  0.8s ease 1.15s both; }
 .hero-stats  { animation: heroFadeIn  0.8s ease 1.3s  both; }

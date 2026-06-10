@@ -106,7 +106,7 @@ function Header() {
           <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
           <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
             {/* チーム名はワードマーク画像（博多SKルーキーズ） */}
-            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={25} className="object-contain" priority style={{ width: "clamp(150px, 24vw, 209px)", height: "auto" }} />
+            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={26} className="object-contain" priority style={{ width: "clamp(150px, 24vw, 209px)", height: "auto" }} />
             <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em", textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
           </div>
         </Link>
