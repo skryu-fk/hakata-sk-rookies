@@ -132,7 +132,7 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
               {/* Headline */}
               <h1 className="font-display font-bold leading-[0.95] tracking-tight mb-8" style={{ fontSize: "clamp(56px,9vw,116px)" }}>
                 <span className="block hero-line-1">野球で、</span>
-                <span className="block hero-line-2"><span className="text-gold">福岡</span>を、</span>
+                <span className="block hero-line-2"><span className="hero-gold-sweep">福岡</span>を、</span>
                 <span className="block hero-line-3">熱くする。</span>
               </h1>
 
@@ -162,12 +162,12 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
             </div>
 
             {/* Right: logo */}
-            <div className="hero-logo hidden md:flex flex-col items-center gap-4">
+            <div className="hero-logo hidden md:flex flex-col items-center gap-5">
               <div className="logo-float relative">
-                <div className="absolute inset-[-24px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(209,0,36,0.15) 0%, transparent 70%)", animation: "diamondPulse 3s ease-in-out infinite" }} />
-                <Image src="/logo.png" alt={TEAM_NAME_JP} width={300} height={300}
-                  className="relative object-contain drop-shadow-2xl"
-                  style={{ width: "clamp(200px,20vw,300px)", height: "clamp(200px,20vw,300px)" }}
+                <div className="absolute inset-[-40px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(209,0,36,0.16) 0%, rgba(212,168,42,0.06) 40%, transparent 70%)", animation: "diamondPulse 3s ease-in-out infinite" }} />
+                <Image src="/sk_logo_crop.png" alt={TEAM_NAME_JP} width={340} height={280}
+                  className="relative object-contain"
+                  style={{ width: "clamp(230px,24vw,340px)", height: "auto", filter: "drop-shadow(0 18px 50px rgba(0,0,0,0.45))" }}
                   priority />
               </div>
               <div className="font-display text-white/30 border border-white/12 tracking-[0.4em] text-[11px]" style={{ padding: "6px 18px" }}>
@@ -212,7 +212,7 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
 /* ── CTA buttons ──────────────────────────────────────── */
 function HeroBtn({ href, children, primary = false }: { href: string; children: React.ReactNode; primary?: boolean }) {
   return (
-    <a href={href} style={{
+    <a href={href} className="btn-sheen" style={{
       display: "inline-flex", alignItems: "center", padding: "15px 32px",
       background: primary ? "#d10024" : "transparent",
       color: "#fff",

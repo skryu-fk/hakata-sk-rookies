@@ -68,13 +68,13 @@ export const metadata: Metadata = {
     siteName: "博多SKルーキーズ",
     locale: "ja_JP",
     type: "website",
-    images: [{ url: "/logo.png", width: 512, height: 512, alt: "博多SKルーキーズ ロゴ" }],
+    images: [{ url: "/sk_logo.png", width: 1536, height: 1024, alt: "博多SKルーキーズ ロゴ" }],
   },
   twitter: {
     card: "summary",
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
     description: "福岡市の草野球チーム。初心者歓迎・メンバー募集中。",
-    images: ["/logo.png"],
+    images: ["/sk_logo.png"],
   },
   robots: {
     index: true,
@@ -98,7 +98,7 @@ const jsonLd = [
     publisher: {
       "@type": "Organization",
       name: "博多SKルーキーズ",
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/logo.png` },
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/sk_logo.png` },
     },
   },
   // ── Organization ── 検索結果のロゴ表示と団体名認識のため
@@ -108,7 +108,7 @@ const jsonLd = [
     name: "博多SKルーキーズ",
     alternateName: "HAKATA SK ROOKIES",
     url: SITE_URL,
-    logo: `${SITE_URL}/logo.png`,
+    logo: `${SITE_URL}/sk_logo.png`,
     sameAs: [
       "https://x.com/SK_rookies_FK",
       "https://www.instagram.com/hakata_sk_rookies/",
@@ -121,7 +121,7 @@ const jsonLd = [
     alternateName: "HAKATA SK ROOKIES",
     sport: "Baseball",
     url: SITE_URL,
-    logo: `${SITE_URL}/logo.png`,
+    logo: `${SITE_URL}/sk_logo.png`,
     foundingDate: "2026",
     description:
       "福岡市を拠点に活動する草野球チーム。初心者中心、10〜40代までのメンバーが在籍。",

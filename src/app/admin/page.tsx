@@ -380,7 +380,7 @@ export default function AdminPage() {
       <header style={{ background: "#0b1e3f", color: "#fff", borderBottom: "3px solid #d10024" }}>
         <div className="max-w-[1100px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 64, gap: 16 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-            <Image src="/logo.png" alt="logo" width={36} height={36} className="object-contain" />
+            <Image src="/sk_logo_crop.png" alt="logo" width={44} height={36} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 14 }}>博多SKルーキーズ</div>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.3em", marginTop: 2 }}>ADMIN CONSOLE</div>
@@ -619,7 +619,7 @@ export default function AdminPage() {
                 <div style={{ background: "#f5f2ec", padding: 18, border: "1px solid #e0dcd4" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                     <div style={{ width: 36, height: 36, background: "#0b1e3f", display: "grid", placeItems: "center" }}>
-                      <Image src="/logo.png" alt="" width={28} height={28} className="object-contain" />
+                      <Image src="/sk_mark.png" alt="" width={28} height={16} className="object-contain" />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13, color: "#0b1e3f" }}>博多SKルーキーズ</div>

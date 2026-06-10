@@ -70,7 +70,7 @@ function SectionTitle({ jp, en, light = false }: { jp: string; en: string; light
       <div>
         <p style={S.eyebrow}>{en}</p>
         <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 900, color: light ? "#fff" : "#0b1e3f", lineHeight: 1.1 }}>{jp}</h2>
-        <div style={S.redBar} />
+        <div className="grow-bar" />
       </div>
     </div>
   );
@@ -102,11 +102,12 @@ function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
       <div className="max-w-[1280px] mx-auto px-8 flex items-stretch" style={{ height: 68 }}>
-        <Link href="#top" className="flex items-center gap-3 flex-shrink-0 pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
-          <Image src="/logo.png" alt={TEAM_NAME_JP} width={48} height={48} className="object-contain" priority />
-          <div style={{ lineHeight: 1 }}>
-            <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: "#0b1e3f", letterSpacing: "0.04em" }}>{TEAM_NAME_JP}</div>
-            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#aaa", letterSpacing: "0.3em", marginTop: 3, textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
+        <Link href="#top" className="logo-pop flex items-center gap-3 flex-shrink-0 pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
+          <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
+          <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+            {/* チーム名はワードマーク画像（博多SKルーキーズ） */}
+            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={25} className="object-contain" priority style={{ width: "clamp(150px, 24vw, 209px)", height: "auto" }} />
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em", textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
           </div>
         </Link>
         <nav className="ml-auto hidden lg:flex items-stretch h-full">
@@ -153,13 +154,14 @@ function NewsSection({ news }: { news: NewsItem[] }) {
                 </span>
               </>
             );
-            const cls = `news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr] ${isImportant ? "news-row-important" : ""}`;
+            const cls = `news-row reveal flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr] ${isImportant ? "news-row-important" : ""}`;
+            const delay = String(i * 70);
             return hasBody ? (
-              <Link key={n.slug} href={`/news/${n.slug}`} className={cls} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+              <Link key={n.slug} href={`/news/${n.slug}`} className={cls} data-delay={delay} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
                 {inner}
               </Link>
             ) : (
-              <div key={n.slug || i} className={cls}>
+              <div key={n.slug || i} className={cls} data-delay={delay}>
                 {inner}
               </div>
             );
@@ -225,6 +227,10 @@ const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }>
   canceled:  { label: "中止",  bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
 };
 
+function practiceLabel(t: Practice["type"]) {
+  return t === "キャッチボール" ? "公園練習" : t; // 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま
+}
+
 function UpcomingPractices({ practices }: { practices: Practice[] }) {
   // 文字列比較でJST由来のズレを回避（YYYY-MM-DDはISO昇順=日付昇順）
   const now = new Date();
@@ -235,48 +241,103 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5);
 
+  const [next, ...rest] = upcoming;
+
   return (
     <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-      <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 20px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>近日の練習</span>
+      <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 4, height: 16, background: "#d10024" }} />
+          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>近日の練習</span>
+        </span>
         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
       </div>
-      {upcoming.length === 0 ? (
+
+      {!next ? (
         <div style={{ padding: "32px 24px", textAlign: "center" }}>
           <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, lineHeight: 1.8 }}>次の練習日は調整中です。<br />決まり次第こちらに掲載します。</p>
         </div>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {upcoming.map((p) => {
-            const d = new Date(p.date + "T00:00:00");
+        <>
+          {/* ── 次回練習のフィーチャーカード ── */}
+          {(() => {
+            const d = new Date(next.date + "T00:00:00");
             const mm = String(d.getMonth() + 1).padStart(2, "0");
             const dd = String(d.getDate()).padStart(2, "0");
             const wd = WEEKDAY_JP[d.getDay()];
-            const st = STATUS_STYLE[p.status];
-            const dotColor = p.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[p.type];
+            const st = STATUS_STYLE[next.status];
+            const typeColor = next.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[next.type];
             return (
-              <li key={p.date + p.place} style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1 }}>
-                <div style={{ minWidth: 54, textAlign: "center" }}>
-                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>{p.type === "キャッチボール" ? "公園練習" : p.type /* 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま */}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+              <div className="practice-feature" style={{
+                margin: "14px 14px 10px",
+                background: "linear-gradient(135deg, rgba(212,168,42,0.07), rgba(209,0,36,0.05))",
+                border: "1px solid rgba(212,168,42,0.45)",
+                borderLeft: `4px solid ${typeColor}`,
+                padding: "18px 18px 16px",
+                position: "relative",
+                opacity: next.status === "canceled" ? 0.55 : 1,
+              }}>
+                <span className="next-chip" style={{
+                  position: "absolute", top: -10, right: 12,
+                  fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700,
+                  letterSpacing: "0.3em", background: "#d4a82a", color: "#0b1e3f",
+                  padding: "3px 12px",
+                }}>NEXT</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 34, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
+                    <div style={{ fontSize: 11, color: "#d4a82a", marginTop: 5, letterSpacing: "0.15em", fontWeight: 700 }}>{wd}曜日</div>
                   </div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginBottom: p.note ? 4 : 0 }}>
-                    📍 {p.place}{p.time ? ` / ${p.time}` : ""}
+                  <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: typeColor, flexShrink: 0 }} />
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, color: "#fff", fontSize: 16 }}>{practiceLabel(next.type)}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>📍 {next.place}</div>
+                    {next.time && <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
+                    {next.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginTop: 5 }}>※ {next.note}</div>}
                   </div>
-                  {p.note && (
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>※ {p.note}</div>
-                  )}
                 </div>
-              </li>
+              </div>
             );
-          })}
-        </ul>
+          })()}
+
+          {/* ── それ以降の予定 ── */}
+          {rest.length > 0 && (
+            <ul style={{ listStyle: "none", margin: 0, padding: "0 0 4px" }}>
+              {rest.map((p) => {
+                const d = new Date(p.date + "T00:00:00");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const wd = WEEKDAY_JP[d.getDay()];
+                const st = STATUS_STYLE[p.status];
+                const dotColor = p.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[p.type];
+                return (
+                  <li key={p.date + p.place} className="practice-item" style={{ padding: "13px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1, borderLeft: `3px solid ${dotColor}` }}>
+                    <div style={{ minWidth: 50, textAlign: "center" }}>
+                      <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 19, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13.5 }}>{practiceLabel(p.type)}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)", marginBottom: p.note ? 3 : 0 }}>
+                        📍 {p.place}{p.time ? ` / ${p.time}` : ""}
+                      </div>
+                      {p.note && (
+                        <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>※ {p.note}</div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
       <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</p>
@@ -311,46 +372,52 @@ function RecentPractices({ practices }: { practices: Practice[] }) {
 
   return (
     <div className="reveal" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)" }}>
-      <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>最近の活動</span>
+      <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 4, height: 16, background: "#d4a82a" }} />
+          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>最近の活動</span>
+        </span>
         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>RECENT</span>
       </div>
       {/* 実績サマリ */}
-      <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", flexWrap: "wrap", gap: "8px 14px" }}>
-        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, color: "#d4a82a", lineHeight: 1, fontWeight: 700 }}>
-          {stats.total}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginLeft: 4, letterSpacing: "0.1em" }}>回 実施</span>
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", flexWrap: "wrap", gap: "8px 14px", alignItems: "center" }}>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, color: "#d4a82a", lineHeight: 1, fontWeight: 700 }}>
+          {stats.total}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginLeft: 5, letterSpacing: "0.1em" }}>回 実施</span>
         </span>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: "auto" }}>
           {(["球場練習", "キャッチボール", "全体練習", "練習試合", "試合"] as const).map(t =>
             stats[t] ? (
-              <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} />
-                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : t === "全体練習" ? "全体" : t === "練習試合" ? "練習試合" : "試合"} {stats[t]}
+              <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.12)", padding: "3px 10px", background: "rgba(255,255,255,0.03)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} />
+                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : t === "全体練習" ? "全体" : t === "練習試合" ? "練習試合" : "試合"} <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a" }}>{stats[t]}</span>
               </span>
             ) : null
           )}
         </div>
       </div>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {recent.map((p) => {
+      {/* タイムライン */}
+      <ul style={{ listStyle: "none", margin: 0, padding: "16px 20px 8px" }}>
+        {recent.map((p, i) => {
           const d = new Date(p.date + "T00:00:00");
           const mm = String(d.getMonth() + 1).padStart(2, "0");
           const dd = String(d.getDate()).padStart(2, "0");
           const wd = WEEKDAY_JP[d.getDay()];
           const dotColor = PRACTICE_TYPE_COLOR[p.type];
+          const isLast = i === recent.length - 1;
           return (
-            <li key={p.date + p.place} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div style={{ minWidth: 54, textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, color: "rgba(255,255,255,0.85)", lineHeight: 1 }}>{mm}.{dd}</div>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
+            <li key={p.date + p.place} style={{ display: "flex", gap: 14 }}>
+              {/* 縦ライン + ドット */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 12, flexShrink: 0 }}>
+                <span className={i === 0 ? "timeline-dot" : undefined} style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
+                {!isLast && <span style={{ width: 2, flex: 1, background: "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))", marginTop: 4 }} />}
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{p.type === "キャッチボール" ? "公園練習" : p.type /* 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま */}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", padding: "2px 7px" }}>実施済</span>
+              <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 8 : 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "rgba(255,255,255,0.9)", letterSpacing: "0.05em" }}>{mm}.{dd}<span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 5 }}>{wd}</span></span>
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{practiceLabel(p.type)}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", padding: "2px 7px" }}>実施済</span>
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
               </div>
             </li>
           );
@@ -364,6 +431,10 @@ function ScheduleSection({ practices }: { practices: Practice[] }) {
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
       <div className="field-grid absolute inset-0" />
+      {/* SKマークのウォーターマーク */}
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="mark-drift absolute pointer-events-none select-none hidden md:block"
+        style={{ right: "-4%", top: 60, width: "clamp(280px, 32vw, 460px)", height: "auto", opacity: 0.05 }} />
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
         <SectionTitle jp="スケジュール" en="Schedule" light />
         <p className="reveal" style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 1.9, marginTop: -28, marginBottom: 36, maxWidth: 680 }}>
@@ -423,7 +494,7 @@ function AboutSection() {
         {/* Founder */}
         <div className="reveal grid overflow-hidden grid-cols-1 md:[grid-template-columns:200px_1fr]" style={{ background: "#0b1e3f" }}>
           <div style={{ background: "rgba(209,0,36,0.08)", display: "flex", alignItems: "center", justifyContent: "center", padding: 36, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
-            <Image src="/logo.png" alt="logo" width={130} height={130} className="object-contain" />
+            <Image src="/sk_logo_crop.png" alt="logo" width={150} height={124} className="object-contain" />
           </div>
           <div className="px-6 py-8 md:px-12 md:py-10">
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
@@ -815,13 +886,17 @@ function ContactSection() {
 /* ── Footer ───────────────────────────────────────────── */
 function Footer() {
   return (
-    <footer style={{ background: "#060f20", color: "#fff" }}>
+    <footer style={{ background: "#060f20", color: "#fff", position: "relative", overflow: "hidden" }}>
       <div style={{ height: 4, background: "linear-gradient(90deg,#d10024,#a80019 50%,#d10024)" }} />
+      {/* SKマークのウォーターマーク */}
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="absolute pointer-events-none select-none hidden md:block"
+        style={{ right: "-3%", bottom: -40, width: "clamp(240px, 26vw, 380px)", height: "auto", opacity: 0.04, transform: "rotate(-6deg)" }} />
       <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 48, paddingBottom: 32 }}>
         <div className="grid gap-10 md:gap-12 pb-10 grid-cols-1 md:[grid-template-columns:1fr_160px_220px]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
           <div>
             <div className="flex items-center gap-4 mb-4">
-              <Image src="/logo.png" alt={TEAM_NAME_JP} width={54} height={54} className="object-contain" />
+              <Image src="/sk_logo_crop.png" alt={TEAM_NAME_JP} width={78} height={64} className="object-contain" />
               <div>
                 <p style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "0.04em" }}>{TEAM_NAME_JP}</p>
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em", marginTop: 3 }}>{TEAM_NAME_EN}</p>

@@ -85,7 +85,7 @@ function CuratedFallback({ tweets, handle }: { tweets: Tweet[]; handle: string }
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 38, height: 38, background: "#0b1e3f", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <Image src="/logo.png" alt={TEAM_NAME_JP} width={32} height={32} className="object-contain" style={{ filter: "brightness(1.1)" }} />
+                <Image src="/sk_mark.png" alt={TEAM_NAME_JP} width={30} height={17} className="object-contain" />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13, color: "#0b1e3f", lineHeight: 1.2 }}>{TEAM_NAME_JP}</div>

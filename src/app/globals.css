@@ -45,6 +45,11 @@ html, body {
   from { opacity: 0; transform: translateY(60px) skewY(1.5deg); }
   to   { opacity: 1; transform: translateY(0) skewY(0deg); }
 }
+/* 見出しの「下から拭き上げ」クリップ演出 */
+@keyframes heroClipUp {
+  from { opacity: 0; clip-path: inset(100% 0 0 0); transform: translateY(34px); }
+  to   { opacity: 1; clip-path: inset(0 0 0 0);    transform: translateY(0); }
+}
 @keyframes heroFadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -54,8 +59,8 @@ html, body {
   to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes logoFloat {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-12px); }
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-14px) rotate(1.2deg); }
 }
 @keyframes diamondDraw {
   from { stroke-dashoffset: 1200; }
@@ -65,6 +70,10 @@ html, body {
   0%, 100% { opacity: 0.07; }
   50%       { opacity: 0.14; }
 }
+@keyframes diamondSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 @keyframes heroPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.75); }
@@ -73,6 +82,46 @@ html, body {
   from { stroke-dashoffset: 300; opacity: 0; }
   to   { stroke-dashoffset: 0;   opacity: 1; }
 }
+/* 金色テキストのグラデーション・スイープ */
+@keyframes goldSweep {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.hero-gold-sweep {
+  background: linear-gradient(100deg, #d4a82a 38%, #ffe9a8 50%, #d4a82a 62%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: goldSweep 5s linear 2s infinite;
+}
+/* バッジの光沢スイープ */
+@keyframes badgeSheen {
+  0%, 70%  { transform: translateX(-130%) skewX(-18deg); }
+  85%, 100% { transform: translateX(330%) skewX(-18deg); }
+}
+.hero-badge { position: relative; overflow: hidden; }
+.hero-badge::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+  animation: badgeSheen 4.2s ease-in-out 2.4s infinite;
+}
+/* ボタンの光沢スイープ（hover） */
+.btn-sheen { position: relative; overflow: hidden; }
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: -45%;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-18deg);
+  transition: left 0.55s cubic-bezier(0.2,0.8,0.2,1);
+  pointer-events: none;
+}
+.btn-sheen:hover::after { left: 115%; }
 
 /* ── Ticker ───────────────────────────────────────────── */
 @keyframes ticker {
@@ -86,17 +135,18 @@ html, body {
   white-space: nowrap;
   will-change: transform;
 }
+.ticker-track:hover { animation-play-state: paused; }
 
 /* ── Hero classes ─────────────────────────────────────── */
 .hero-badge  { animation: badgeIn     0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s  both; }
-.hero-line-1 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.4s  both; }
-.hero-line-2 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.6s  both; }
-.hero-line-3 { animation: heroSlideUp 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.8s  both; }
+.hero-line-1 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.4s  both; }
+.hero-line-2 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.58s both; }
+.hero-line-3 { animation: heroClipUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.76s both; }
 .hero-sub    { animation: heroFadeIn  0.8s ease 1.0s  both; }
 .hero-btns   { animation: heroFadeIn  0.8s ease 1.15s both; }
 .hero-stats  { animation: heroFadeIn  0.8s ease 1.3s  both; }
 .hero-logo   { animation: heroFadeIn  1.0s ease 0.7s  both; }
-.logo-float  { animation: logoFloat   4s ease-in-out 2s infinite; }
+.logo-float  { animation: logoFloat   5s ease-in-out 2s infinite; }
 
 .diamond-outer { animation: diamondDraw 2.5s ease 0.3s both, diamondPulse 4s ease 3s infinite; }
 .diamond-inner { animation: diamondDraw 2.0s ease 0.9s both; }
@@ -125,6 +175,40 @@ html, body {
               transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
 }
 .reveal-right.visible { opacity: 1; transform: none; }
+
+/* 拡大しながら現れるバリエーション（.reveal と併用ではなく単独で使う） */
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.94) translateY(24px);
+  transition: opacity 0.75s cubic-bezier(0.16,1,0.3,1),
+              transform 0.75s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal-scale.visible { opacity: 1; transform: none; }
+
+/* セクション見出しの赤バー — reveal 後ににゅっと伸びる */
+.grow-bar {
+  width: 44px;
+  height: 4px;
+  background: linear-gradient(90deg, #d10024, #ff3b5c);
+  margin-top: 14px;
+  border-radius: 2px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.7s cubic-bezier(0.16,1,0.3,1) 0.35s;
+}
+.reveal.visible .grow-bar { transform: scaleX(1); }
+
+/* セクションのゴースト英字 — reveal 時に横からスッと */
+.reveal .section-ghost {
+  opacity: 0;
+  transform: translateX(-24px);
+  transition: opacity 0.9s ease 0.15s, transform 0.9s cubic-bezier(0.16,1,0.3,1) 0.15s;
+}
+.reveal.visible .section-ghost { opacity: 1; transform: none; }
+
+/* ヘッダーのロゴ — ホバーでわずかに弾む */
+.logo-pop img { transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+.logo-pop:hover img { transform: scale(1.04); }
 
 /* ── Field grid texture — baseball diamond + stadium lights ── */
 .field-grid {
@@ -364,4 +448,65 @@ html, body {
 }
 .activity-row:hover .activity-body {
   background: #fff;
+}
+
+/* ── Schedule: 次回練習のフィーチャーカード ───────────── */
+@keyframes nextChipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212,168,42,0.45); }
+  60%      { box-shadow: 0 0 0 8px rgba(212,168,42,0); }
+}
+.next-chip { animation: nextChipPulse 2.2s ease-out infinite; }
+
+@keyframes featGlow {
+  0%, 100% { border-color: rgba(212,168,42,0.55); }
+  50%      { border-color: rgba(212,168,42,0.25); }
+}
+.practice-feature {
+  animation: featGlow 3.2s ease-in-out infinite;
+  transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s;
+}
+.practice-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+}
+
+.practice-item {
+  transition: background 0.2s, transform 0.2s cubic-bezier(0.16,1,0.3,1);
+}
+.practice-item:hover {
+  background: rgba(255,255,255,0.05);
+  transform: translateX(5px);
+}
+
+/* タイムラインのドット（最近の活動） */
+@keyframes dotPing {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.timeline-dot { position: relative; }
+.timeline-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: dotPing 2.4s ease-out infinite;
+}
+
+/* SKマークのウォーターマーク・ドリフト */
+@keyframes markDrift {
+  0%, 100% { transform: rotate(-8deg) translateY(0); }
+  50%      { transform: rotate(-6deg) translateY(-18px); }
+}
+.mark-drift { animation: markDrift 14s ease-in-out infinite; }
+
+/* ── Reduced motion — 演出を一括停止 ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal, .reveal-left, .reveal-right, .reveal-scale { opacity: 1; transform: none; }
+  .grow-bar { transform: scaleX(1); }
 }

@@ -172,7 +172,7 @@ function LoginGate({ onSuccess }: { onSuccess: (pw: string) => void }) {
     <div style={pageBgStyle}>
       <div style={{ width: "100%", maxWidth: 360 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <Image src="/logo.png" alt="logo" width={64} height={64} style={{ objectFit: "contain", margin: "0 auto" }} />
+          <Image src="/sk_logo_crop.png" alt="logo" width={96} height={79} style={{ objectFit: "contain", margin: "0 auto" }} />
           <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.32em", marginTop: 14 }}>
             HAKATA SK ROOKIES
           </div>
@@ -417,7 +417,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
       <header style={{ background: "#0b1e3f", borderBottom: "3px solid #d4a82a" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 64, gap: 16 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-            <Image src="/logo.png" alt="logo" width={36} height={36} className="object-contain" />
+            <Image src="/sk_logo_crop.png" alt="logo" width={44} height={36} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 14 }}>メンバー成績アプリ</div>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
