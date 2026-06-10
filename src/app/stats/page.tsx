@@ -365,6 +365,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("batting");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
@@ -379,10 +380,9 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
     return (data.rows ?? []).map(mapFn);
   }, [pw]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
       const [ms, bs, ps, cs] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
@@ -429,15 +429,17 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
           cs: num(r.data[5]),
         })),
       ]);
-      if (cancelled) return;
       setMembers(ms);
       setBatting(bs);
       setPitching(ps);
       setCatching(cs);
+      setUpdatedAt(new Date());
+    } finally {
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    }
   }, [fetchList]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   /* ── 試合一覧（打撃・投手・捕手の記録から日付+対戦をユニーク抽出） ── */
   const games = useMemo(() => {
@@ -510,6 +512,9 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
 
         .stx-card { transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s; }
         .stx-card:hover { transform: translateY(-3px); border-color: rgba(212,168,42,0.45) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.4); }
+
+        @keyframes stxSpin { to { transform: rotate(360deg); } }
+        .stx-spin { animation: stxSpin 0.9s linear infinite; }
       `}</style>
 
       {/* SKマークの透かし */}
@@ -527,12 +532,38 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
             </div>
           </Link>
-          <button
-            onClick={onLogout}
-            style={{ marginLeft: "auto", padding: "7px 13px", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.8)", fontSize: 11, cursor: "pointer", letterSpacing: "0.06em" }}
-          >
-            ログアウト
-          </button>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            {updatedAt && !loading && (
+              <span className="hidden sm:inline" style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+                更新 {String(updatedAt.getHours()).padStart(2, "0")}:{String(updatedAt.getMinutes()).padStart(2, "0")}
+              </span>
+            )}
+            <button
+              onClick={loadAll}
+              disabled={loading}
+              aria-label="データを更新"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 13px",
+                background: "linear-gradient(135deg, rgba(212,168,42,0.18), rgba(212,168,42,0.08))",
+                border: "1px solid rgba(212,168,42,0.45)",
+                color: "#d4a82a",
+                fontSize: 11, fontWeight: 700,
+                cursor: loading ? "wait" : "pointer",
+                letterSpacing: "0.06em",
+                opacity: loading ? 0.6 : 1,
+              }}
+            >
+              <span className={loading ? "stx-spin" : undefined} style={{ display: "inline-block", fontSize: 13, lineHeight: 1 }}>⟳</span>
+              {loading ? "更新中…" : "更新"}
+            </button>
+            <button
+              onClick={onLogout}
+              style={{ padding: "7px 13px", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.8)", fontSize: 11, cursor: "pointer", letterSpacing: "0.06em" }}
+            >
+              ログアウト
+            </button>
+          </div>
         </div>
       </header>
 
