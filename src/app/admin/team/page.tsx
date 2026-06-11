@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "payments" | "stats";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "stats" | "notify";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -85,6 +85,26 @@ type CatchingRow = {
   opponent: string;
   sba: number;     // 盗塁試行された数
   cs: number;      // 盗塁阻止数
+  _row: number;
+};
+
+type FieldingRow = {
+  date: string;
+  memberId: string;
+  memberName: string;
+  opponent: string;
+  po: number;      // 刺殺
+  a: number;       // 捕殺
+  e: number;       // 失策
+  _row: number;
+};
+
+type ProbableRow = {
+  date: string;
+  opponent: string;
+  memberId: string;
+  memberName: string;
+  note: string;
   _row: number;
 };
 
@@ -386,6 +406,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
+  const [fielding, setFielding] = useState<FieldingRow[]>([]);
+  const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);  // 書き込み中フラグ（ボタン disable / ローダー表示用）
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -531,6 +553,38 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     })));
   }, [api]);
 
+  const loadFielding = useCallback(async () => {
+    setLoadingFor("fielding", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "fielding" });
+    setLoadingFor("fielding", false);
+    if (!data) return;
+    setFielding((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      memberId: r.data[1] ?? "",
+      memberName: r.data[2] ?? "",
+      opponent: r.data[3] ?? "",
+      po: num(r.data[4]),
+      a: num(r.data[5]),
+      e: num(r.data[6]),
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
+  const loadProbables = useCallback(async () => {
+    setLoadingFor("probables", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "probables" });
+    setLoadingFor("probables", false);
+    if (!data) return;
+    setProbables((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      opponent: r.data[1] ?? "",
+      memberId: r.data[2] ?? "",
+      memberName: r.data[3] ?? "",
+      note: r.data[4] ?? "",
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
   const loadLineups = useCallback(async () => {
     setLoadingFor("lineups", true);
     const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "lineups" });
@@ -628,6 +682,13 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "batting" && batting.length === 0) loadBatting(); }, [tab, batting.length, loadBatting]);
   useEffect(() => { if (tab === "pitching" && pitching.length === 0) loadPitching(); }, [tab, pitching.length, loadPitching]);
   useEffect(() => { if (tab === "catching" && catching.length === 0) loadCatching(); }, [tab, catching.length, loadCatching]);
+  useEffect(() => { if (tab === "fielding" && fielding.length === 0) loadFielding(); }, [tab, fielding.length, loadFielding]);
+  useEffect(() => {
+    if (tab === "probables") {
+      if (probables.length === 0) loadProbables();
+      if (practices.length === 0) loadPractices();
+    }
+  }, [tab, probables.length, practices.length, loadProbables, loadPractices]);
   useEffect(() => { if (tab === "lineup" && lineups.length === 0) loadLineups(); }, [tab, lineups.length, loadLineups]);
   useEffect(() => { if (tab === "scoreboard" && games.length === 0) loadGames(); }, [tab, games.length, loadGames]);
   useEffect(() => { if (tab === "payments" && payments.length === 0) loadPayments(); }, [tab, payments.length, loadPayments]);
@@ -676,8 +737,11 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["batting", "打席記録", batting.length],
             ["pitching", "投手記録", pitching.length],
             ["catching", "捕手記録", catching.length],
+            ["fielding", "守備記録", fielding.length],
+            ["probables", "予告先発", probables.length],
             ["payments", "集金", payments.length],
             ["stats", "統計", undefined],
+            ["notify", "🔔通知", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
             <button
               key={key}
@@ -781,6 +845,34 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             reload={loadCatching}
             showToast={showToast}
           />
+        )}
+        {tab === "fielding" && (
+          <FieldingTab
+            members={members}
+            fielding={fielding}
+            loading={!!loading.fielding}
+            saving={saving}
+            api={api}
+            reload={loadFielding}
+            showToast={showToast}
+          />
+        )}
+        {tab === "probables" && (
+          <ProbablesTab
+            members={members}
+            probables={probables}
+            practices={practices}
+            loading={!!loading.probables}
+            saving={saving}
+            pw={pw}
+            api={api}
+            reload={loadProbables}
+            reloadPractices={loadPractices}
+            showToast={showToast}
+          />
+        )}
+        {tab === "notify" && (
+          <NotifyTab pw={pw} showToast={showToast} />
         )}
         {tab === "payments" && (
           <PaymentsTab
@@ -2752,6 +2844,395 @@ function NumField({ label, v, on }: { label: string; v: number; on: (n: number) 
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────
+// 守備記録タブ
+// ────────────────────────────────────────────────────────
+function FieldingTab({
+  members, fielding, loading, saving, api, reload, showToast,
+}: {
+  members: Member[];
+  fielding: FieldingRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [form, setForm] = useState({
+    date: todayIso(),
+    memberId: "",
+    opponent: "",
+    po: 0, // 刺殺
+    a: 0,  // 捕殺
+    e: 0,  // 失策
+  });
+
+  async function submit() {
+    const member = members.find(m => m.id === form.memberId);
+    if (!member) { showToast(false, "メンバーを選んでください。"); return; }
+    if (!form.date) { showToast(false, "日付は必須です。"); return; }
+    if (form.po + form.a + form.e === 0) { showToast(false, "刺殺・捕殺・失策のいずれかを入力してください。"); return; }
+    const row = [
+      form.date, member.id, member.name, form.opponent.trim(),
+      String(form.po), String(form.a), String(form.e),
+    ];
+    const ok = await api("/api/admin/append", { sheet: "fielding", row });
+    if (ok) {
+      showToast(true, `${member.name} の守備記録を保存しました。`);
+      setForm(prev => ({ ...prev, opponent: "", po: 0, a: 0, e: 0 }));
+      reload();
+    }
+  }
+
+  async function remove(f: FieldingRow) {
+    if (!window.confirm(`${formatDateJp(f.date)} ${f.memberName} の守備記録を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "fielding", rowIndex: f._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  const sorted = [...fielding].sort((a, b) => b.date.localeCompare(a.date));
+  const chances = form.po + form.a + form.e;
+  const rate = chances > 0 ? (form.po + form.a) / chances : 0;
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
+      <section style={cardStyle}>
+        <H3>新しい守備記録</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <label style={labelStyle}>日付</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>選手</label>
+            <select value={form.memberId} onChange={e => setForm({ ...form, memberId: e.target.value })} style={inputStyle as React.CSSProperties}>
+              <option value="">— 選んでください —</option>
+              {members.filter(m => m.active).map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>対戦相手 / 試合名</label>
+            <input value={form.opponent} onChange={e => setForm({ ...form, opponent: e.target.value })} placeholder="例: 〇〇クラブ戦" style={inputStyle} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <NumField label="刺殺 (PO)" v={form.po} on={n => setForm({ ...form, po: n })} />
+            <NumField label="捕殺 (A)" v={form.a} on={n => setForm({ ...form, a: n })} />
+            <NumField label="失策 (E)" v={form.e} on={n => setForm({ ...form, e: n })} />
+          </div>
+          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12 }}>
+            この試合の守備率: <strong style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{rate.toFixed(3).replace(/^0/, "")}</strong>
+            <span style={{ color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>（守備機会 {chances}）</span>
+          </div>
+          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.6 }}>
+            刺殺(PO)=直接アウトを取った数（捕球・ベースタッチ等）。捕殺(A)=送球などで補助した数。失策(E)=エラー。
+          </p>
+          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+            {saving ? "保存中…" : "記録する →"}
+          </button>
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <H3>守備記録一覧（{fielding.length}件）</H3>
+          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
+        </div>
+        {fielding.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", padding: 24 }}>
+            守備記録がありません。左から登録してください。
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <Th>日付</Th>
+                  <Th>選手</Th>
+                  <Th>対戦</Th>
+                  <Th>刺殺</Th>
+                  <Th>捕殺</Th>
+                  <Th>失策</Th>
+                  <Th>守備率</Th>
+                  <Th>{""}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((f, i) => {
+                  const ch = f.po + f.a + f.e;
+                  const r = ch > 0 ? (f.po + f.a) / ch : 0;
+                  return (
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(f.date)}</span></Td>
+                      <Td><strong>{f.memberName}</strong></Td>
+                      <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{f.opponent || "—"}</span></Td>
+                      <Td>{f.po}</Td>
+                      <Td>{f.a}</Td>
+                      <Td><span style={{ color: f.e > 0 ? "#ff6982" : undefined }}>{f.e}</span></Td>
+                      <Td><span style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif" }}>{r.toFixed(3).replace(/^0/, "")}</span></Td>
+                      <Td>
+                        <button onClick={() => remove(f)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// 予告先発タブ
+// ────────────────────────────────────────────────────────
+function ProbablesTab({
+  members, probables, practices, loading, saving, pw, api, reload, reloadPractices, showToast,
+}: {
+  members: Member[];
+  probables: ProbableRow[];
+  practices: PracticeRow[];
+  loading: boolean;
+  saving: boolean;
+  pw: string;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  reloadPractices: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [form, setForm] = useState({
+    date: todayIso(),
+    opponent: "",
+    memberId: "",
+    note: "",
+  });
+  const [notify, setNotify] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  // 試合系の練習だけ候補に
+  const gamePractices = useMemo(
+    () => [...practices].filter(p => p.type === "試合" || p.type === "練習試合").sort((a, b) => b.date.localeCompare(a.date)),
+    [practices]
+  );
+
+  async function submit() {
+    const member = members.find(m => m.id === form.memberId);
+    if (!member) { showToast(false, "先発投手を選んでください。"); return; }
+    if (!form.date) { showToast(false, "日付は必須です。"); return; }
+
+    // 同じ日付の既存予告は置き換える（削除→追加）
+    const existing = probables.filter(p => p.date === form.date);
+    for (const ex of [...existing].sort((a, b) => b._row - a._row)) {
+      await api("/api/admin/delete", { sheet: "probables", rowIndex: ex._row });
+    }
+    const row = [form.date, form.opponent.trim(), member.id, member.name, form.note.trim()];
+    const ok = await api("/api/admin/append", { sheet: "probables", row });
+    if (!ok) return;
+    showToast(true, `予告先発を保存しました（${member.name}）`);
+
+    if (notify) {
+      setSending(true);
+      const body = `${formatDateShort(form.date)}${form.opponent ? " vs " + form.opponent : ""} 先発: ${member.name}`;
+      const r = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        body: JSON.stringify({ title: "📣 予告先発が発表されました", body, url: "/stats", tag: "probable" }),
+      }).then(res => res.json()).catch(() => null);
+      setSending(false);
+      if (r?.ok) showToast(true, `通知を送信しました（${r.sent}/${r.total}人）`);
+      else showToast(false, "通知の送信に失敗しました（購読者がいない可能性）");
+    }
+    setForm(prev => ({ ...prev, opponent: "", memberId: "", note: "" }));
+    reload();
+  }
+
+  async function remove(p: ProbableRow) {
+    if (!window.confirm(`${formatDateJp(p.date)} の予告先発（${p.memberName}）を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "probables", rowIndex: p._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  const sorted = [...probables].sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
+      <section style={cardStyle}>
+        <H3>予告先発を登録</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {gamePractices.length > 0 && (
+            <div>
+              <label style={labelStyle}>試合日から選ぶ（任意）</label>
+              <select
+                value=""
+                onChange={e => {
+                  const p = gamePractices.find(g => g.date === e.target.value);
+                  if (p) setForm(prev => ({ ...prev, date: p.date, opponent: prev.opponent || (p.note || "") }));
+                }}
+                style={inputStyle as React.CSSProperties}
+              >
+                <option value="">— 登録済みの試合日 —</option>
+                {gamePractices.map(p => (
+                  <option key={p.date + p.place} value={p.date}>{formatDateShort(p.date)} {p.type} @ {p.place}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <label style={labelStyle}>日付</label>
+            <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>対戦相手（任意）</label>
+            <input value={form.opponent} onChange={e => setForm({ ...form, opponent: e.target.value })} placeholder="例: 〇〇クラブ" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>先発投手</label>
+            <select value={form.memberId} onChange={e => setForm({ ...form, memberId: e.target.value })} style={inputStyle as React.CSSProperties}>
+              <option value="">— 選んでください —</option>
+              {members.filter(m => m.active).map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}{m.position === "投手" ? " ★" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>ひとこと（任意）</label>
+            <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="例: 初先発！応援よろしく" style={inputStyle} />
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
+            <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} style={{ width: 18, height: 18, accentColor: "#d4a82a" }} />
+            保存と同時にメンバーへ通知する 🔔
+          </label>
+          <button onClick={submit} disabled={saving || sending} style={{ ...btnPrimaryStyle, opacity: (saving || sending) ? 0.6 : 1, cursor: (saving || sending) ? "not-allowed" : "pointer" }}>
+            {sending ? "通知送信中…" : saving ? "保存中…" : "登録する →"}
+          </button>
+          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.6 }}>
+            同じ日付に登録済みの予告先発があれば置き換えます。成績アプリの「日程」タブに表示されます。
+          </p>
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <H3>予告先発一覧（{probables.length}件）</H3>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={reloadPractices} style={btnSubStyle}>練習リスト更新</button>
+            <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
+          </div>
+        </div>
+        {probables.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", padding: 24 }}>
+            予告先発がありません。左から登録してください。
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {sorted.map((p, i) => (
+              <li key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ minWidth: 60 }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a" }}>{formatDateShort(p.date)}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700 }}>⚾ {p.memberName}{p.opponent && <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.55)", fontSize: 12, marginLeft: 8 }}>vs {p.opponent}</span>}</div>
+                  {p.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{p.note}</div>}
+                </div>
+                <button onClick={() => remove(p)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────
+// 通知タブ（テスト通知・全員へ送信）
+// ────────────────────────────────────────────────────────
+function NotifyTab({ pw, showToast }: { pw: string; showToast: (ok: boolean, text: string) => void }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [last, setLast] = useState<string>("");
+
+  async function send(presetTitle?: string, presetBody?: string) {
+    const t = (presetTitle ?? title).trim();
+    const b = (presetBody ?? body).trim();
+    if (!t) { showToast(false, "タイトルを入力してください。"); return; }
+    setSending(true);
+    const r = await fetch("/api/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ title: t, body: b, url: "/stats" }),
+    }).then(res => res.json()).catch(() => null);
+    setSending(false);
+    if (r?.ok) {
+      setLast(`送信完了：${r.sent} / ${r.total} 人に届きました${r.failed ? `（失敗 ${r.failed}）` : ""}`);
+      showToast(true, `通知を送信しました（${r.sent}/${r.total}人）`);
+    } else {
+      setLast(`送信失敗：${r?.error ?? "エラー"}`);
+      showToast(false, r?.error ?? "通知の送信に失敗しました。");
+    }
+  }
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[480px_1fr]">
+      <section style={cardStyle}>
+        <H3>プッシュ通知を送る</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>タイトル</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="例: ⚾ 成績を更新しました" style={inputStyle} maxLength={120} />
+          </div>
+          <div>
+            <label style={labelStyle}>本文</label>
+            <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="例: 6/13の練習試合の成績を反映しました。アプリで確認してね！" rows={3} style={{ ...inputStyle, resize: "vertical" } as React.CSSProperties} maxLength={300} />
+          </div>
+          <button onClick={() => send()} disabled={sending} style={{ ...btnPrimaryStyle, opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
+            {sending ? "送信中…" : "全員に送信する 🔔"}
+          </button>
+          {last && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", padding: "8px 10px", background: "rgba(255,255,255,0.04)" }}>{last}</div>}
+        </div>
+      </section>
+
+      <section style={cardStyle}>
+        <H3>かんたん送信 / テスト</H3>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, marginBottom: 14 }}>
+          よく使う通知をワンタップで送れます。まずは「テスト通知」で自分の端末に届くか試してください
+          （先に成績アプリで「通知をオンにする」を押しておく必要があります）。
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => send("✅ テスト通知", "通知が正常に届いています。")} disabled={sending} style={presetBtnStyle}>
+            🧪 テスト通知を送る
+          </button>
+          <button onClick={() => send("⚾ 成績を更新しました", "最新の試合成績をアプリに反映しました。チェックしてね！")} disabled={sending} style={presetBtnStyle}>
+            ⚾ 「成績を更新しました」
+          </button>
+          <button onClick={() => send("📣 予告先発が発表されました", "次の試合の予告先発が決まりました。アプリの日程タブで確認！")} disabled={sending} style={presetBtnStyle}>
+            📣 「予告先発が発表されました」
+          </button>
+          <button onClick={() => send("📅 次の練習のお知らせ", "次回の練習予定を更新しました。日程タブを確認してください。")} disabled={sending} style={presetBtnStyle}>
+            📅 「練習予定の更新」
+          </button>
+        </div>
+        <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 16, lineHeight: 1.7 }}>
+          ※ 通知が届くのは、成績アプリで「通知をオンにする」を押したメンバーだけです。<br />
+          ※ iPhoneはホーム画面に追加したアプリから通知をオンにする必要があります（iOS 16.4以降）。<br />
+          ※ 送信には Vercel に VAPID_PRIVATE_KEY の設定が必要です。
+        </p>
+      </section>
+    </div>
+  );
+}
+
+const presetBtnStyle: React.CSSProperties = {
+  ...btnSubStyle,
+  textAlign: "left",
+  padding: "12px 14px",
+  fontSize: 13,
+};
 
 // ────────────────────────────────────────────────────────
 // 統計タブ

@@ -18,6 +18,11 @@ export const ALLOWED_SHEETS = new Set([
   // 成績データ
   "pitching",     // 投手成績（防御率・奪三振率の計算用）
   "catching",     // 捕手成績（盗塁阻止率の計算用）
+  "fielding",     // 守備成績（刺殺・捕殺・失策 → 守備率）
+  // スケジュール拡張
+  "probables",    // 予告先発（試合日ごとの先発投手）
+  // Web Push
+  "subscriptions",// プッシュ通知の購読情報
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";

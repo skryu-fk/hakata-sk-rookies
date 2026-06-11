@@ -16,6 +16,9 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "batting",
   "pitching",
   "catching",
+  "fielding",
+  "practices",   // 日程表示用
+  "probables",   // 予告先発表示用
 ]);
 
 export async function POST(request: Request) {

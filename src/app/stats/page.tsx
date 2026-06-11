@@ -52,6 +52,30 @@ type CatchingRow = {
   sba: number; cs: number;
 };
 
+type FieldingRow = {
+  date: string;
+  opponent: string;
+  memberId: string;
+  po: number; a: number; e: number; // 刺殺 / 捕殺 / 失策
+};
+
+type PracticeRow = {
+  date: string;
+  type: string;     // 球場練習 / キャッチボール / 試合 / 練習試合 / 全体練習
+  place: string;
+  status: string;   // scheduled / tentative / canceled / 予定 / 未定 / 中止
+  time: string;
+  note: string;
+};
+
+type ProbableRow = {
+  date: string;
+  opponent: string;
+  memberId: string;
+  memberName: string;
+  note: string;
+};
+
 type BattingStat = {
   m: Member; games: number; ab: number; h: number; hr: number; rbi: number; bb: number; so: number;
   hbp: number; sh: number; sb: number; cs: number; sbAttempts: number;
@@ -62,6 +86,7 @@ type PitchingStat = {
   so: number; bb: number; hbp: number; era: number; k9: number; whip: number;
 };
 type CatchingStat = { m: Member; games: number; sba: number; cs: number; rate: number };
+type FieldingStat = { m: Member; games: number; po: number; a: number; e: number; chances: number; rate: number };
 
 /* ── ユーティリティ ───────────────────────────────────── */
 function num(s: string | undefined): number {
@@ -99,6 +124,31 @@ function mdLabel(dateStr: string): string {
   const m = dateStr.match(/^\d{4}-(\d{2})-(\d{2})/);
   if (!m) return dateStr;
   return `${Number(m[1])}/${Number(m[2])}`;
+}
+function todayIsoJst(): string {
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
+}
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+function weekday(dateStr: string): string {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  return WEEKDAY_JP[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()] ?? "";
+}
+const PRACTICE_COLOR: Record<string, string> = {
+  球場練習: "#d10024", キャッチボール: "#d4a82a", 試合: "#4a90e2", 練習試合: "#9b59b6", 全体練習: "#27ae60",
+};
+function practiceTypeLabel(t: string): string {
+  return t === "キャッチボール" ? "公園練習" : t;
+}
+function practiceStatusLabel(s: string): { label: string; canceled: boolean; tentative: boolean } {
+  const t = (s || "").toLowerCase();
+  if (t === "canceled" || s === "中止" || t === "cancel") return { label: "中止", canceled: true, tentative: false };
+  if (t === "tentative" || s === "未定") return { label: "未定", canceled: false, tentative: true };
+  return { label: "予定", canceled: false, tentative: false };
+}
+function isGameType(t: string): boolean {
+  return t === "試合" || t === "練習試合";
 }
 function gameKey(r: { date: string; opponent: string }): string {
   return `${r.date}|${r.opponent}`;
@@ -355,8 +405,22 @@ function aggCatching(members: Member[], rows: CatchingRow[]): CatchingStat[] {
   }).filter((x): x is CatchingStat => x !== null);
 }
 
+function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
+  return members.filter(m => m.active).map(m => {
+    const rs = rows.filter(f => f.memberId === m.id);
+    if (rs.length === 0) return null;
+    const po = rs.reduce((s, f) => s + f.po, 0);
+    const a = rs.reduce((s, f) => s + f.a, 0);
+    const e = rs.reduce((s, f) => s + f.e, 0);
+    const chances = po + a + e;
+    // 守備率 = (刺殺 + 捕殺) / (刺殺 + 捕殺 + 失策)
+    const rate = chances > 0 ? (po + a) / chances : 0;
+    return { m, games: rs.length, po, a, e, chances, rate };
+  }).filter((x): x is FieldingStat => x !== null);
+}
+
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "batting" | "pitching" | "catching";
+type Tab = "batting" | "pitching" | "catching" | "fielding" | "schedule";
 const TOTAL_SCOPE = "__total__";
 
 function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
@@ -364,6 +428,9 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const [batting, setBatting] = useState<BattingRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
+  const [fielding, setFielding] = useState<FieldingRow[]>([]);
+  const [practices, setPractices] = useState<PracticeRow[]>([]);
+  const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("batting");
@@ -383,7 +450,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs] = await Promise.all([
+      const [ms, bs, ps, cs, fs, prs, pbs] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
@@ -428,11 +495,37 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
           sba: num(r.data[4]),
           cs: num(r.data[5]),
         })),
+        fetchList<FieldingRow>("fielding", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          memberId: r.data[1] ?? "",
+          opponent: r.data[3] ?? "",
+          po: num(r.data[4]),
+          a: num(r.data[5]),
+          e: num(r.data[6]),
+        })),
+        fetchList<PracticeRow>("practices", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          type: r.data[1] ?? "",
+          place: r.data[2] ?? "",
+          status: r.data[3] ?? "",
+          time: r.data[4] ?? "",
+          note: r.data[5] ?? "",
+        })),
+        fetchList<ProbableRow>("probables", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          opponent: r.data[1] ?? "",
+          memberId: r.data[2] ?? "",
+          memberName: r.data[3] ?? "",
+          note: r.data[4] ?? "",
+        })),
       ]);
       setMembers(ms);
       setBatting(bs);
       setPitching(ps);
       setCatching(cs);
+      setFielding(fs);
+      setPractices(prs);
+      setProbables(pbs);
       setUpdatedAt(new Date());
     } finally {
       setLoading(false);
@@ -441,16 +534,16 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  /* ── 試合一覧（打撃・投手・捕手の記録から日付+対戦をユニーク抽出） ── */
+  /* ── 試合一覧（各成績の記録から日付+対戦をユニーク抽出） ── */
   const games = useMemo(() => {
     const map = new Map<string, { key: string; date: string; opponent: string }>();
-    [...batting, ...pitching, ...catching].forEach(r => {
+    [...batting, ...pitching, ...catching, ...fielding].forEach(r => {
       if (!r.date) return;
       const k = gameKey(r);
       if (!map.has(k)) map.set(k, { key: k, date: r.date, opponent: r.opponent });
     });
     return [...map.values()].sort((a, b) => b.date.localeCompare(a.date));
-  }, [batting, pitching, catching]);
+  }, [batting, pitching, catching, fielding]);
 
   // スコープが消えた（データ更新等）場合は通算に戻す
   useEffect(() => {
@@ -467,10 +560,36 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const fCatching = useMemo(
     () => scope === TOTAL_SCOPE ? catching : catching.filter(r => gameKey(r) === scope),
     [catching, scope]);
+  const fFielding = useMemo(
+    () => scope === TOTAL_SCOPE ? fielding : fielding.filter(r => gameKey(r) === scope),
+    [fielding, scope]);
 
   const battingStats = useMemo(() => aggBatting(members, fBatting), [members, fBatting]);
   const pitchingStats = useMemo(() => aggPitching(members, fPitching), [members, fPitching]);
   const catchingStats = useMemo(() => aggCatching(members, fCatching), [members, fCatching]);
+  const fieldingStats = useMemo(() => aggFielding(members, fFielding), [members, fFielding]);
+
+  /* ── 日程（今日以降の練習・試合） ── */
+  const upcoming = useMemo(() => {
+    const today = todayIsoJst();
+    return [...practices]
+      .filter(p => p.date && p.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [practices]);
+  const pastGames = useMemo(() => {
+    const today = todayIsoJst();
+    return [...practices]
+      .filter(p => p.date && p.date < today && isGameType(p.type))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 6);
+  }, [practices]);
+  // 予告先発を日付で引けるように
+  const probableByDate = useMemo(() => {
+    const m = new Map<string, ProbableRow>();
+    probables.forEach(p => { if (p.date) m.set(p.date, p); });
+    return m;
+  }, [probables]);
+  const scheduleCount = upcoming.length;
 
   const scopeLabel = scope === TOTAL_SCOPE
     ? "通算"
@@ -482,7 +601,10 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
       background: "radial-gradient(ellipse 90% 40% at 50% -5%, rgba(209,0,36,0.1), transparent), radial-gradient(ellipse 60% 40% at 90% 110%, rgba(212,168,42,0.06), transparent), #070b16",
       color: "#fff",
       position: "relative",
-      overflow: "hidden",
+      // overflow は指定しない。ダッシュボードを覆う overflow:hidden は
+      // body スクロール時にホイールを妨げる原因になっていた。横方向の
+      // はみ出し（透かし）はグローバルCSSの body { overflow-x:hidden } と
+      // 透かし自体の position:fixed で処理されるため、ここでは不要。
     }}>
       {/* 演出スタイル（このページ専用） */}
       <style>{`
@@ -567,13 +689,20 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
         </div>
       </header>
 
-      {/* ── 種別タブ（打撃/投手/捕手） ── */}
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 18 }}>
-        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: 4, gap: 4 }}>
+      {/* ── 通知バー ── */}
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14 }}>
+        <NotifyBar pw={pw} />
+      </div>
+
+      {/* ── 種別タブ ── */}
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12 }}>
+        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: 4, gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {([
             ["batting", "⚾ 打撃", battingStats.filter(s => s.ab > 0).length],
             ["pitching", "🔥 投手", pitchingStats.length],
             ["catching", "🧤 捕手", catchingStats.length],
+            ["fielding", "🧱 守備", fieldingStats.length],
+            ["schedule", "📅 日程", scheduleCount],
           ] as [Tab, string, number][]).map(([key, label, count]) => {
             const active = tab === key;
             return (
@@ -581,43 +710,46 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
                 key={key}
                 onClick={() => setTab(key)}
                 style={{
-                  flex: 1,
-                  padding: "11px 6px",
+                  flex: "1 0 auto",
+                  minWidth: 78,
+                  padding: "11px 10px",
                   background: active ? "linear-gradient(135deg, #d4a82a, #f0c75e)" : "transparent",
                   color: active ? "#0a0e1a" : "rgba(255,255,255,0.55)",
                   border: "none",
                   fontFamily: "var(--font-zen),sans-serif",
                   fontSize: 13,
                   fontWeight: 800,
-                  letterSpacing: "0.06em",
+                  letterSpacing: "0.04em",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                   transition: "background 0.25s, color 0.25s",
                 }}
               >
-                {label}<span style={{ marginLeft: 6, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>
+                {label}<span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>
               </button>
             );
           })}
         </div>
 
-        {/* ── スコープ切り替え（通算 / 試合別） ── */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
-          <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
-            通算
-          </ScopeChip>
-          {games.map(g => (
-            <ScopeChip key={g.key} active={scope === g.key} onClick={() => setScope(g.key)}>
-              <span style={{ fontFamily: "var(--font-oswald),sans-serif", marginRight: 5 }}>{mdLabel(g.date)}</span>
-              {g.opponent || "試合"}
+        {/* ── スコープ切り替え（通算 / 試合別）— 成績タブのみ表示 ── */}
+        {tab !== "schedule" && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
+            <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
+              通算
             </ScopeChip>
-          ))}
-          {games.length === 0 && !loading && (
-            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", alignSelf: "center", whiteSpace: "nowrap" }}>
-              試合記録が増えるとここから試合別成績を見られます
-            </span>
-          )}
-        </div>
+            {games.map(g => (
+              <ScopeChip key={g.key} active={scope === g.key} onClick={() => setScope(g.key)}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", marginRight: 5 }}>{mdLabel(g.date)}</span>
+                {g.opponent || "試合"}
+              </ScopeChip>
+            ))}
+            {games.length === 0 && !loading && (
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", alignSelf: "center", whiteSpace: "nowrap" }}>
+                試合記録が増えるとここから試合別成績を見られます
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 本文 ── */}
@@ -628,13 +760,89 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
           <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
         ) : tab === "pitching" ? (
           <PitchingStatsView key={`p-${scope}`} stats={pitchingStats} scopeLabel={scopeLabel} />
-        ) : (
+        ) : tab === "catching" ? (
           <CatchingStatsView key={`c-${scope}`} stats={catchingStats} scopeLabel={scopeLabel} />
+        ) : tab === "fielding" ? (
+          <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
+        ) : (
+          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} />
         )}
       </main>
     </div>
   );
 }
+
+/* ── 通知のオン/オフ バー ───────────────────────────────── */
+function NotifyBar({ pw }: { pw: string }) {
+  const [state, setState] = useState<"idle" | "on" | "working" | "denied" | "unsupported">("idle");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    import("@/lib/push-client").then(async ({ pushSupported, getExistingSubscription }) => {
+      if (!pushSupported()) { setState("unsupported"); return; }
+      const existing = await getExistingSubscription();
+      if (existing && Notification.permission === "granted") setState("on");
+    });
+  }, []);
+
+  async function enable() {
+    setState("working");
+    setMsg("");
+    const { subscribePush } = await import("@/lib/push-client");
+    const label = (typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 50) : "");
+    const r = await subscribePush(pw, label);
+    if (r === "ok") { setState("on"); setMsg("通知をオンにしました🔔"); }
+    else if (r === "denied") { setState("denied"); setMsg("ブラウザの設定で通知がブロックされています。"); }
+    else if (r === "unsupported") { setState("unsupported"); }
+    else { setState("idle"); setMsg("登録に失敗しました。もう一度お試しください。"); }
+  }
+
+  if (state === "unsupported") {
+    return (
+      <div style={notifyBarStyle}>
+        <span style={{ fontSize: 16 }}>🔔</span>
+        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>
+          この端末/ブラウザは通知に非対応です。iPhoneは<strong style={{ color: "#d4a82a" }}>ホーム画面に追加</strong>してから開くと通知が使えます。
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={notifyBarStyle}>
+      <span style={{ fontSize: 16 }}>{state === "on" ? "🔔" : "🔕"}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: state === "on" ? "#67e088" : "#fff" }}>
+          {state === "on" ? "通知オン" : "成績の更新・予告先発をプッシュ通知で受け取る"}
+        </div>
+        {msg && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{msg}</div>}
+      </div>
+      {state !== "on" && (
+        <button
+          onClick={enable}
+          disabled={state === "working"}
+          style={{
+            flexShrink: 0,
+            padding: "7px 14px",
+            background: state === "working" ? "#555" : "linear-gradient(135deg, #d4a82a, #f0c75e)",
+            color: "#0a0e1a", border: "none",
+            fontFamily: "var(--font-zen),sans-serif", fontSize: 12, fontWeight: 800,
+            cursor: state === "working" ? "wait" : "pointer", letterSpacing: "0.06em",
+          }}
+        >
+          {state === "working" ? "登録中…" : "通知をオンにする"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const notifyBarStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 12,
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(212,168,42,0.25)",
+  padding: "10px 14px",
+};
 
 function ScopeChip({ children, active, onClick, primary }: { children: React.ReactNode; active: boolean; onClick: () => void; primary?: boolean }) {
   return (
@@ -1058,6 +1266,203 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ── 守備ビュー ───────────────────────────────────────── */
+function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scopeLabel: string }) {
+  const ranked = [...stats].sort((a, b) => b.rate - a.rate || b.chances - a.chances);
+  const teamPo = stats.reduce((s, x) => s + x.po, 0);
+  const teamA = stats.reduce((s, x) => s + x.a, 0);
+  const teamE = stats.reduce((s, x) => s + x.e, 0);
+  const teamCh = teamPo + teamA + teamE;
+  const teamRate = teamCh > 0 ? (teamPo + teamA) / teamCh : 0;
+
+  return (
+    <div>
+      <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
+        <H sub="TEAM SUMMARY">{scopeLabel}成績 — 守備</H>
+        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
+          <SummaryCell label="チーム守備率" value={teamRate} fmt={fmtAvg} accent />
+          <SummaryCell label="刺殺" value={teamPo} fmt={n => String(Math.round(n))} />
+          <SummaryCell label="捕殺" value={teamA} fmt={n => String(Math.round(n))} />
+          <SummaryCell label="失策" value={teamE} fmt={n => String(Math.round(n))} />
+        </div>
+      </section>
+
+      <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
+        <H sub="FIELDING %">守備成績（守備率順）</H>
+        {ranked.length === 0 ? (
+          <p style={emptyMsg}>守備記録がありません。</p>
+        ) : (
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>選手</Th>
+                  <Th>試合</Th>
+                  <Th>刺殺</Th>
+                  <Th>捕殺</Th>
+                  <Th>失策</Th>
+                  <Th>守備機会</Th>
+                  <Th>守備率</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.map((s, i) => (
+                  <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", animationDelay: `${100 + i * 60}ms`, background: i === 0 ? "rgba(212,168,42,0.05)" : "transparent" }}>
+                    <Td><RankBadge rank={i + 1} /></Td>
+                    <Td>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <strong>{s.m.name}</strong>
+                    </Td>
+                    <Td>{s.games}</Td>
+                    <Td><span style={{ color: "#67e088", fontWeight: 700 }}>{s.po}</span></Td>
+                    <Td><span style={{ color: "#8fc4ff", fontWeight: 700 }}>{s.a}</span></Td>
+                    <Td><span style={{ color: s.e > 0 ? "#ff6982" : undefined, fontWeight: s.e > 0 ? 700 : 400 }}>{s.e}</span></Td>
+                    <Td>{s.chances}</Td>
+                    <Td>
+                      <BigNum hl>{fmtAvg(s.rate)}</BigNum>
+                      <StatBar ratio={s.rate} color="#d4a82a" delay={200 + i * 60} />
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 10, lineHeight: 1.6 }}>
+          守備率 =（刺殺＋捕殺）÷（刺殺＋捕殺＋失策）。刺殺(PO)はアウトを直接取った数、捕殺(A)は送球などで補助した数です。
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/* ── 日程ビュー（練習・試合 + 予告先発） ──────────────────── */
+function ScheduleView({ upcoming, pastGames, probableByDate }: {
+  upcoming: PracticeRow[];
+  pastGames: PracticeRow[];
+  probableByDate: Map<string, ProbableRow>;
+}) {
+  const next = upcoming[0];
+  const rest = upcoming.slice(1);
+
+  return (
+    <div>
+      {/* 次回 */}
+      {next ? (
+        <section className="stx-row" style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+          {(() => {
+            const st = practiceStatusLabel(next.status);
+            const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[next.type] ?? "#d4a82a");
+            const prob = isGameType(next.type) ? probableByDate.get(next.date) : undefined;
+            return (
+              <div style={{ borderLeft: `4px solid ${color}`, padding: "18px 18px 16px", background: "linear-gradient(135deg, rgba(212,168,42,0.06), rgba(209,0,36,0.04))", position: "relative", opacity: st.canceled ? 0.6 : 1 }}>
+                <span className="stx-rank-1" style={{ position: "absolute", top: -1, right: 12, fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.3em", background: "#d4a82a", color: "#0a0e1a", padding: "3px 12px" }}>NEXT</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{mdLabel(next.date)}</div>
+                    <div style={{ fontSize: 11, color: "#d4a82a", marginTop: 5, letterSpacing: "0.15em", fontWeight: 700 }}>{weekday(next.date)}曜日</div>
+                  </div>
+                  <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: color }} />
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{practiceTypeLabel(next.type)}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.canceled ? "rgba(255,255,255,0.08)" : st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.08)", color: st.canceled ? "rgba(255,255,255,0.5)" : st.tentative ? "#d4a82a" : "rgba(255,255,255,0.85)", padding: "2px 8px" }}>{st.label}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>📍 {next.place}</div>
+                    {next.time && <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
+                    {next.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginTop: 5 }}>※ {next.note}</div>}
+                  </div>
+                </div>
+                {/* 予告先発 */}
+                {isGameType(next.type) && (
+                  <div style={{ marginTop: 14, background: "rgba(155,89,182,0.1)", border: "1px solid rgba(155,89,182,0.4)", padding: "10px 14px" }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#c08fe0", letterSpacing: "0.25em", marginBottom: 5 }}>PROBABLE PITCHER ／ 予告先発</div>
+                    {prob && prob.memberName ? (
+                      <div>
+                        <span style={{ fontSize: 17, fontWeight: 900 }}>⚾ {prob.memberName}</span>
+                        {prob.opponent && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 10 }}>vs {prob.opponent}</span>}
+                        {prob.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", marginTop: 4 }}>{prob.note}</div>}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)" }}>未発表（決まり次第お知らせします）</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </section>
+      ) : (
+        <section className="stx-row" style={cardStyle}>
+          <p style={emptyMsg}>今後の予定はまだ登録されていません。<br />決まり次第ここに表示されます。</p>
+        </section>
+      )}
+
+      {/* これ以降の予定 */}
+      {rest.length > 0 && (
+        <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
+          <H sub="UPCOMING">今後の予定</H>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {rest.map((p, i) => {
+              const st = practiceStatusLabel(p.status);
+              const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[p.type] ?? "#d4a82a");
+              const prob = isGameType(p.type) ? probableByDate.get(p.date) : undefined;
+              return (
+                <li key={p.date + p.place + i} className="stx-row" style={{ display: "flex", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", borderLeft: `3px solid ${color}`, paddingLeft: 12, opacity: st.canceled ? 0.55 : 1, animationDelay: `${120 + i * 50}ms` }}>
+                  <div style={{ minWidth: 50, textAlign: "center" }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, lineHeight: 1 }}>{mdLabel(p.date)}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>{weekday(p.date)}曜日</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13.5 }}>{practiceTypeLabel(p.type)}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.07)", color: st.tentative ? "#d4a82a" : "rgba(255,255,255,0.55)", padding: "2px 7px" }}>{st.label}</span>
+                    </div>
+                    <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
+                    {prob && prob.memberName && (
+                      <div style={{ fontSize: 11.5, color: "#c08fe0", marginTop: 3 }}>⚾ 予告先発: <strong style={{ color: "#fff" }}>{prob.memberName}</strong></div>
+                    )}
+                    {p.note && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>※ {p.note}</div>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* 最近の試合 */}
+      {pastGames.length > 0 && (
+        <section className="stx-row" style={{ ...cardStyle, animationDelay: "140ms" }}>
+          <H sub="RECENT GAMES">最近の試合</H>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {pastGames.map((p, i) => {
+              const color = PRACTICE_COLOR[p.type] ?? "#9b59b6";
+              return (
+                <li key={p.date + p.place + i} style={{ display: "flex", gap: 12, padding: "10px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ minWidth: 50, textAlign: "center" }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 16, color: "rgba(255,255,255,0.8)", lineHeight: 1 }}>{mdLabel(p.date)}</div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>{weekday(p.date)}</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13 }}>{practiceTypeLabel(p.type)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>📍 {p.place}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
