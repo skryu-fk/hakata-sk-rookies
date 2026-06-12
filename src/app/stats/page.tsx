@@ -16,6 +16,35 @@ import Image from "next/image";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
+/* ── アプリのバージョン / 更新履歴 ────────────────────────── */
+const APP_VERSION = "1.1";
+type ChangeLogEntry = { version: string; date: string; items: string[] };
+const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "1.1",
+    date: "2026-06-12",
+    items: [
+      "🧱 守備成績（刺殺・捕殺・失策・守備率）を追加",
+      "📅 練習・試合の日程タブを追加",
+      "🔥 予告先発を日程に表示",
+      "📊 WAR・wRC+・wOBA を打撃成績に導入",
+      "🔔 プッシュ通知に対応（成績更新・予告先発など）",
+      "📢 お知らせ欄を新設",
+      "🖱 PCでスクロールできない不具合を修正",
+    ],
+  },
+  {
+    version: "1.0",
+    date: "2026-06-10",
+    items: [
+      "⚾ メンバー成績アプリ公開",
+      "打率・出塁率・長打率・OPS / 防御率 / 盗塁阻止率を表示",
+      "通算成績と試合別成績の切り替え",
+      "ホーム画面に追加してアプリのように使える",
+    ],
+  },
+];
+
 /* ── 型 ─────────────────────────────────────────────── */
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -76,10 +105,18 @@ type ProbableRow = {
   note: string;
 };
 
+type AnnouncementRow = {
+  date: string;
+  category: string;  // 先発 / 成績 / アップデート / メンテナンス / お知らせ
+  title: string;
+  body: string;
+};
+
 type BattingStat = {
   m: Member; games: number; ab: number; h: number; hr: number; rbi: number; bb: number; so: number;
   hbp: number; sh: number; sb: number; cs: number; sbAttempts: number;
   avg: number; obp: number; slg: number; ops: number; sbPct: number;
+  pa: number; woba: number; wrcPlus: number; war: number;
 };
 type PitchingStat = {
   m: Member; appearances: number; ipOuts: number; hits: number; runs: number; er: number;
@@ -347,8 +384,13 @@ function LoginGate({ onSuccess }: { onSuccess: (pw: string) => void }) {
 }
 
 /* ── 集計ヘルパ ───────────────────────────────────────── */
+// wOBA 係数（FanGraphs 近年の値に準拠）
+const WOBA = { bb: 0.69, hbp: 0.72, b1: 0.89, b2: 1.27, b3: 1.62, hr: 2.10 };
+const WOBA_SCALE = 1.157;
+const RUNS_PER_WIN = 10;
+
 function aggBatting(members: Member[], rows: BattingRow[]): BattingStat[] {
-  return members.filter(m => m.active).map(m => {
+  const base = members.filter(m => m.active).map(m => {
     const rs = rows.filter(b => b.memberId === m.id);
     const ab = rs.reduce((s, b) => s + b.atBats, 0);
     const h = rs.reduce((s, b) => s + b.hits, 0);
@@ -372,7 +414,26 @@ function aggBatting(members: Member[], rows: BattingRow[]): BattingStat[] {
     const sbAttempts = sb + cs;
     const sbPct = sbAttempts > 0 ? sb / sbAttempts : 0;
 
-    return { m, games: rs.length, ab, h, hr, rbi, bb, so, hbp, sh, sb, cs, sbAttempts, avg, obp, slg, ops, sbPct };
+    // wOBA（犠飛は未集計のため分母から除外）
+    const pa = ab + bb + hbp;
+    const wobaNum = WOBA.bb * bb + WOBA.hbp * hbp + WOBA.b1 * singles + WOBA.b2 * dbl + WOBA.b3 * tpl + WOBA.hr * hr;
+    const woba = pa > 0 ? wobaNum / pa : 0;
+
+    return { m, games: rs.length, ab, h, hr, rbi, bb, so, hbp, sh, sb, cs, sbAttempts, avg, obp, slg, ops, sbPct, pa, woba, wobaNum };
+  });
+
+  // チーム平均 wOBA（=「リーグ平均」の代わり）を算出し、wRC+ / 簡易WAR を求める
+  const teamWobaNum = base.reduce((s, x) => s + x.wobaNum, 0);
+  const teamPa = base.reduce((s, x) => s + x.pa, 0);
+  const lgWoba = teamPa > 0 ? teamWobaNum / teamPa : 0;
+
+  return base.map(s => {
+    // wRC+：チーム平均を100とした相対打撃指標
+    const wrcPlus = lgWoba > 0 && s.pa > 0 ? Math.round((s.woba / lgWoba) * 100) : 0;
+    // 簡易WAR：打撃のみ。チーム平均比の打撃貢献(wRAA) + 出場分の控え選手比補正 を勝利換算
+    const wRAA = lgWoba > 0 ? ((s.woba - lgWoba) / WOBA_SCALE) * s.pa : 0;
+    const war = s.pa > 0 ? (wRAA + 0.0333 * s.pa) / RUNS_PER_WIN : 0;
+    return { ...s, wrcPlus, war };
   });
 }
 
@@ -420,7 +481,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "batting" | "pitching" | "catching" | "fielding" | "schedule";
+type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule";
 const TOTAL_SCOPE = "__total__";
 
 function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
@@ -431,9 +492,10 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [probables, setProbables] = useState<ProbableRow[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [tab, setTab] = useState<Tab>("batting");
+  const [tab, setTab] = useState<Tab>("news");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
   const fetchList = useCallback(async <T,>(sheet: string, mapFn: (r: ListRow) => T): Promise<T[]> => {
@@ -450,7 +512,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs] = await Promise.all([
+      const [ms, bs, ps, cs, fs, prs, pbs, ans] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
@@ -518,6 +580,12 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
           memberName: r.data[3] ?? "",
           note: r.data[4] ?? "",
         })),
+        fetchList<AnnouncementRow>("announcements", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          category: r.data[1] ?? "お知らせ",
+          title: r.data[2] ?? "",
+          body: r.data[3] ?? "",
+        })),
       ]);
       setMembers(ms);
       setBatting(bs);
@@ -526,6 +594,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
       setFielding(fs);
       setPractices(prs);
       setProbables(pbs);
+      setAnnouncements(ans);
       setUpdatedAt(new Date());
     } finally {
       setLoading(false);
@@ -650,7 +719,10 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
-              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5 }}>メンバー成績アプリ</div>
+              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>
+                メンバー成績アプリ
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#0a0e1a", background: "#d4a82a", padding: "1px 6px", borderRadius: 2, letterSpacing: "0.05em" }}>v{APP_VERSION}</span>
+              </div>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
             </div>
           </Link>
@@ -698,6 +770,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
       <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12 }}>
         <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: 4, gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {([
+            ["news", "📢 お知らせ", announcements.length],
             ["batting", "⚾ 打撃", battingStats.filter(s => s.ab > 0).length],
             ["pitching", "🔥 投手", pitchingStats.length],
             ["catching", "🧤 捕手", catchingStats.length],
@@ -732,7 +805,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
         </div>
 
         {/* ── スコープ切り替え（通算 / 試合別）— 成績タブのみ表示 ── */}
-        {tab !== "schedule" && (
+        {tab !== "schedule" && tab !== "news" && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
             <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
               通算
@@ -756,6 +829,8 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
       <main className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14, paddingBottom: 90, position: "relative" }}>
         {loading ? (
           <p style={{ textAlign: "center", color: "rgba(255,255,255,0.5)", padding: 48, fontSize: 13, letterSpacing: "0.15em" }}>LOADING…</p>
+        ) : tab === "news" ? (
+          <NewsView announcements={announcements} />
         ) : tab === "batting" ? (
           <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
         ) : tab === "pitching" ? (
@@ -865,6 +940,108 @@ function ScopeChip({ children, active, onClick, primary }: { children: React.Rea
     >
       {children}
     </button>
+  );
+}
+
+/* ── お知らせ カテゴリ色 ──────────────────────────────── */
+const ANN_CATEGORY: Record<string, { color: string; bg: string }> = {
+  先発: { color: "#c08fe0", bg: "rgba(155,89,182,0.15)" },
+  成績: { color: "#67e088", bg: "rgba(103,224,136,0.13)" },
+  アップデート: { color: "#8fc4ff", bg: "rgba(143,196,255,0.13)" },
+  メンテナンス: { color: "#ffb84a", bg: "rgba(255,184,74,0.13)" },
+  お知らせ: { color: "#d4a82a", bg: "rgba(212,168,42,0.13)" },
+};
+function annStyle(cat: string) {
+  return ANN_CATEGORY[cat] ?? ANN_CATEGORY["お知らせ"];
+}
+function fmtAnnDate(d: string): string {
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return d;
+  return `${m[1]}.${m[2]}.${m[3]}`;
+}
+
+/* ── お知らせビュー ───────────────────────────────────── */
+function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+
+  const sorted = useMemo(
+    () => [...announcements].filter(a => a.title).sort((a, b) => b.date.localeCompare(a.date)),
+    [announcements]
+  );
+  const RECENT = 5;
+  const shown = showAll ? sorted : sorted.slice(0, RECENT);
+  const hasMore = sorted.length > RECENT;
+
+  return (
+    <div>
+      {/* バージョン / 更新情報 */}
+      <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.25em" }}>APP VERSION</span>
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, fontWeight: 700, color: "#fff", lineHeight: 1 }}>v{APP_VERSION}</span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>最新の状態です</span>
+          <button
+            onClick={() => setShowChangelog(v => !v)}
+            className="stx-chip"
+            style={{ marginLeft: "auto", padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#d4a82a", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+          >
+            {showChangelog ? "更新内容を閉じる" : "更新内容を見る →"}
+          </button>
+        </div>
+        {showChangelog && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+            {CHANGELOG.map(c => (
+              <div key={c.version} style={{ borderLeft: "3px solid #d4a82a", paddingLeft: 14 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: "#d4a82a" }}>v{c.version}</span>
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>{fmtAnnDate(c.date)}</span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+                  {c.items.map((it, i) => (
+                    <li key={i} style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>{it}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* お知らせ一覧 */}
+      <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
+        <H sub="NEWS">お知らせ</H>
+        {sorted.length === 0 ? (
+          <p style={emptyMsg}>お知らせはまだありません。<br />成績更新・予告先発などをここでお知らせします。</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {shown.map((a, i) => {
+              const cs = annStyle(a.category);
+              return (
+                <li key={a.date + a.title + i} className="stx-row" style={{ padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)", animationDelay: `${100 + i * 50}ms` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{fmtAnnDate(a.date)}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: cs.color, background: cs.bg, padding: "2px 9px" }}>{a.category}</span>
+                  </div>
+                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, lineHeight: 1.4, marginBottom: a.body ? 4 : 0 }}>{a.title}</div>
+                  {a.body && <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{a.body}</div>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {hasMore && (
+          <div style={{ textAlign: "center", marginTop: 14 }}>
+            <button
+              onClick={() => setShowAll(v => !v)}
+              style={{ padding: "10px 24px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#d4a82a", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer" }}
+            >
+              {showAll ? "直近5件だけ表示" : `これ以前のお知らせを見る（全${sorted.length}件）→`}
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1063,6 +1240,9 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   <Th>出塁率</Th>
                   <Th>長打率</Th>
                   <Th>OPS</Th>
+                  <Th>wOBA</Th>
+                  <Th>wRC+</Th>
+                  <Th>WAR</Th>
                 </tr>
               </thead>
               <tbody>
@@ -1090,12 +1270,21 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                       <BigNum hl>{fmtAvg(s.ops)}</BigNum>
                       <StatBar ratio={s.ops / 1.5} color="#d4a82a" delay={260 + i * 60} />
                     </Td>
+                    <Td>{s.pa > 0 ? fmtAvg(s.woba) : "—"}</Td>
+                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.wrcPlus >= 100 ? "#67e088" : "#fff" }}>{s.pa > 0 ? s.wrcPlus : "—"}</span></Td>
+                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.war >= 0 ? "#d4a82a" : "#ff6982" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</span></Td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+        <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 10, lineHeight: 1.7 }}>
+          <strong style={{ color: "rgba(255,255,255,0.6)" }}>wOBA</strong>＝出塁の質を打率の物差しで表した総合打撃指標。
+          <strong style={{ color: "rgba(255,255,255,0.6)" }}> wRC+</strong>＝チーム平均を100とした得点創出力（100超で平均以上）。
+          <strong style={{ color: "rgba(255,255,255,0.6)" }}> WAR</strong>＝チームにどれだけ勝利を上積みしたかの目安（打撃のみの簡易版）。
+          ※ いずれも本チーム内での相対評価・参考値です。打席数が少ないと数値が大きく振れます。
+        </p>
       </section>
 
       {/* 個人カード */}
@@ -1118,6 +1307,21 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   <Meter label="出塁率" text={fmtAvg(s.obp)} ratio={s.obp / 0.6} color="#8fc4ff" delay={i * 70 + 60} />
                   <Meter label="長打率" text={fmtAvg(s.slg)} ratio={s.slg / 0.9} color="#f28899" delay={i * 70 + 120} />
                   <Meter label="OPS" text={fmtAvg(s.ops)} ratio={s.ops / 1.5} color="#d4a82a" delay={i * 70 + 180} bold />
+                </div>
+                {/* セイバー指標 */}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <div style={{ flex: 1, textAlign: "center", background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.2)", padding: "6px 4px" }}>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>wRC+</div>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: s.wrcPlus >= 100 ? "#67e088" : "#fff" }}>{s.pa > 0 ? s.wrcPlus : "—"}</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "center", background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.2)", padding: "6px 4px" }}>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>WAR</div>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: "6px 4px" }}>
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>wOBA</div>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>{s.pa > 0 ? fmtAvg(s.woba) : "—"}</div>
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.55)", flexWrap: "wrap" }}>
                   <span>HR <strong style={{ color: "#fff" }}>{s.hr}</strong></span>

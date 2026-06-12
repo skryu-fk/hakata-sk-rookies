@@ -19,6 +19,7 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "fielding",
   "practices",   // 日程表示用
   "probables",   // 予告先発表示用
+  "announcements", // お知らせ表示用
 ]);
 
 export async function POST(request: Request) {

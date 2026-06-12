@@ -108,6 +108,14 @@ type ProbableRow = {
   _row: number;
 };
 
+type AnnouncementRow = {
+  date: string;
+  category: string;
+  title: string;
+  body: string;
+  _row: number;
+};
+
 type LineupRow = {
   id: string;
   date: string;
@@ -408,6 +416,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
   const [probables, setProbables] = useState<ProbableRow[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);  // 書き込み中フラグ（ボタン disable / ローダー表示用）
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -585,6 +594,20 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     })));
   }, [api]);
 
+  const loadAnnouncements = useCallback(async () => {
+    setLoadingFor("announcements", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "announcements" });
+    setLoadingFor("announcements", false);
+    if (!data) return;
+    setAnnouncements((data.rows ?? []).map(r => ({
+      date: normalizeDate(r.data[0] ?? ""),
+      category: r.data[1] ?? "お知らせ",
+      title: r.data[2] ?? "",
+      body: r.data[3] ?? "",
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
   const loadLineups = useCallback(async () => {
     setLoadingFor("lineups", true);
     const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "lineups" });
@@ -683,6 +706,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "pitching" && pitching.length === 0) loadPitching(); }, [tab, pitching.length, loadPitching]);
   useEffect(() => { if (tab === "catching" && catching.length === 0) loadCatching(); }, [tab, catching.length, loadCatching]);
   useEffect(() => { if (tab === "fielding" && fielding.length === 0) loadFielding(); }, [tab, fielding.length, loadFielding]);
+  useEffect(() => { if (tab === "notify" && announcements.length === 0) loadAnnouncements(); }, [tab, announcements.length, loadAnnouncements]);
   useEffect(() => {
     if (tab === "probables") {
       if (probables.length === 0) loadProbables();
@@ -872,7 +896,14 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           />
         )}
         {tab === "notify" && (
-          <NotifyTab pw={pw} showToast={showToast} />
+          <NotifyTab
+            pw={pw}
+            announcements={announcements}
+            loading={!!loading.announcements}
+            api={api}
+            reload={loadAnnouncements}
+            showToast={showToast}
+          />
         )}
         {tab === "payments" && (
           <PaymentsTab
@@ -3036,14 +3067,17 @@ function ProbablesTab({
 
     if (notify) {
       setSending(true);
-      const body = `${formatDateShort(form.date)}${form.opponent ? " vs " + form.opponent : ""} 先発: ${member.name}`;
+      const body = `${formatDateShort(form.date)}${form.opponent ? " vs " + form.opponent : ""} 先発: ${member.name}${form.note ? "（" + form.note.trim() + "）" : ""}`;
+      // お知らせ欄にも投稿
+      await api("/api/admin/append", { sheet: "announcements", row: [todayIso(), "先発", "予告先発が発表されました", body] });
+      // プッシュ通知
       const r = await fetch("/api/push/send", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-password": pw },
         body: JSON.stringify({ title: "📣 予告先発が発表されました", body, url: "/stats", tag: "probable" }),
       }).then(res => res.json()).catch(() => null);
       setSending(false);
-      if (r?.ok) showToast(true, `通知を送信しました（${r.sent}/${r.total}人）`);
+      if (r?.ok) showToast(true, `お知らせ投稿＆通知を送信しました（${r.sent}/${r.total}人）`);
       else showToast(false, "通知の送信に失敗しました（購読者がいない可能性）");
     }
     setForm(prev => ({ ...prev, opponent: "", memberId: "", note: "" }));
@@ -3149,79 +3183,156 @@ function ProbablesTab({
 }
 
 // ────────────────────────────────────────────────────────
-// 通知タブ（テスト通知・全員へ送信）
+// お知らせ / 通知タブ
 // ────────────────────────────────────────────────────────
-function NotifyTab({ pw, showToast }: { pw: string; showToast: (ok: boolean, text: string) => void }) {
+const ANN_CATEGORIES = ["お知らせ", "成績", "先発", "アップデート", "メンテナンス"] as const;
+
+function NotifyTab({
+  pw, announcements, loading, api, reload, showToast,
+}: {
+  pw: string;
+  announcements: AnnouncementRow[];
+  loading: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [category, setCategory] = useState<string>("お知らせ");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<string>("");
 
-  async function send(presetTitle?: string, presetBody?: string) {
-    const t = (presetTitle ?? title).trim();
-    const b = (presetBody ?? body).trim();
-    if (!t) { showToast(false, "タイトルを入力してください。"); return; }
-    setSending(true);
-    const r = await fetch("/api/push/send", {
+  async function pushSend(t: string, b: string): Promise<{ ok: boolean; sent?: number; total?: number; error?: string } | null> {
+    return fetch("/api/push/send", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-password": pw },
       body: JSON.stringify({ title: t, body: b, url: "/stats" }),
     }).then(res => res.json()).catch(() => null);
-    setSending(false);
-    if (r?.ok) {
-      setLast(`送信完了：${r.sent} / ${r.total} 人に届きました${r.failed ? `（失敗 ${r.failed}）` : ""}`);
-      showToast(true, `通知を送信しました（${r.sent}/${r.total}人）`);
-    } else {
-      setLast(`送信失敗：${r?.error ?? "エラー"}`);
-      showToast(false, r?.error ?? "通知の送信に失敗しました。");
-    }
   }
+
+  // 投稿（+任意で通知）
+  async function post(withNotify: boolean) {
+    const t = title.trim();
+    const b = body.trim();
+    if (!t) { showToast(false, "タイトルを入力してください。"); return; }
+    setBusy(true);
+    setLast("");
+    const ok = await api("/api/admin/append", { sheet: "announcements", row: [todayIso(), category, t, b] });
+    if (!ok) { setBusy(false); showToast(false, "お知らせの投稿に失敗しました。"); return; }
+    let notifyMsg = "";
+    if (withNotify) {
+      const r = await pushSend(t, b);
+      notifyMsg = r?.ok ? `／通知 ${r.sent}/${r.total}人` : "／通知失敗";
+    }
+    setBusy(false);
+    setLast(`お知らせを投稿しました${notifyMsg}`);
+    showToast(true, `お知らせを投稿しました${notifyMsg}`);
+    setTitle(""); setBody("");
+    reload();
+  }
+
+  // 通知のみ（投稿しない）
+  async function notifyOnly(presetTitle?: string, presetBody?: string) {
+    const t = (presetTitle ?? title).trim();
+    const b = (presetBody ?? body).trim();
+    if (!t) { showToast(false, "タイトルを入力してください。"); return; }
+    setBusy(true);
+    const r = await pushSend(t, b);
+    setBusy(false);
+    if (r?.ok) { setLast(`通知のみ送信：${r.sent}/${r.total}人`); showToast(true, `通知を送信しました（${r.sent}/${r.total}人）`); }
+    else { setLast(`送信失敗：${r?.error ?? "エラー"}`); showToast(false, r?.error ?? "通知の送信に失敗しました。"); }
+  }
+
+  function fillPreset(cat: string, t: string, b: string) {
+    setCategory(cat); setTitle(t); setBody(b);
+  }
+
+  async function remove(a: AnnouncementRow) {
+    if (!window.confirm(`お知らせ「${a.title}」を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "announcements", rowIndex: a._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  const sorted = [...announcements].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="grid gap-5 grid-cols-1 lg:grid-cols-[480px_1fr]">
       <section style={cardStyle}>
-        <H3>プッシュ通知を送る</H3>
+        <H3>お知らせを投稿 / 通知</H3>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
+            <label style={labelStyle}>カテゴリ</label>
+            <select value={category} onChange={e => setCategory(e.target.value)} style={inputStyle as React.CSSProperties}>
+              {ANN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
             <label style={labelStyle}>タイトル</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="例: ⚾ 成績を更新しました" style={inputStyle} maxLength={120} />
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="例: 6/13の練習試合の成績を更新しました" style={inputStyle} maxLength={120} />
           </div>
           <div>
             <label style={labelStyle}>本文</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="例: 6/13の練習試合の成績を反映しました。アプリで確認してね！" rows={3} style={{ ...inputStyle, resize: "vertical" } as React.CSSProperties} maxLength={300} />
+            <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="例: 打撃・守備の成績を反映しました。アプリで確認してね！" rows={3} style={{ ...inputStyle, resize: "vertical" } as React.CSSProperties} maxLength={300} />
           </div>
-          <button onClick={() => send()} disabled={sending} style={{ ...btnPrimaryStyle, opacity: sending ? 0.6 : 1, cursor: sending ? "not-allowed" : "pointer" }}>
-            {sending ? "送信中…" : "全員に送信する 🔔"}
+          <button onClick={() => post(true)} disabled={busy} style={{ ...btnPrimaryStyle, opacity: busy ? 0.6 : 1, cursor: busy ? "not-allowed" : "pointer" }}>
+            {busy ? "送信中…" : "お知らせを投稿して通知する 📢🔔"}
           </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => post(false)} disabled={busy} style={{ ...btnSubStyle, flex: 1 }}>投稿のみ（通知なし）</button>
+            <button onClick={() => notifyOnly()} disabled={busy} style={{ ...btnSubStyle, flex: 1 }}>通知のみ（投稿なし）</button>
+          </div>
           {last && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", padding: "8px 10px", background: "rgba(255,255,255,0.04)" }}>{last}</div>}
+          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", margin: 0, lineHeight: 1.7 }}>
+            投稿は成績アプリの「お知らせ」タブに表示されます（直近5件＋それ以前は展開表示）。<br />
+            通知が届くのは「通知をオンにする」を押したメンバーのみ。iPhoneはホーム画面追加後にオンが必要（iOS 16.4+）。送信には Vercel の VAPID_PRIVATE_KEY が必要です。
+          </p>
         </div>
       </section>
 
       <section style={cardStyle}>
-        <H3>かんたん送信 / テスト</H3>
-        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, marginBottom: 14 }}>
-          よく使う通知をワンタップで送れます。まずは「テスト通知」で自分の端末に届くか試してください
-          （先に成績アプリで「通知をオンにする」を押しておく必要があります）。
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button onClick={() => send("✅ テスト通知", "通知が正常に届いています。")} disabled={sending} style={presetBtnStyle}>
-            🧪 テスト通知を送る
+        <H3>かんたん入力 / テスト</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+          <button onClick={() => notifyOnly("✅ テスト通知", "通知が正常に届いています。")} disabled={busy} style={presetBtnStyle}>
+            🧪 テスト通知を送る（投稿なし）
           </button>
-          <button onClick={() => send("⚾ 成績を更新しました", "最新の試合成績をアプリに反映しました。チェックしてね！")} disabled={sending} style={presetBtnStyle}>
-            ⚾ 「成績を更新しました」
+          <button onClick={() => fillPreset("成績", "⚾ 成績を更新しました", "最新の試合成績をアプリに反映しました。チェックしてね！")} style={presetBtnStyle}>
+            ⚾ 「成績を更新しました」を入力
           </button>
-          <button onClick={() => send("📣 予告先発が発表されました", "次の試合の予告先発が決まりました。アプリの日程タブで確認！")} disabled={sending} style={presetBtnStyle}>
-            📣 「予告先発が発表されました」
+          <button onClick={() => fillPreset("先発", "📣 予告先発が発表されました", "次の試合の予告先発が決まりました。アプリの日程タブで確認！")} style={presetBtnStyle}>
+            📣 「予告先発が発表されました」を入力
           </button>
-          <button onClick={() => send("📅 次の練習のお知らせ", "次回の練習予定を更新しました。日程タブを確認してください。")} disabled={sending} style={presetBtnStyle}>
-            📅 「練習予定の更新」
+          <button onClick={() => fillPreset("アップデート", "🆕 アプリをアップデートしました", "新機能を追加しました。お知らせの「更新内容を見る」をチェック！")} style={presetBtnStyle}>
+            🆕 「アップデートしました」を入力
+          </button>
+          <button onClick={() => fillPreset("メンテナンス", "🛠 メンテナンスのお知らせ", "一時的に表示が不安定になる場合があります。ご了承ください。")} style={presetBtnStyle}>
+            🛠 「メンテナンス」を入力
           </button>
         </div>
-        <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 16, lineHeight: 1.7 }}>
-          ※ 通知が届くのは、成績アプリで「通知をオンにする」を押したメンバーだけです。<br />
-          ※ iPhoneはホーム画面に追加したアプリから通知をオンにする必要があります（iOS 16.4以降）。<br />
-          ※ 送信には Vercel に VAPID_PRIVATE_KEY の設定が必要です。
-        </p>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <H3>投稿済みのお知らせ（{announcements.length}件）</H3>
+          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄"}</button>
+        </div>
+        {sorted.length === 0 ? (
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, textAlign: "center", padding: 18 }}>まだお知らせはありません。</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {sorted.map((a, i) => (
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{formatDateShort(a.date)}</span>
+                    <span style={{ fontSize: 10, color: "#d4a82a", background: "rgba(212,168,42,0.12)", padding: "1px 7px" }}>{a.category}</span>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{a.title}</div>
+                  {a.body && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{a.body}</div>}
+                </div>
+                <button onClick={() => remove(a)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer", flexShrink: 0 }}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

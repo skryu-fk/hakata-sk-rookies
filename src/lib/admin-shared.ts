@@ -23,6 +23,8 @@ export const ALLOWED_SHEETS = new Set([
   "probables",    // 予告先発（試合日ごとの先発投手）
   // Web Push
   "subscriptions",// プッシュ通知の購読情報
+  // お知らせ
+  "announcements",// 成績アプリのお知らせ欄
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
