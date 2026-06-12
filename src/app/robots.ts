@@ -8,7 +8,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api/admin/"],
+      // 個人情報を含む画面・API は検索エンジンにクロールさせない
+      disallow: ["/admin", "/api/", "/stats"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

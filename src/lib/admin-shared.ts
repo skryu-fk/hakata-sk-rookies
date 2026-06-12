@@ -4,6 +4,7 @@
  */
 
 import { revalidatePath, revalidateTag } from "next/cache";
+import { safeEqual, verifySession, readCookie, MEMBER_COOKIE, ADMIN_COOKIE } from "@/lib/security";
 
 export const ALLOWED_SHEETS = new Set([
   // コンテンツ系
@@ -30,7 +31,6 @@ export const ALLOWED_SHEETS = new Set([
 export type AdminOp = "list" | "append" | "update" | "delete";
 
 export function ensureAuth(headers: Headers): Response | null {
-  const pw = headers.get("x-admin-password") ?? "";
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
     console.error("[admin] ADMIN_PASSWORD is not set");
@@ -39,10 +39,11 @@ export function ensureAuth(headers: Headers): Response | null {
       { status: 500 }
     );
   }
-  if (pw !== expected) {
-    return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
-  }
-  return null;
+  // 署名付き管理者セッション Cookie か、ヘッダのパスワード（定数時間比較）
+  if (verifySession(readCookie(headers, ADMIN_COOKIE), "admin")) return null;
+  const pw = headers.get("x-admin-password") ?? "";
+  if (pw && safeEqual(pw, expected)) return null;
+  return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
 }
 
 /**
@@ -51,7 +52,6 @@ export function ensureAuth(headers: Headers): Response | null {
  * 管理者パスでも通すフォールバックは敢えて入れない — 二者を必ず別運用にするため。
  */
 export function ensureMemberAuth(headers: Headers): Response | null {
-  const pw = headers.get("x-member-password") ?? "";
   const expected = process.env.MEMBER_PASSWORD;
   if (!expected) {
     console.error("[member] MEMBER_PASSWORD is not set");
@@ -60,10 +60,11 @@ export function ensureMemberAuth(headers: Headers): Response | null {
       { status: 500 }
     );
   }
-  if (pw !== expected) {
-    return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
-  }
-  return null;
+  // 署名付きメンバーセッション Cookie か、ヘッダのパスワード（定数時間比較）
+  if (verifySession(readCookie(headers, MEMBER_COOKIE), "member")) return null;
+  const pw = headers.get("x-member-password") ?? "";
+  if (pw && safeEqual(pw, expected)) return null;
+  return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
 }
 
 export function ensureSheet(sheet: string | undefined): Response | null {

@@ -5,11 +5,15 @@
  */
 import { ensureAuth } from "@/lib/admin-shared";
 import { sendToAll } from "@/lib/push-server";
+import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const rl = rateLimit(`push-send:${clientIp(request.headers)}`, { limit: 30, windowMs: 5 * 60_000 });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const authErr = ensureAuth(request.headers);
   if (authErr) return authErr;
 

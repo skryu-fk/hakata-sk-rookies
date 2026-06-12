@@ -5,11 +5,15 @@
  */
 
 import { ensureAuth, ensureSheet, callAppsScript } from "@/lib/admin-shared";
+import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const rl = rateLimit(`admin:${clientIp(request.headers)}`, { limit: 200, windowMs: 60_000 });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const authErr = ensureAuth(request.headers);
   if (authErr) return authErr;
 

@@ -33,9 +33,10 @@ export async function getExistingSubscription(): Promise<PushSubscription | null
 
 /**
  * 通知を購読し、サーバーへ登録する。
+ * 認証はメンバーセッション Cookie（自動送信）で行う。
  * 戻り値: "ok" | "denied" | "unsupported" | "error"
  */
-export async function subscribePush(memberPassword: string, label: string): Promise<"ok" | "denied" | "unsupported" | "error"> {
+export async function subscribePush(label: string): Promise<"ok" | "denied" | "unsupported" | "error"> {
   if (!pushSupported()) return "unsupported";
   try {
     const permission = await Notification.requestPermission();
@@ -54,7 +55,7 @@ export async function subscribePush(memberPassword: string, label: string): Prom
 
     const res = await fetch("/api/push/subscribe", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-member-password": memberPassword },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ subscription: sub.toJSON(), label }),
     });
     if (!res.ok) return "error";

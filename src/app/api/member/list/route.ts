@@ -7,6 +7,7 @@
  */
 
 import { ensureMemberAuth, callAppsScript } from "@/lib/admin-shared";
+import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,9 @@ const MEMBER_ALLOWED_SHEETS = new Set([
 ]);
 
 export async function POST(request: Request) {
+  const rl = rateLimit(`member-list:${clientIp(request.headers)}`, { limit: 100, windowMs: 60_000 });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const authErr = ensureMemberAuth(request.headers);
   if (authErr) return authErr;
 

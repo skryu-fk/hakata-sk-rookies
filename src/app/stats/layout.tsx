@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "博多SKルーキーズメンバー成績アプリ",
-  description: "博多SKルーキーズ メンバー専用の成績確認アプリ。打率・OPS・防御率・盗塁阻止率をまとめて確認できます。",
+  description: "博多SKルーキーズ メンバー専用の成績確認アプリ。",
   manifest: "/stats-app.webmanifest",
+  // 個人情報を含むため検索エンジンに載せない
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
   appleWebApp: {
     capable: true,
     title: "SKR 成績",

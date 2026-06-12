@@ -193,23 +193,22 @@ function gameKey(r: { date: string; opponent: string }): string {
 
 /* ── ページ本体 ───────────────────────────────────────── */
 export default function StatsPage() {
-  const [pw, setPw] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const saved = (typeof window !== "undefined" && window.localStorage.getItem(MEMBER_PW_KEY)) || "";
-    if (!saved) { setChecking(false); return; }
+    // 認証は HttpOnly Cookie で行う（パスワードはブラウザに保存しない）。
+    // 既存セッションがあるか GET で確認する。
     (async () => {
       try {
-        const res = await fetch("/api/member/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: saved }),
-        });
-        if (res.ok) setPw(saved);
-        else window.localStorage.removeItem(MEMBER_PW_KEY);
-      } catch { /* ネットワーク失敗時はログイン画面に戻す */ }
-      finally { setChecking(false); }
+        const res = await fetch("/api/member/verify", { method: "GET", cache: "no-store" });
+        if (res.ok) setAuthed(true);
+      } catch { /* ネットワーク失敗時はログイン画面 */ }
+      finally {
+        // 旧バージョンが残した平文パスワードがあれば掃除
+        try { window.localStorage.removeItem(MEMBER_PW_KEY); } catch {}
+        setChecking(false);
+      }
     })();
   }, []);
 
@@ -221,10 +220,10 @@ export default function StatsPage() {
     );
   }
 
-  if (!pw) return <LoginGate onSuccess={setPw} />;
-  return <StatsDashboard pw={pw} onLogout={() => {
-    window.localStorage.removeItem(MEMBER_PW_KEY);
-    setPw(null);
+  if (!authed) return <LoginGate onSuccess={() => setAuthed(true)} />;
+  return <StatsDashboard onLogout={async () => {
+    try { await fetch("/api/member/logout", { method: "POST" }); } catch {}
+    setAuthed(false);
   }} />;
 }
 
@@ -239,7 +238,7 @@ const pageBgStyle: React.CSSProperties = {
 };
 
 /* ── ログイン画面 ─────────────────────────────────────── */
-function LoginGate({ onSuccess }: { onSuccess: (pw: string) => void }) {
+function LoginGate({ onSuccess }: { onSuccess: () => void }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -249,6 +248,7 @@ function LoginGate({ onSuccess }: { onSuccess: (pw: string) => void }) {
     setBusy(true);
     setError("");
     try {
+      // 成功すると HttpOnly セッション Cookie が発行される（パスワードは保存しない）
       const res = await fetch("/api/member/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,8 +256,9 @@ function LoginGate({ onSuccess }: { onSuccess: (pw: string) => void }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
-        window.localStorage.setItem(MEMBER_PW_KEY, input);
-        onSuccess(input);
+        onSuccess();
+      } else if (res.status === 429) {
+        setError("試行回数が多すぎます。しばらく待ってからお試しください。");
       } else {
         setError(data?.error || "認証に失敗しました。");
       }
@@ -484,7 +485,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule";
 const TOTAL_SCOPE = "__total__";
 
-function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
+function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [batting, setBatting] = useState<BattingRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
@@ -499,15 +500,17 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
   const fetchList = useCallback(async <T,>(sheet: string, mapFn: (r: ListRow) => T): Promise<T[]> => {
+    // 認証は Cookie（同一オリジンの fetch で自動送信）。パスワードは送らない。
     const res = await fetch("/api/member/list", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-member-password": pw },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sheet }),
+      cache: "no-store",
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) return [];
     return (data.rows ?? []).map(mapFn);
-  }, [pw]);
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -763,7 +766,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
 
       {/* ── 通知バー ── */}
       <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14 }}>
-        <NotifyBar pw={pw} />
+        <NotifyBar />
       </div>
 
       {/* ── 種別タブ ── */}
@@ -848,7 +851,7 @@ function StatsDashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) 
 }
 
 /* ── 通知のオン/オフ バー ───────────────────────────────── */
-function NotifyBar({ pw }: { pw: string }) {
+function NotifyBar() {
   const [state, setState] = useState<"idle" | "on" | "working" | "denied" | "unsupported">("idle");
   const [msg, setMsg] = useState("");
 
@@ -865,7 +868,7 @@ function NotifyBar({ pw }: { pw: string }) {
     setMsg("");
     const { subscribePush } = await import("@/lib/push-client");
     const label = (typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 50) : "");
-    const r = await subscribePush(pw, label);
+    const r = await subscribePush(label);
     if (r === "ok") { setState("on"); setMsg("通知をオンにしました🔔"); }
     else if (r === "denied") { setState("denied"); setMsg("ブラウザの設定で通知がブロックされています。"); }
     else if (r === "unsupported") { setState("unsupported"); }

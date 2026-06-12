@@ -7,6 +7,7 @@
  * 同じ endpoint が既にあれば重複登録しない。
  */
 import { ensureMemberAuth, callAppsScript } from "@/lib/admin-shared";
+import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 type SubJson = { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
 
 export async function POST(request: Request) {
+  const rl = rateLimit(`push-sub:${clientIp(request.headers)}`, { limit: 20, windowMs: 60_000 });
+  if (!rl.ok) return tooMany(rl.retryAfter);
+
   const authErr = ensureMemberAuth(request.headers);
   if (authErr) return authErr;
 
