@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "stats" | "notify";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -764,6 +764,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["fielding", "守備記録", fielding.length],
             ["probables", "予告先発", probables.length],
             ["payments", "集金", payments.length],
+            ["receipt", "領収書", undefined],
             ["stats", "統計", undefined],
             ["notify", "🔔通知", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
@@ -894,6 +895,9 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             reloadPractices={loadPractices}
             showToast={showToast}
           />
+        )}
+        {tab === "receipt" && (
+          <ReceiptTab members={members} />
         )}
         {tab === "notify" && (
           <NotifyTab
@@ -3380,6 +3384,181 @@ const presetBtnStyle: React.CSSProperties = {
   padding: "12px 14px",
   fontSize: 13,
 };
+
+// ────────────────────────────────────────────────────────
+// 領収書タブ（自由作成 → 印刷/PDF保存）
+// ────────────────────────────────────────────────────────
+const RECEIPT_PURPOSES = ["月会費として", "グラウンド代として", "入会費として", "スポーツ保険料として", "その他"] as const;
+
+function genReceiptNo(): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const rand = String(Math.floor(Math.random() * 900) + 100);
+  return `R-${ymd}-${rand}`;
+}
+
+function ReceiptTab({ members }: { members: Member[] }) {
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState(0);
+  const [date, setDate] = useState(todayIso());
+  const [purposeSel, setPurposeSel] = useState<string>("月会費として");
+  const [purposeFree, setPurposeFree] = useState("");
+  const [no, setNo] = useState(genReceiptNo());
+
+  const purpose = purposeSel === "その他" ? purposeFree.trim() : purposeSel;
+  const amountStr = amount > 0 ? amount.toLocaleString("ja-JP") : "0";
+  const dateJp = (() => {
+    const m = normalizeDate(date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${Number(m[1])}年${Number(m[2])}月${Number(m[3])}日` : date;
+  })();
+
+  function print() {
+    if (typeof window !== "undefined") window.print();
+  }
+
+  const activeMembers = members.filter(m => m.active);
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[400px_1fr]">
+      {/* ── 入力（印刷時は隠す） ── */}
+      <section style={cardStyle} className="receipt-form">
+        <H3>領収書の作成</H3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>宛名（メンバーから選択）</label>
+            <select
+              value=""
+              onChange={e => { const m = members.find(mm => mm.id === e.target.value); if (m) setTo(m.name); }}
+              style={inputStyle as React.CSSProperties}
+            >
+              <option value="">— 名簿から選ぶ —</option>
+              {activeMembers.map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>宛名（直接入力）</label>
+            <input value={to} onChange={e => setTo(e.target.value)} placeholder="例: 山田 太郎" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>金額（円）</label>
+            <input type="number" min={0} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value) || 0))} style={inputStyle} />
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {[500, 1000, 2000, 400, 3000].map(v => (
+                <button key={v} onClick={() => setAmount(v)} style={{ ...btnSubStyle, padding: "5px 10px", fontSize: 12 }}>¥{v.toLocaleString()}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>但し書き</label>
+            <select value={purposeSel} onChange={e => setPurposeSel(e.target.value)} style={inputStyle as React.CSSProperties}>
+              {RECEIPT_PURPOSES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {purposeSel === "その他" && (
+              <input value={purposeFree} onChange={e => setPurposeFree(e.target.value)} placeholder="例: 親睦会費として" style={{ ...inputStyle, marginTop: 8 }} />
+            )}
+          </div>
+          <div>
+            <label style={labelStyle}>発行日</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>領収書番号</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={no} onChange={e => setNo(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+              <button onClick={() => setNo(genReceiptNo())} style={btnSubStyle}>採番</button>
+            </div>
+          </div>
+          <button onClick={print} style={{ ...btnPrimaryStyle, marginTop: 4 }}>🖨 PDFで保存 / 印刷 →</button>
+          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.7 }}>
+            ボタンを押すと印刷画面が開きます。送信先で「PDFに保存」を選べばPDFになります。<br />
+            iPhone: 印刷 →（プレビューを長押し/共有）→「ファイルに保存」。<br />
+            ¥50,000以上は収入印紙が必要です（少額の会費・グラウンド代では不要）。
+          </p>
+        </div>
+      </section>
+
+      {/* ── プレビュー（印刷対象） ── */}
+      <section style={cardStyle} className="receipt-preview-wrap">
+        <H3>プレビュー</H3>
+        <div id="receipt-print" style={{
+          background: "#fff",
+          color: "#111",
+          padding: "32px 36px",
+          maxWidth: 640,
+          margin: "0 auto",
+          fontFamily: "var(--font-zen),sans-serif",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.3)",
+          position: "relative",
+        }}>
+          {/* ヘッダー */}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#444" }}>
+            <span>No. {no}</span>
+            <span>{dateJp}</span>
+          </div>
+          <h2 style={{ textAlign: "center", fontSize: 30, fontWeight: 900, letterSpacing: "0.5em", margin: "18px 0 24px", paddingLeft: "0.5em", color: "#0b1e3f" }}>領収書</h2>
+
+          {/* 宛名 */}
+          <div style={{ fontSize: 20, fontWeight: 700, borderBottom: "2px solid #0b1e3f", paddingBottom: 8, marginBottom: 22, color: "#111" }}>
+            {to || "　　　　　　"} <span style={{ fontSize: 15 }}>様</span>
+          </div>
+
+          {/* 金額 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+            <span style={{ fontSize: 14, color: "#444", whiteSpace: "nowrap" }}>金額</span>
+            <span style={{ flex: 1, textAlign: "center", fontSize: 30, fontWeight: 900, letterSpacing: "0.05em", background: "#f3f4f6", border: "1px solid #d1d5db", padding: "8px 16px", color: "#0b1e3f" }}>
+              ￥ {amountStr} －
+            </span>
+          </div>
+
+          {/* 但し書き */}
+          <div style={{ fontSize: 15, borderBottom: "1px solid #999", paddingBottom: 6, marginBottom: 20 }}>
+            但し　{purpose || "　　　　　　　　"}
+          </div>
+
+          <p style={{ fontSize: 14, color: "#333", marginBottom: 28 }}>上記正に領収いたしました。</p>
+
+          {/* 発行者 + 印 */}
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", gap: 14 }}>
+            <div style={{ fontSize: 12.5, lineHeight: 1.9, color: "#222", textAlign: "left" }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>博多SKルーキーズ</div>
+              <div>〒812-0011 福岡市博多区博多駅前1丁目23番2号</div>
+              <div>ParkFront博多駅前1丁目 5F-B</div>
+              <div>代表　柏木 海斗</div>
+            </div>
+            {/* 角印（SVG） */}
+            <svg width="68" height="68" viewBox="0 0 68 68" aria-hidden style={{ flexShrink: 0 }}>
+              <rect x="2" y="2" width="64" height="64" rx="6" fill="none" stroke="#d10024" strokeWidth="2.5" />
+              <text x="34" y="22" textAnchor="middle" fontSize="13" fill="#d10024" fontWeight="700" fontFamily="serif">博多</text>
+              <text x="34" y="40" textAnchor="middle" fontSize="13" fill="#d10024" fontWeight="700" fontFamily="serif">SK</text>
+              <text x="34" y="58" textAnchor="middle" fontSize="11" fill="#d10024" fontWeight="700" fontFamily="serif">之印</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      {/* 印刷用スタイル：領収書だけを白紙に出力する */}
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 16mm; }
+          body { background: #fff !important; }
+          body * { visibility: hidden !important; }
+          #receipt-print, #receipt-print * { visibility: visible !important; }
+          #receipt-print {
+            position: absolute !important;
+            left: 0; top: 0;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────
 // 統計タブ
