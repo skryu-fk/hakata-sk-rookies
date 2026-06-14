@@ -2397,7 +2397,7 @@ function BattingTab({
   reload: () => void;
   showToast: (ok: boolean, text: string) => void;
 }) {
-  const [form, setForm] = useState({
+  const EMPTY = {
     date: todayIso(),
     memberId: "",
     opponent: "",
@@ -2413,7 +2413,24 @@ function BattingTab({
     sh: 0,
     sb: 0,
     cs: 0,
-  });
+  };
+  const [form, setForm] = useState(EMPTY);
+  const [editingRow, setEditingRow] = useState<number | null>(null); // 編集中の行（_row）。null なら新規
+
+  function startEdit(b: BattingRow) {
+    setEditingRow(b._row);
+    setForm({
+      date: b.date, memberId: b.memberId, opponent: b.opponent,
+      atBats: b.atBats, hits: b.hits, doubles: b.doubles, triples: b.triples,
+      hr: b.hr, rbi: b.rbi, bb: b.bb, so: b.so, hbp: b.hbp, sh: b.sh, sb: b.sb, cs: b.cs,
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingRow(null);
+    setForm(EMPTY);
+  }
 
   async function submit() {
     const member = members.find(m => m.id === form.memberId);
@@ -2441,11 +2458,20 @@ function BattingTab({
       String(form.hr), String(form.rbi), String(form.bb), String(form.so),
       String(form.hbp), String(form.sh), String(form.sb), String(form.cs),
     ];
-    const ok = await api("/api/admin/append", { sheet: "batting", row });
-    if (ok) {
-      showToast(true, `${member.name} の打席を記録しました。`);
-      setForm(prev => ({ ...prev, opponent: "", atBats: 0, hits: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0, hbp: 0, sh: 0, sb: 0, cs: 0 }));
-      reload();
+    if (editingRow != null) {
+      const ok = await api("/api/admin/update", { sheet: "batting", rowIndex: editingRow, row });
+      if (ok) {
+        showToast(true, `${member.name} の打席記録を更新しました。`);
+        cancelEdit();
+        reload();
+      }
+    } else {
+      const ok = await api("/api/admin/append", { sheet: "batting", row });
+      if (ok) {
+        showToast(true, `${member.name} の打席を記録しました。`);
+        setForm(prev => ({ ...prev, opponent: "", atBats: 0, hits: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0, hbp: 0, sh: 0, sb: 0, cs: 0 }));
+        reload();
+      }
     }
   }
 
@@ -2462,8 +2488,8 @@ function BattingTab({
 
   return (
     <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
-      <section style={cardStyle}>
-        <H3>新しい打席記録</H3>
+      <section style={{ ...cardStyle, ...(editingRow != null ? { border: "1px solid #d4a82a" } : {}) }}>
+        <H3>{editingRow != null ? "✏️ 打席記録を編集中" : "新しい打席記録"}</H3>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
             <label style={labelStyle}>日付</label>
@@ -2498,7 +2524,14 @@ function BattingTab({
             <NumField label="盗塁成功 (SB)" v={form.sb} on={n => setForm({ ...form, sb: n })} />
             <NumField label="盗塁失敗 (CS)" v={form.cs} on={n => setForm({ ...form, cs: n })} />
           </div>
-          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "保存中…" : "記録する →"}</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, flex: 1, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "保存中…" : editingRow != null ? "更新する →" : "記録する →"}
+            </button>
+            {editingRow != null && (
+              <button onClick={cancelEdit} disabled={saving} style={{ ...btnSubStyle, flexShrink: 0 }}>キャンセル</button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -2535,7 +2568,7 @@ function BattingTab({
               </thead>
               <tbody>
                 {sortedBatting.map((b, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: editingRow === b._row ? "rgba(212,168,42,0.1)" : undefined }}>
                     <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(b.date)}</span></Td>
                     <Td><strong>{b.memberName}</strong></Td>
                     <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{b.opponent || "—"}</span></Td>
@@ -2551,7 +2584,10 @@ function BattingTab({
                     <Td><span style={{ color: b.sb > 0 ? "#67e088" : undefined }}>{b.sb}</span></Td>
                     <Td>{b.cs}</Td>
                     <Td>
-                      <button onClick={() => remove(b)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button onClick={() => startEdit(b)} style={{ padding: "3px 8px", background: "transparent", color: "#d4a82a", border: "1px solid rgba(212,168,42,0.4)", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}>編集</button>
+                        <button onClick={() => remove(b)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
+                      </div>
                     </Td>
                   </tr>
                 ))}
