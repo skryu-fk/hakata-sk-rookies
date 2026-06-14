@@ -294,12 +294,28 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
         </div>
 
         <form onSubmit={e => { e.preventDefault(); submit(); }}>
+          {/* パスワードマネージャ（iPhoneのキーチェーン/Face ID・Androidの自動入力）に
+              認証情報を保存・関連付けさせるためのユーザー名フィールド。
+              画面には出さないが display:none にすると無視されるため画面外に固定配置する。 */}
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            value="博多SKルーキーズ メンバー"
+            readOnly
+            tabIndex={-1}
+            aria-hidden="true"
+            style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, border: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
+          />
           <input
             type="password"
+            name="password"
+            id="member-password"
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="メンバー用パスワード"
             autoFocus
+            autoComplete="current-password"
             style={{
               width: "100%",
               padding: 14,
