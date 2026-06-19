@@ -1,0 +1,9 @@
+{
+  "pkg": "hakata-rookies",
+  "globalName": "HakataDS",
+  "shape": "package",
+  "buildCmd": "npm run build:ds",
+  "srcDir": "src/ds",
+  "cssEntry": "src/ds/styles.css",
+  "readmeHeader": ".design-sync/conventions.md"
+}

@@ -1,0 +1,30 @@
+/**
+ * 博多SKルーキーズ デザインシステム — グローバルスタイル
+ *
+ * コンポーネントはインラインスタイルでトークンを参照するため、コンポーネントCSSは無い。
+ * このファイルは「ブランドフォントの読み込み」と「トークンの CSS 変数定義」だけを担う。
+ * design-sync の cssEntry に指定する。
+ */
+
+/* ブランドフォント（アプリでは next/font でセルフホストするが、DS 単体描画用にWebフォントを読み込む） */
+@import url("https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Oswald:wght@400;500;700&family=RocknRoll+One&display=swap");
+
+:root {
+  /* colors */
+  --navy: #0b1e3f;
+  --navy-2: #142a52;
+  --navy-3: #1c3866;
+  --red: #d10024;
+  --red-2: #a80019;
+  --gold: #d4a82a;
+  --base: #f5f2ec;
+  --ink: #131922;
+  --muted: #5b6373;
+  --line: #d8d4cb;
+  --line-2: #e8e4dc;
+
+  /* fonts — コンポーネントの var(--font-zen) 等のフォールバック先 */
+  --font-zen: "Zen Kaku Gothic New", system-ui, sans-serif;
+  --font-oswald: "Oswald", system-ui, sans-serif;
+  --font-rocknroll: "RocknRoll One", system-ui, sans-serif;
+}

@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# design-sync（再生成される出力・ステージされたスクリプト・キャッシュ）
+/ds-dist/
+/ds-bundle/
+/.ds-sync/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

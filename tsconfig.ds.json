@@ -1,0 +1,15 @@
+{
+  "//": "src/ds（デザインシステム）を dist 化するための設定。`npm run build:ds` で使う。",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "outDir": "ds-dist",
+    "rootDir": "src/ds",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["src/ds/**/*"],
+  "exclude": ["node_modules"]
+}
