@@ -22,5 +22,5 @@ export const Soft = () => (
 
 /** アイコン付き（子要素に絵文字や記号を入れられる）。 */
 export const WithIcon = () => (
-  <Badge tone="red"><span aria-hidden>⚠</span>熱中症対策</Badge>
+  <Badge tone="red"><span aria-hidden>🌡️</span>熱中症対策</Badge>
 );

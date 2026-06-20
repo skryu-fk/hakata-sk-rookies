@@ -1,9 +1,10 @@
 {
+  "projectId": "6c4f8153-e80f-4549-b389-e8e71dec8f1a",
   "pkg": "hakata-rookies",
   "globalName": "HakataDS",
   "shape": "package",
   "buildCmd": "npm run build:ds",
   "srcDir": "src/ds",
-  "cssEntry": "src/ds/styles.css",
+  "cssEntry": "styles.css",
   "readmeHeader": ".design-sync/conventions.md"
 }

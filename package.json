@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "build:ds": "tsc -p tsconfig.ds.json"
+    "build:ds": "node scripts/build-ds.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
