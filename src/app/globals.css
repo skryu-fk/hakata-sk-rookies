@@ -229,6 +229,16 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .reveal-scale.visible { opacity: 1; transform: none; }
 
+/* スクロールで3Dに起き上がるカード（near-future）。単独で使う */
+.reveal-3d {
+  opacity: 0;
+  transform: perspective(1100px) rotateX(14deg) translateY(42px);
+  transform-origin: top center;
+  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
+              transform 0.85s cubic-bezier(0.16,1,0.3,1);
+}
+.reveal-3d.visible { opacity: 1; transform: perspective(1100px) rotateX(0deg) translateY(0); }
+
 /* セクション見出しの赤バー — reveal 後ににゅっと伸びる */
 .grow-bar {
   width: 44px;
@@ -590,6 +600,56 @@ a[href]:active, button:active { transition-duration: 0.05s; }
 /* リンクの下線位置を少し下げて読みやすく（本文リンク全般） */
 .news-body .md-link, .legal-body a { text-underline-offset: 4px; }
 
+/* ── 近未来レイヤー（色は不変／既存のreveal等と競合しないCSS質感） ───── */
+
+/* ヒーローのスキャンライン（ごく薄く流れる） */
+.hero-scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.028) 0px,
+    rgba(255,255,255,0.028) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  opacity: 0.55;
+  mix-blend-mode: overlay;
+  animation: scanShift 7s linear infinite;
+}
+@keyframes scanShift { from { background-position: 0 0; } to { background-position: 0 8px; } }
+
+/* ネオングロー（ブランド色のみ） */
+.hero-gold-sweep { filter: drop-shadow(0 0 16px rgba(212,168,42,0.35)); }
+.hero-badge { box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 0 22px rgba(209,0,36,0.45); }
+
+/* カード上辺を流れるホログラム光（hoverで点灯）。transformは使わないのでreveal安全 */
+.about-card, .sponsor-card { position: relative; }
+.about-card::before, .sponsor-card::before, .support-card::before {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red) 35%, var(--gold) 65%, transparent);
+  background-size: 220% 100%;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-out);
+  animation: holoSlide 2.6s linear infinite;
+  pointer-events: none;
+}
+.about-card:hover::before, .sponsor-card:hover::before, .support-card:hover::before { opacity: 0.95; }
+@keyframes holoSlide { from { background-position: 0 0; } to { background-position: 220% 0; } }
+
+/* 暗色カード（支援セクション）にガラス質感＋ホロ枠グロー */
+.support-card {
+  position: relative;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.support-card:hover {
+  border-color: rgba(212,168,42,0.4) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2), 0 24px 56px rgba(0,0,0,0.34), 0 0 28px rgba(212,168,42,0.12);
+}
+
+/* スコアボード/ダーク見出しのアクセント：セクションゴースト英字に微発光 */
+.section-ghost { will-change: opacity, transform; }
+
 /* ── Reduced motion — 演出を一括停止 ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -597,7 +657,7 @@ a[href]:active, button:active { transition-duration: 0.05s; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .reveal, .reveal-left, .reveal-right, .reveal-scale { opacity: 1; transform: none; }
+  .reveal, .reveal-left, .reveal-right, .reveal-scale, .reveal-3d { opacity: 1; transform: none; }
   .grow-bar { transform: scaleX(1); }
   html { scroll-behavior: auto; }
 }

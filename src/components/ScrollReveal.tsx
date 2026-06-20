@@ -27,7 +27,7 @@ export default function ScrollReveal() {
 
     const observe = () => {
       document
-        .querySelectorAll<HTMLElement>(".reveal, .reveal-left, .reveal-right, .reveal-scale")
+        .querySelectorAll<HTMLElement>(".reveal, .reveal-left, .reveal-right, .reveal-scale, .reveal-3d")
         .forEach((el) => io.observe(el));
     };
 

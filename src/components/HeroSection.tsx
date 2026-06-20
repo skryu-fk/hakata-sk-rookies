@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import Hero3D from "./Hero3D";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
@@ -110,12 +111,20 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
       <section id="top" className="relative bg-navy text-white overflow-hidden flex flex-col" style={{ minHeight: "100vh" }}>
         {/* Field grid */}
         <div className="field-grid absolute inset-0" />
+        {/* 近未来スキャンライン */}
+        <div className="hero-scanlines absolute inset-0 pointer-events-none" />
         {/* Red left bar */}
         <div className="absolute left-0 top-0 bottom-0 w-2" style={{ background: "linear-gradient(180deg,#d10024,#a80019)" }} />
         {/* Radial glow */}
         <div className="absolute pointer-events-none" style={{ top: "-10%", right: "20%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(209,0,36,0.12) 0%, transparent 65%)" }} />
-        {/* Diamond */}
-        <BaseballDiamond />
+        {/* 3D 野球ボール（デスクトップ） */}
+        <div className="hidden md:block absolute pointer-events-none" style={{ right: "-6%", top: "50%", transform: "translateY(-50%)", width: "clamp(420px,52vw,760px)", height: "clamp(420px,52vw,760px)" }}>
+          <Hero3D />
+        </div>
+        {/* Diamond（モバイル用フォールバック＋デスクトップでも薄く重ねる） */}
+        <div className="md:hidden">
+          <BaseballDiamond />
+        </div>
 
         {/* Content */}
         <div className="max-w-[1280px] mx-auto px-8 flex-1 flex items-center relative" style={{ paddingTop: 96, paddingBottom: 80, width: "100%" }}>
