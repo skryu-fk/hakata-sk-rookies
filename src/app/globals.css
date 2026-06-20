@@ -26,19 +26,62 @@
   --line: #d8d4cb;
 }
 
+html {
+  /* スティッキーヘッダー（上部バー34px＋ヘッダー68px）にアンカー先が隠れないように */
+  scroll-padding-top: 96px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html, body {
   background: var(--base);
   color: #131922;
   font-family: var(--font-zen), system-ui, sans-serif;
-  font-feature-settings: "palt";
+  /* タイポグラフィの精細化（プロ仕上げ） */
+  font-feature-settings: "palt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
 
+/* アンカー遷移をなめらかに（モーション抑制設定は尊重する） */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
+/* 画面内アンカーの着地位置をヘッダー分オフセット */
+[id] { scroll-margin-top: 92px; }
+
 ::selection { background: var(--red); color: #fff; }
 
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: var(--navy); }
-::-webkit-scrollbar-thumb { background: var(--red); }
+::-webkit-scrollbar-thumb {
+  background: var(--red);
+  border: 2px solid var(--navy);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--red-2); }
+* { scrollbar-color: var(--red) var(--navy); }
+
+/* キーボード操作時だけ出る、ブランド配色のフォーカスリング（アクセシビリティ＋上質感） */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 1px;
+}
+/* マウス操作では出さない（対応ブラウザのみ） */
+:focus:not(:focus-visible) { outline: none; }
+
+/* 画像のドラッグ選択を抑え、ロゴをくっきり */
+img { -webkit-user-drag: none; user-select: none; }
+
+/* 共通のなめらかなイージング変数 */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
 
 /* ── Hero animations ──────────────────────────────────── */
 @keyframes heroSlideUp {
@@ -501,6 +544,52 @@ html, body {
 }
 .mark-drift { animation: markDrift 14s ease-in-out infinite; }
 
+/* ── プロ仕上げ：質感の洗練（色・レイアウトは不変） ───────────
+   影を「近接＋拡散」の二段重ねにして奥行きを上品に。イージングを統一。
+   いずれもホバー時のみで、静止時の見た目は変えない。 */
+.about-card, .sponsor-card, .tweet-card {
+  transition:
+    transform 0.3s var(--ease-out),
+    box-shadow 0.3s var(--ease-out),
+    border-color 0.25s var(--ease-out);
+}
+.about-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 2px 6px rgba(11,30,63,0.05), 0 18px 40px rgba(11,30,63,0.13);
+}
+.sponsor-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 2px 8px rgba(11,30,63,0.06), 0 22px 48px rgba(11,30,63,0.15);
+}
+.tweet-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 2px 6px rgba(11,30,63,0.04), 0 16px 38px rgba(11,30,63,0.1);
+}
+.support-card:hover {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18), 0 24px 56px rgba(0,0,0,0.34);
+}
+
+/* ナビのホバー下線を中央から伸ばす（位置は不変、動きだけ上質に） */
+.nav-link { position: relative; }
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 16px; right: 16px; bottom: -1px;
+  height: 3px;
+  background: var(--red);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.28s var(--ease-out);
+}
+.nav-link:hover { border-bottom-color: transparent; }
+.nav-link:hover::after { transform: scaleX(1); }
+
+/* CTA・カードのクリック時に軽く沈むフィードバック */
+a[href]:active, button:active { transition-duration: 0.05s; }
+
+/* リンクの下線位置を少し下げて読みやすく（本文リンク全般） */
+.news-body .md-link, .legal-body a { text-underline-offset: 4px; }
+
 /* ── Reduced motion — 演出を一括停止 ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -510,4 +599,5 @@ html, body {
   }
   .reveal, .reveal-left, .reveal-right, .reveal-scale { opacity: 1; transform: none; }
   .grow-bar { transform: scaleX(1); }
+  html { scroll-behavior: auto; }
 }
