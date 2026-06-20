@@ -5,17 +5,18 @@
 - Storybook なし。`src/components/` はページ専用部品（next/image・サーバーデータ依存）。
 - そこで `src/ds/` に **アプリ非依存の汎用表示コンポーネント＋トークン** を切り出してデザインシステム化した。
 
-## 現状（sync-ready / 未アップロード）
+## 現状（sync 済み）
 - 同期シェイプ = **package**。
 - `npm run build:ds`（= `tsc -p tsconfig.ds.json`）で `ds-dist/` に ESM + `.d.ts` を出力。
 - converter エントリ: **`./ds-dist/index.js`**、globalName = **`HakataDS`**。
 - cssEntry = `src/ds/styles.css`（ブランドフォントの @import ＋ トークンの CSS 変数）。
 - プレビュー（`.design-sync/previews/*.tsx`）作成済み。import は規約どおり `'hakata-rookies'`（→ `window.HakataDS` にシムされる）。
 - conventions.md 作成済み（`readmeHeader` に設定）。
+- **2026-06-21: claude.ai/design への初回アップロード完了。** プロジェクト「博多SKルーキーズ デザインシステム」（`projectId: 841978ec-0f53-4e2d-ba08-dccd7b979a7a`）に Badge/Button/Card/SectionHeading/Stat の5コンポーネント（全カードプレビューを採点済み・全て `good`）をアップロード済み。`https://claude.ai/design/p/841978ec-0f53-4e2d-ba08-dccd7b979a7a`
 
-## ⛔ アップロード未完の理由（環境ブロッカー）
-- 作業環境に **`/design-login`・`/login` が無い**ため DesignSync ツールを認可できず、claude.ai/design へ作成・アップロードできなかった。
-- → **claude.ai にログイン済みの公式 Claude Code（CLI/デスクトップ）など、`/design-login` が使える環境**でこのリポジトリを開き `/design-sync` を実行すれば、ここまでの durable 入力（config / previews / conventions / build:ds）を使ってビルド→プロジェクト作成→アップロードまで自動で進む。
+## ⚠️ 解決済みの過去の問題（記録として）
+- 以前の環境では `/design-login`・`/login` が無く DesignSync ツールを認可できなかったため、`config.json` に `projectId: 6c4f8153-...` が記録されていたが、実際には `create_project` が一度も成功しておらず**存在しないプロジェクトID**だった。今回の sync で `get_project` が 404 を返したことで判明し、新規プロジェクトを作成して projectId を上記に更新した。
+- 教訓: `projectId` が config にあっても、`DesignSync(get_project)` で実在を確認するまで信用しない（base SKILL.md §1 の手順どおり）。
 
 ## 同期コマンド（認可可能な環境で）
 ```
