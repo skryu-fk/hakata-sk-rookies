@@ -112,6 +112,13 @@ type AnnouncementRow = {
   body: string;
 };
 
+type ParticipantRow = {
+  date: string;
+  memberId: string;
+  memberName: string;
+  note: string;
+};
+
 type BattingStat = {
   m: Member; games: number; ab: number; h: number; hr: number; rbi: number; bb: number; so: number;
   hbp: number; sh: number; sb: number; cs: number; sbAttempts: number;
@@ -510,6 +517,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("news");
@@ -531,7 +539,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs, ans] = await Promise.all([
+      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
@@ -605,6 +613,12 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           title: r.data[2] ?? "",
           body: r.data[3] ?? "",
         })),
+        fetchList<ParticipantRow>("participants", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          memberId: r.data[1] ?? "",
+          memberName: r.data[2] ?? "",
+          note: r.data[3] ?? "",
+        })),
       ]);
       setMembers(ms);
       setBatting(bs);
@@ -614,6 +628,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       setPractices(prs);
       setProbables(pbs);
       setAnnouncements(ans);
+      setParticipants(parts);
       setUpdatedAt(new Date());
     } finally {
       setLoading(false);
@@ -677,6 +692,21 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
     probables.forEach(p => { if (p.date) m.set(p.date, p); });
     return m;
   }, [probables]);
+  // 練習の参加予定メンバーを日付で引けるように
+  const participantsByDate = useMemo(() => {
+    const m = new Map<string, ParticipantRow[]>();
+    participants.forEach(p => {
+      if (!p.date) return;
+      if (!m.has(p.date)) m.set(p.date, []);
+      m.get(p.date)!.push(p);
+    });
+    return m;
+  }, [participants]);
+  const membersById = useMemo(() => {
+    const m = new Map<string, Member>();
+    members.forEach(mm => m.set(mm.id, mm));
+    return m;
+  }, [members]);
   const scheduleCount = upcoming.length;
 
   const scopeLabel = scope === TOTAL_SCOPE
@@ -725,6 +755,12 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
 
         @keyframes stxSpin { to { transform: rotate(360deg); } }
         .stx-spin { animation: stxSpin 0.9s linear infinite; }
+
+        @keyframes stxDetailIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } }
+        .stx-detail { animation: stxDetailIn 0.42s cubic-bezier(0.16,1,0.3,1) both; }
+        .stx-tap { transition: background 0.2s, transform 0.2s cubic-bezier(0.16,1,0.3,1); cursor: pointer; }
+        .stx-tap:hover { background: rgba(255,255,255,0.05); transform: translateX(4px); }
+        .stx-tap:active { transform: scale(0.99); }
       `}</style>
 
       {/* SKマークの透かし */}
@@ -859,7 +895,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         ) : tab === "fielding" ? (
           <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
         ) : (
-          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} />
+          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} />
         )}
       </main>
     </div>
@@ -1565,13 +1601,31 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
 }
 
 /* ── 日程ビュー（練習・試合 + 予告先発） ──────────────────── */
-function ScheduleView({ upcoming, pastGames, probableByDate }: {
+function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate, membersById }: {
   upcoming: PracticeRow[];
   pastGames: PracticeRow[];
   probableByDate: Map<string, ProbableRow>;
+  participantsByDate: Map<string, ParticipantRow[]>;
+  membersById: Map<string, Member>;
 }) {
+  const [selected, setSelected] = useState<PracticeRow | null>(null);
+
+  // 練習をタップ → 参加メンバー詳細へ（閉じると一覧に戻る）
+  if (selected) {
+    return (
+      <ParticipantDetail
+        practice={selected}
+        participants={participantsByDate.get(selected.date) ?? []}
+        membersById={membersById}
+        probable={isGameType(selected.type) ? probableByDate.get(selected.date) : undefined}
+        onClose={() => setSelected(null)}
+      />
+    );
+  }
+
   const next = upcoming[0];
   const rest = upcoming.slice(1);
+  const countFor = (d: string) => participantsByDate.get(d)?.length ?? 0;
 
   return (
     <div>
@@ -1582,8 +1636,16 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
             const st = practiceStatusLabel(next.status);
             const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[next.type] ?? "#d4a82a");
             const prob = isGameType(next.type) ? probableByDate.get(next.date) : undefined;
+            const cnt = countFor(next.date);
             return (
-              <div style={{ borderLeft: `4px solid ${color}`, padding: "18px 18px 16px", background: "linear-gradient(135deg, rgba(212,168,42,0.06), rgba(209,0,36,0.04))", position: "relative", opacity: st.canceled ? 0.6 : 1 }}>
+              <div
+                className="stx-tap"
+                onClick={() => setSelected(next)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(next); } }}
+                style={{ borderLeft: `4px solid ${color}`, padding: "18px 18px 16px", background: "linear-gradient(135deg, rgba(212,168,42,0.06), rgba(209,0,36,0.04))", position: "relative", opacity: st.canceled ? 0.6 : 1 }}
+              >
                 <span className="stx-rank-1" style={{ position: "absolute", top: -1, right: 12, fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.3em", background: "#d4a82a", color: "#0a0e1a", padding: "3px 12px" }}>NEXT</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
@@ -1617,6 +1679,13 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
                     )}
                   </div>
                 )}
+                {/* 参加予定 → タップ誘導 */}
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span style={{ fontSize: 12.5, color: cnt > 0 ? "#67e088" : "rgba(255,255,255,0.5)" }}>
+                    👥 参加予定 <strong style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15 }}>{cnt}</strong> 人
+                  </span>
+                  <span style={{ fontSize: 11.5, color: "#d4a82a", fontWeight: 700 }}>タップで参加メンバー →</span>
+                </div>
               </div>
             );
           })()}
@@ -1636,8 +1705,17 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
               const st = practiceStatusLabel(p.status);
               const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[p.type] ?? "#d4a82a");
               const prob = isGameType(p.type) ? probableByDate.get(p.date) : undefined;
+              const cnt = countFor(p.date);
               return (
-                <li key={p.date + p.place + i} className="stx-row" style={{ display: "flex", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", borderLeft: `3px solid ${color}`, paddingLeft: 12, opacity: st.canceled ? 0.55 : 1, animationDelay: `${120 + i * 50}ms` }}>
+                <li
+                  key={p.date + p.place + i}
+                  className="stx-row stx-tap"
+                  onClick={() => setSelected(p)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(p); } }}
+                  style={{ display: "flex", gap: 14, padding: "12px 8px 12px 12px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", borderLeft: `3px solid ${color}`, opacity: st.canceled ? 0.55 : 1, animationDelay: `${120 + i * 50}ms` }}
+                >
                   <div style={{ minWidth: 50, textAlign: "center" }}>
                     <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, lineHeight: 1 }}>{mdLabel(p.date)}</div>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>{weekday(p.date)}曜日</div>
@@ -1653,6 +1731,10 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
                     )}
                     {p.note && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>※ {p.note}</div>}
                   </div>
+                  <div style={{ alignSelf: "center", textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 11.5, color: cnt > 0 ? "#67e088" : "rgba(255,255,255,0.4)" }}>👥 {cnt}</div>
+                    <div style={{ fontSize: 16, color: "rgba(255,255,255,0.35)", lineHeight: 1 }}>›</div>
+                  </div>
                 </li>
               );
             })}
@@ -1667,8 +1749,17 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {pastGames.map((p, i) => {
               const color = PRACTICE_COLOR[p.type] ?? "#9b59b6";
+              const cnt = countFor(p.date);
               return (
-                <li key={p.date + p.place + i} style={{ display: "flex", gap: 12, padding: "10px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+                <li
+                  key={p.date + p.place + i}
+                  className="stx-tap"
+                  onClick={() => setSelected(p)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(p); } }}
+                  style={{ display: "flex", gap: 12, padding: "10px 8px 10px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}
+                >
                   <div style={{ minWidth: 50, textAlign: "center" }}>
                     <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 16, color: "rgba(255,255,255,0.8)", lineHeight: 1 }}>{mdLabel(p.date)}</div>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>{weekday(p.date)}</div>
@@ -1680,12 +1771,103 @@ function ScheduleView({ upcoming, pastGames, probableByDate }: {
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>📍 {p.place}</div>
                   </div>
+                  <div style={{ alignSelf: "center", textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 11.5, color: cnt > 0 ? "#67e088" : "rgba(255,255,255,0.4)" }}>👥 {cnt}</div>
+                    <div style={{ fontSize: 16, color: "rgba(255,255,255,0.35)", lineHeight: 1 }}>›</div>
+                  </div>
                 </li>
               );
             })}
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/* ── 参加メンバー詳細（練習タップで表示・閉じると一覧へ） ──────── */
+function ParticipantDetail({ practice, participants, membersById, probable, onClose }: {
+  practice: PracticeRow;
+  participants: ParticipantRow[];
+  membersById: Map<string, Member>;
+  probable?: ProbableRow;
+  onClose: () => void;
+}) {
+  const st = practiceStatusLabel(practice.status);
+  const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[practice.type] ?? "#d4a82a");
+  const sorted = [...participants].sort((a, b) => {
+    const ja = Number(membersById.get(a.memberId)?.jerseyNumber) || 999;
+    const jb = Number(membersById.get(b.memberId)?.jerseyNumber) || 999;
+    return ja - jb;
+  });
+
+  return (
+    <div className="stx-detail">
+      {/* 戻る/閉じる */}
+      <button
+        onClick={onClose}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", marginBottom: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+      >
+        ← 日程一覧に戻る
+      </button>
+
+      {/* 練習ヘッダー */}
+      <section style={{ ...cardStyle, padding: 0, overflow: "hidden", marginBottom: 14 }}>
+        <div style={{ borderLeft: `4px solid ${color}`, padding: "16px 18px", background: "linear-gradient(135deg, rgba(212,168,42,0.06), rgba(209,0,36,0.04))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{mdLabel(practice.date)}</div>
+              <div style={{ fontSize: 10.5, color: "#d4a82a", marginTop: 4, fontWeight: 700 }}>{weekday(practice.date)}曜日</div>
+            </div>
+            <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 15 }}>{practiceTypeLabel(practice.type)}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", padding: "2px 7px" }}>{st.label}</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.8)" }}>📍 {practice.place}{practice.time ? ` / ${practice.time}` : ""}</div>
+              {probable && probable.memberName && (
+                <div style={{ fontSize: 11.5, color: "#c08fe0", marginTop: 3 }}>⚾ 予告先発: <strong style={{ color: "#fff" }}>{probable.memberName}</strong></div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 参加メンバー */}
+      <section style={cardStyle}>
+        <H sub="ATTENDING">参加予定メンバー（{sorted.length}人）</H>
+        {sorted.length === 0 ? (
+          <p style={emptyMsg}>この日の参加メンバーはまだ登録されていません。<br />（管理者が事前登録すると、ここに表示されます）</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {sorted.map((p, i) => {
+              const m = membersById.get(p.memberId);
+              const name = m?.name || p.memberName || "—";
+              return (
+                <li key={p.memberId + i} className="stx-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", animationDelay: `${i * 45}ms` }}>
+                  <span style={{ flexShrink: 0, width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#d4a82a" }}>
+                    {m?.jerseyNumber || "—"}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>
+                      {name}
+                      {m?.nickname && <span style={{ marginLeft: 7, color: "rgba(255,255,255,0.4)", fontSize: 11.5 }}>({m.nickname})</span>}
+                    </div>
+                    {(m?.position || p.note) && (
+                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 1 }}>
+                        {m?.position}{m?.position && p.note ? " ・ " : ""}{p.note}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "#67e088", background: "rgba(103,224,136,0.12)", padding: "2px 8px" }}>参加</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
