@@ -481,7 +481,7 @@ function AboutSection() {
         <SectionTitle jp="チーム紹介" en="About" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
           {STORIES.map((s, i) => (
-            <div key={s.no} className="about-card reveal-3d" data-delay={String(i * 120)}
+            <div key={s.no} className="about-card reveal" data-delay={String(i * 120)}
               style={{ padding: "36px 28px", background: "#f9f6f2", border: "1px solid #e4e0d8", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", right: 10, top: 8, fontFamily: "var(--font-oswald),sans-serif", fontSize: 80, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{s.no}</div>
               <div style={{ width: 4, height: 44, background: "#d10024", marginBottom: 20 }} />

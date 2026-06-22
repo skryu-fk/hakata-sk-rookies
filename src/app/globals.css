@@ -229,16 +229,6 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .reveal-scale.visible { opacity: 1; transform: none; }
 
-/* スクロールで3Dに起き上がるカード（near-future）。単独で使う */
-.reveal-3d {
-  opacity: 0;
-  transform: perspective(1100px) rotateX(14deg) translateY(42px);
-  transform-origin: top center;
-  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1),
-              transform 0.85s cubic-bezier(0.16,1,0.3,1);
-}
-.reveal-3d.visible { opacity: 1; transform: perspective(1100px) rotateX(0deg) translateY(0); }
-
 /* セクション見出しの赤バー — reveal 後ににゅっと伸びる */
 .grow-bar {
   width: 44px;
@@ -657,7 +647,7 @@ a[href]:active, button:active { transition-duration: 0.05s; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .reveal, .reveal-left, .reveal-right, .reveal-scale, .reveal-3d { opacity: 1; transform: none; }
+  .reveal, .reveal-left, .reveal-right, .reveal-scale { opacity: 1; transform: none; }
   .grow-bar { transform: scaleX(1); }
   html { scroll-behavior: auto; }
 }
