@@ -26,6 +26,8 @@ export const ALLOWED_SHEETS = new Set([
   "subscriptions",// プッシュ通知の購読情報
   // お知らせ
   "announcements",// 成績アプリのお知らせ欄
+  // 設定（メンテナンスフラグ等）
+  "settings",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";

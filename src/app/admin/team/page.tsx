@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -113,6 +113,13 @@ type AnnouncementRow = {
   category: string;
   title: string;
   body: string;
+  _row: number;
+};
+
+type SettingRow = {
+  key: string;
+  value: string;
+  note: string;
   _row: number;
 };
 
@@ -417,6 +424,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
   const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+  const [settings, setSettings] = useState<SettingRow[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);  // 書き込み中フラグ（ボタン disable / ローダー表示用）
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -608,6 +616,19 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     })));
   }, [api]);
 
+  const loadSettings = useCallback(async () => {
+    setLoadingFor("settings", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "settings" });
+    setLoadingFor("settings", false);
+    if (!data) return;
+    setSettings((data.rows ?? []).map(r => ({
+      key: r.data[0] ?? "",
+      value: r.data[1] ?? "",
+      note: r.data[2] ?? "",
+      _row: r.rowIndex,
+    })));
+  }, [api]);
+
   const loadLineups = useCallback(async () => {
     setLoadingFor("lineups", true);
     const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "lineups" });
@@ -707,6 +728,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "catching" && catching.length === 0) loadCatching(); }, [tab, catching.length, loadCatching]);
   useEffect(() => { if (tab === "fielding" && fielding.length === 0) loadFielding(); }, [tab, fielding.length, loadFielding]);
   useEffect(() => { if (tab === "notify" && announcements.length === 0) loadAnnouncements(); }, [tab, announcements.length, loadAnnouncements]);
+  useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
   useEffect(() => {
     if (tab === "probables") {
       if (probables.length === 0) loadProbables();
@@ -767,6 +789,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["receipt", "領収書", undefined],
             ["stats", "統計", undefined],
             ["notify", "🔔通知", undefined],
+            ["maintenance", "🛠メンテ", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
             <button
               key={key}
@@ -906,6 +929,16 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             loading={!!loading.announcements}
             api={api}
             reload={loadAnnouncements}
+            showToast={showToast}
+          />
+        )}
+        {tab === "maintenance" && (
+          <MaintenanceTab
+            settings={settings}
+            loading={!!loading.settings}
+            saving={saving}
+            api={api}
+            reload={loadSettings}
             showToast={showToast}
           />
         )}
@@ -3384,6 +3417,105 @@ const presetBtnStyle: React.CSSProperties = {
   padding: "12px 14px",
   fontSize: 13,
 };
+
+// ────────────────────────────────────────────────────────
+// メンテナンスタブ（成績アプリの公開可否を切り替え）
+// ────────────────────────────────────────────────────────
+function MaintenanceTab({
+  settings, loading, saving, api, reload, showToast,
+}: {
+  settings: SettingRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const current = settings.find(s => s.key === "maintenance");
+  const isOn = current?.value === "on";
+  const [message, setMessage] = useState("");
+
+  // 既存メッセージをフォームに反映
+  useEffect(() => { setMessage(current?.note ?? ""); }, [current?.note]);
+
+  async function setMaintenance(on: boolean) {
+    const row = ["maintenance", on ? "on" : "off", on ? message.trim() : (current?.note ?? "")];
+    const ok = current
+      ? await api("/api/admin/update", { sheet: "settings", rowIndex: current._row, row })
+      : await api("/api/admin/append", { sheet: "settings", row });
+    if (ok) {
+      showToast(true, on ? "メンテナンス中にしました。" : "通常公開に戻しました。");
+      reload();
+    }
+  }
+
+  return (
+    <div className="grid gap-5 grid-cols-1 lg:grid-cols-[480px_1fr]">
+      <section style={{ ...cardStyle, border: isOn ? "1px solid #d10024" : undefined }}>
+        <H3>成績アプリの公開状態</H3>
+
+        {/* 現在の状態 */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "14px 16px", marginBottom: 16,
+          background: isOn ? "rgba(209,0,36,0.1)" : "rgba(26,159,58,0.1)",
+          border: `1px solid ${isOn ? "rgba(209,0,36,0.4)" : "rgba(26,159,58,0.4)"}`,
+        }}>
+          <span style={{ fontSize: 22 }}>{isOn ? "🛠" : "✅"}</span>
+          <div>
+            <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: isOn ? "#ff6982" : "#67e088" }}>
+              {loading ? "確認中…" : isOn ? "メンテナンス中" : "通常公開中"}
+            </div>
+            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
+              {isOn ? "メンバーにはメンテナンス画面が表示されています。" : "メンバーは成績アプリを通常どおり閲覧できます。"}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>メンテナンス中に表示するメッセージ（任意）</label>
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            placeholder="例: 成績データ更新のため一時的に停止中です。15分ほどで再開します。"
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical" } as React.CSSProperties}
+            maxLength={200}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <button
+            onClick={() => setMaintenance(true)}
+            disabled={saving}
+            style={{ flex: 1, padding: "13px", background: "#d10024", color: "#fff", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, letterSpacing: "0.06em", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+          >
+            🛠 メンテナンスにする
+          </button>
+          <button
+            onClick={() => setMaintenance(false)}
+            disabled={saving}
+            style={{ flex: 1, padding: "13px", background: "#1a9f3a", color: "#fff", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, letterSpacing: "0.06em", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+          >
+            ✅ 通常に戻す
+          </button>
+        </div>
+        <button onClick={reload} style={{ ...btnSubStyle, marginTop: 10 }}>{loading ? "..." : "🔄 状態を再確認"}</button>
+      </section>
+
+      <section style={cardStyle}>
+        <H3>仕組み・注意</H3>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>
+          <li>「メンテナンスにする」を押すと、メンバーが成績アプリを開いた時に<strong style={{ color: "#fff" }}>メンテナンス中のポップアップ</strong>が表示され、中身は見られなくなります。</li>
+          <li>「通常に戻す」を押すと解除され、いつもどおり閲覧できます。</li>
+          <li>メンバー側は<strong style={{ color: "#fff" }}>アプリを開き直す／更新ボタン</strong>を押すと最新の状態（メンテ中／解除）が反映されます。</li>
+          <li>メッセージ欄を埋めると、その文言がメンテナンス画面に表示されます（空でもOK）。</li>
+          <li>管理画面（このページ）はメンテナンス中でも通常どおり使えます。</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────
 // 領収書タブ（自由作成 → 印刷/PDF保存）

@@ -22,6 +22,7 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "probables",   // 予告先発表示用
   "announcements", // お知らせ表示用
   "participants",  // 練習の参加予定メンバー表示用
+  "settings",      // メンテナンス状態の確認用
 ]);
 
 export async function POST(request: Request) {

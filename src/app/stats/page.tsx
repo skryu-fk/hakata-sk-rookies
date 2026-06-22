@@ -119,6 +119,8 @@ type ParticipantRow = {
   note: string;
 };
 
+type SettingRow = { key: string; value: string; note: string };
+
 type BattingStat = {
   m: Member; games: number; ab: number; h: number; hr: number; rbi: number; bb: number; so: number;
   hbp: number; sh: number; sb: number; cs: number; sbAttempts: number;
@@ -518,6 +520,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("news");
@@ -539,7 +542,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts] = await Promise.all([
+      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
@@ -619,6 +622,11 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           memberName: r.data[2] ?? "",
           note: r.data[3] ?? "",
         })),
+        fetchList<SettingRow>("settings", r => ({
+          key: r.data[0] ?? "",
+          value: r.data[1] ?? "",
+          note: r.data[2] ?? "",
+        })),
       ]);
       setMembers(ms);
       setBatting(bs);
@@ -629,6 +637,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       setProbables(pbs);
       setAnnouncements(ans);
       setParticipants(parts);
+      const mt = setts.find(s => s.key === "maintenance");
+      setMaintenance({ on: mt?.value === "on", message: mt?.note ?? "" });
       setUpdatedAt(new Date());
     } finally {
       setLoading(false);
@@ -767,6 +777,37 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
         className="mark-drift"
         style={{ position: "fixed", right: "-8%", bottom: "-6%", width: "min(54vw, 520px)", height: "auto", opacity: 0.04, pointerEvents: "none", userSelect: "none" }} />
+
+      {/* ── メンテナンス中ポップアップ（全画面・管理者がONにすると表示） ── */}
+      {maintenance.on && !loading && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            background: "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(209,0,36,0.18), transparent), rgba(7,11,22,0.96)",
+            backdropFilter: "blur(6px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div className="stx-detail" style={{ width: "100%", maxWidth: 420, textAlign: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(212,168,42,0.4)", padding: "34px 26px", boxShadow: "0 24px 70px rgba(0,0,0,0.6)" }}>
+            <div style={{ fontSize: 46, lineHeight: 1 }}>🛠</div>
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.32em", marginTop: 14 }}>UNDER MAINTENANCE</div>
+            <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, marginTop: 8 }}>ただいまメンテナンス中です</h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.9, marginTop: 12, whiteSpace: "pre-line" }}>
+              {maintenance.message || "成績アプリは一時的にご利用いただけません。\nしばらく経ってから開き直してください。"}
+            </p>
+            <button
+              onClick={loadAll}
+              className="btn-sheen"
+              style={{ marginTop: 22, padding: "12px 26px", background: "linear-gradient(135deg, #d4a82a, #f0c75e)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.1em", cursor: "pointer" }}
+            >
+              🔄 再読み込み
+            </button>
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", marginTop: 14 }}>HAKATA SK ROOKIES</div>
+          </div>
+        </div>
+      )}
 
       {/* ── ヘッダー ── */}
       <header style={{ background: "rgba(11,30,63,0.85)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(212,168,42,0.35)", position: "sticky", top: 0, zIndex: 20 }}>
