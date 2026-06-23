@@ -110,13 +110,13 @@ function Header() {
             <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em", textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
           </div>
         </Link>
-        <nav className="ml-auto hidden lg:flex items-stretch h-full">
+        <nav className="ml-auto hidden xl:flex items-stretch h-full">
           {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
         </nav>
-        <div className="lg:hidden ml-auto flex items-stretch">
+        <div className="xl:hidden ml-auto flex items-stretch">
           <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
           <MobileMenu />
         </div>

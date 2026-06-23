@@ -56,7 +56,7 @@ export default function MobileMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "メニューを閉じる" : "メニューを開く"}
         aria-expanded={open}
-        className="lg:hidden flex flex-col justify-center items-center gap-[5px] h-full"
+        className="xl:hidden flex flex-col justify-center items-center gap-[5px] h-full"
         style={{ width: 56, background: "#0b1e3f", border: "none", cursor: "pointer", position: "relative", zIndex: 1100 }}>
         <span style={{ ...barBase, transform: open ? "translateY(7px) rotate(45deg)" : "none" }} />
         <span style={{ ...barBase, opacity: open ? 0 : 1 }} />
@@ -65,7 +65,7 @@ export default function MobileMenu() {
 
       {/* Backdrop fade */}
       <div
-        className="fixed inset-0 lg:hidden"
+        className="fixed inset-0 xl:hidden"
         onClick={() => setOpen(false)}
         aria-hidden
         style={{
@@ -79,7 +79,7 @@ export default function MobileMenu() {
 
       {/* Sliding menu */}
       <div
-        className="fixed top-0 right-0 bottom-0 lg:hidden"
+        className="fixed top-0 right-0 bottom-0 xl:hidden"
         aria-hidden={!open}
         style={{
           zIndex: 1000,
