@@ -136,10 +136,11 @@ export default function RecruitForm() {
           { value: "現役",        label: "今もどこかでプレー中" },
         ]} />
         <FSelect label="ご相談内容" name="inquiry_type" defaultValue="メンバー応募" options={[
-          { value: "メンバー応募", label: "メンバーとして応募したい" },
-          { value: "スポンサー",   label: "スポンサーの相談をしたい" },
-          { value: "道具支援",     label: "道具を譲りたい・支援したい" },
-          { value: "質問",         label: "質問・その他" },
+          { value: "メンバー応募",     label: "メンバーとして応募したい" },
+          { value: "対戦・リーグ",     label: "練習試合・リーグのご相談" },
+          { value: "スポンサー",       label: "スポンサーの相談をしたい" },
+          { value: "道具支援",         label: "道具を譲りたい・支援したい" },
+          { value: "質問",             label: "質問・その他" },
         ]} />
         <div>
           <FLabel>メッセージ</FLabel>

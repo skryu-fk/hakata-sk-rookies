@@ -453,12 +453,12 @@ function ScheduleSection({ practices }: { practices: Practice[] }) {
         <div className="reveal" style={{ background: "rgba(209,0,36,0.08)", border: "1px solid rgba(209,0,36,0.2)", padding: "28px 28px" }}>
           <div className="grid gap-5 items-start grid-cols-1 md:[grid-template-columns:1fr_auto] md:items-center">
             <div>
-              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>MATCH — COMING SOON</p>
-              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(17px,2.2vw,22px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 8 }}>対戦相手募集は準備中です。</h3>
-              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>現在はメンバー集めと道具・防具の準備に専念中。人数が集まり装備が整ったタイミングで、他チーム様との練習試合もお願いしていく予定です。戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.85)" }}>0勝 0敗 0分</span></p>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>MATCH — 対戦相手 募集中</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(17px,2.2vw,22px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 8 }}>練習試合の対戦相手を募集しています。</h3>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>メンバーも集まり、いよいよ実戦へ。練習試合の対戦相手を募集中です。日程などのご相談は、公式XのDM、または公式サイトのお問い合わせフォーム（種別「練習試合・リーグのご相談」）からお気軽にどうぞ。戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.85)" }}>0勝 0敗 0分</span></p>
             </div>
-            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-              メンバー応募はこちら →
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+              対戦のご相談はこちら →
             </a>
           </div>
         </div>
@@ -570,7 +570,7 @@ function AppSection() {
 /* ── VisionSection（目標・リーグ構想） ────────────────────── */
 const VISIONS = [
   { no: "01", icon: "🏟", eyebrow: "GOAL — DREAM STAGE", title: "みずほPayPayドーム福岡で試合する", body: "福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。" },
-  { no: "02", icon: "🏆", eyebrow: "LEAGUE — COMING SOON", title: "設立2年以内のチーム限定リーグを創設", body: "今あるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めないのが現状。だからこそ“設立して2年以内のチーム限定”の公式リーグを、近いうちに自分たちで立ち上げます。他のリーグに所属していても加入OK。同じスタートラインのチーム同士で、本気の公式戦を。" },
+  { no: "02", icon: "🏆", eyebrow: "LEAGUE — 2026.9 始動予定", title: "設立2年以内のチーム限定リーグを創設", body: "今あるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めないのが現状。だからこそ“設立して2年以内のチーム限定”の公式リーグを、2026年9月の立ち上げをめどに準備を進めています。他のリーグに所属していても加入OK。同じスタートラインのチーム同士で、本気の公式戦を。" },
 ];
 
 function VisionSection() {
@@ -594,20 +594,21 @@ function VisionSection() {
             </div>
           ))}
         </div>
-        {/* CTA */}
-        <div className="reveal" style={{ marginTop: 22, background: "#0b1e3f", padding: "26px 30px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "space-between" }}>
-          <div>
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em", marginBottom: 8 }}>JOIN THE CHALLENGE</p>
-            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,20px)", fontWeight: 900, color: "#fff", lineHeight: 1.5 }}>
-              一緒に夢を追う<span style={{ color: "#d4a82a" }}>仲間</span>・<span style={{ color: "#d4a82a" }}>対戦相手</span>・<span style={{ color: "#d4a82a" }}>リーグ参加チーム</span>を募集中。
-            </p>
-          </div>
+        {/* 練習試合の対戦相手募集 + 連絡方法 */}
+        <div className="reveal" style={{ marginTop: 22, background: "#0b1e3f", padding: "28px 30px" }}>
+          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em", marginBottom: 8 }}>OPPONENTS WANTED</p>
+          <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,20px)", fontWeight: 900, color: "#fff", lineHeight: 1.5, marginBottom: 10 }}>
+            <span style={{ color: "#d4a82a" }}>練習試合の対戦相手</span>を募集中です。
+          </p>
+          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.95, marginBottom: 20, maxWidth: 720 }}>
+            日程などのご相談は、公式X（<a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ color: "#d4a82a", textDecoration: "underline" }}>@SK_rookies_FK</a>）のDM、または公式サイトの<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせフォーム</a>（種別「<strong style={{ color: "#fff" }}>練習試合・リーグのご相談</strong>」）からお気軽にどうぞ。リーグの詳細についても、そちらで承ります。
+          </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
-              メンバー募集 →
+            <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.25)" }}>
+              <XIcon size={13} /> XのDMで相談 →
             </a>
-            <a href="#contact" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", border: "1px solid rgba(255,255,255,0.3)" }}>
-              対戦・リーグの相談 →
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+              お問い合わせフォーム →
             </a>
           </div>
         </div>
