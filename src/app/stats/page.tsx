@@ -17,9 +17,19 @@ import Image from "next/image";
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "1.1";
+const APP_VERSION = "1.2";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "1.2",
+    date: "2026-06-23",
+    items: [
+      "🙋 練習の参加投票を追加（日程から参加/不参加をタップ → 出欠に直接反映）",
+      "📋 スコアラー機能を追加（試合の打撃・投球をその場で記録）",
+      "✅ 記録は管理者の承認制（承認されると成績に反映）",
+      "✨ UIを全面リニューアル（ネオン・グラス調のv1.2スキン）",
+    ],
+  },
   {
     version: "1.1",
     date: "2026-06-12",
@@ -798,11 +808,11 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         }
         .stx-rank-1 { animation: stxGold 2.4s ease-out infinite; }
 
-        .stx-chip { transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s; }
-        .stx-chip:hover { transform: translateY(-1px); }
+        .stx-chip { border-radius: 10px; transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s; }
+        .stx-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
 
-        .stx-card { transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s; }
-        .stx-card:hover { transform: translateY(-3px); border-color: rgba(212,168,42,0.45) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.4); }
+        .stx-card { border-radius: 12px; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s; }
+        .stx-card:hover { transform: translateY(-3px); border-color: rgba(212,168,42,0.45) !important; box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,168,42,0.15); }
 
         @keyframes stxSpin { to { transform: rotate(360deg); } }
         .stx-spin { animation: stxSpin 0.9s linear infinite; }
@@ -812,7 +822,62 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         .stx-tap { transition: background 0.2s, transform 0.2s cubic-bezier(0.16,1,0.3,1); cursor: pointer; }
         .stx-tap:hover { background: rgba(255,255,255,0.05); transform: translateX(4px); }
         .stx-tap:active { transform: scale(0.99); }
+
+        /* ── v1.2 近未来スキン：背景FX ── */
+        .stx-fx { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .stx-fx::before {
+          content: ""; position: absolute; inset: -40%;
+          background-image:
+            linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+          background-size: 46px 46px;
+          -webkit-mask-image: radial-gradient(ellipse 55% 45% at 50% 28%, #000 25%, transparent 72%);
+                  mask-image: radial-gradient(ellipse 55% 45% at 50% 28%, #000 25%, transparent 72%);
+          animation: stxGridDrift 26s linear infinite;
+        }
+        @keyframes stxGridDrift { to { transform: translate(46px, 46px); } }
+        .stx-fx::after {
+          content: ""; position: absolute; inset: 0;
+          background:
+            radial-gradient(38% 30% at 14% 18%, rgba(212,168,42,0.12), transparent 70%),
+            radial-gradient(42% 34% at 86% 82%, rgba(209,0,36,0.11), transparent 70%);
+          animation: stxAurora 18s ease-in-out infinite alternate;
+        }
+        @keyframes stxAurora {
+          from { transform: translate3d(-2%, -1%, 0) scale(1); }
+          to   { transform: translate3d(3%, 2%, 0) scale(1.12); }
+        }
+        /* スキャンライン（極薄） */
+        .stx-scan { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+          background: repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 4px);
+          mix-blend-mode: overlay; opacity: 0.5; }
+
+        /* グラス強調ヘッダー下の流れる光 */
+        @keyframes stxScanX { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+        .stx-headline { position: relative; overflow: hidden; }
+        .stx-headline::after {
+          content: ""; position: absolute; left: 0; bottom: 0; height: 1px; width: 38%;
+          background: linear-gradient(90deg, transparent, rgba(212,168,42,0.9), transparent);
+          animation: stxScanX 5.5s ease-in-out infinite;
+        }
+
+        /* ボタン/チップの光沢スイープ */
+        .stx-sheen { position: relative; overflow: hidden; }
+        .stx-sheen::before {
+          content: ""; position: absolute; top: 0; left: 0; width: 60%; height: 100%;
+          background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
+          transform: translateX(-160%); transition: transform 0.6s ease;
+        }
+        .stx-sheen:hover::before { transform: translateX(230%); }
+
+        @media (prefers-reduced-motion: reduce) {
+          .stx-fx::before, .stx-fx::after, .stx-headline::after { animation: none; }
+        }
       `}</style>
+
+      {/* v1.2 背景FX（グリッド＋オーロラ＋スキャンライン） */}
+      <div className="stx-fx" aria-hidden />
+      <div className="stx-scan" aria-hidden />
 
       {/* SKマークの透かし */}
       <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
@@ -851,14 +916,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       {/* ── ヘッダー ── */}
-      <header style={{ background: "rgba(11,30,63,0.85)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(212,168,42,0.35)", position: "sticky", top: 0, zIndex: 20 }}>
+      <header className="stx-headline" style={{ background: "linear-gradient(180deg, rgba(11,30,63,0.92), rgba(11,30,63,0.78))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderBottom: "1px solid rgba(212,168,42,0.35)", boxShadow: "0 1px 0 rgba(212,168,42,0.12), 0 10px 30px rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 20 }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 60, gap: 14 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>
                 メンバー成績アプリ
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#0a0e1a", background: "#d4a82a", padding: "1px 6px", borderRadius: 2, letterSpacing: "0.05em" }}>v{APP_VERSION}</span>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#0a0e1a", background: "linear-gradient(135deg, #f3d176, #d4a82a)", padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em", boxShadow: "0 0 12px rgba(212,168,42,0.55)" }}>v{APP_VERSION}</span>
               </div>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
             </div>
@@ -899,13 +964,13 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       {/* ── 通知バー ── */}
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14 }}>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14, position: "relative", zIndex: 1 }}>
         <NotifyBar />
       </div>
 
       {/* ── 種別タブ ── */}
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12 }}>
-        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: 4, gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12, position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: 5, gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
           {([
             ["news", "📢 お知らせ", announcements.length],
             ["batting", "⚾ 打撃", battingStats.filter(s => s.ab > 0).length],
@@ -919,12 +984,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               <button
                 key={key}
                 onClick={() => setTab(key)}
+                className="stx-sheen"
                 style={{
                   flex: "1 0 auto",
                   minWidth: 78,
                   padding: "11px 10px",
+                  borderRadius: 10,
                   background: active ? "linear-gradient(135deg, #d4a82a, #f0c75e)" : "transparent",
-                  color: active ? "#0a0e1a" : "rgba(255,255,255,0.55)",
+                  color: active ? "#0a0e1a" : "rgba(255,255,255,0.6)",
                   border: "none",
                   fontFamily: "var(--font-zen),sans-serif",
                   fontSize: 13,
@@ -932,7 +999,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
                   letterSpacing: "0.04em",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
-                  transition: "background 0.25s, color 0.25s",
+                  transition: "background 0.25s, color 0.25s, box-shadow 0.25s",
+                  boxShadow: active ? "0 4px 18px rgba(212,168,42,0.45)" : "none",
                 }}
               >
                 {label}<span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>
@@ -1246,10 +1314,15 @@ function StatBar({ ratio, color, delay = 0 }: { ratio: number; color: string; de
 
 /* ── 共通 UI ─────────────────────────────────────────── */
 const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.025)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "linear-gradient(158deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012))",
+  border: "1px solid rgba(255,255,255,0.09)",
+  borderRadius: 14,
   padding: 20,
   marginBottom: 16,
+  backdropFilter: "blur(7px)",
+  WebkitBackdropFilter: "blur(7px)",
+  boxShadow: "0 12px 34px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.07)",
+  position: "relative",
 };
 const tableStyle: React.CSSProperties = {
   width: "100%",
@@ -1266,17 +1339,20 @@ const emptyMsg: React.CSSProperties = {
 
 function H({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
       <h3 style={{
+        display: "flex", alignItems: "center", gap: 9,
         fontFamily: "var(--font-zen),sans-serif",
         fontWeight: 800,
         fontSize: 14,
         letterSpacing: "0.1em",
         color: "#fff",
-        borderLeft: "3px solid #d4a82a",
-        paddingLeft: 10,
-      }}>{children}</h3>
-      {sub && <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: "0.25em" }}>{sub}</span>}
+        textShadow: "0 0 18px rgba(212,168,42,0.25)",
+      }}>
+        <span aria-hidden style={{ width: 4, height: 16, borderRadius: 3, background: "linear-gradient(180deg, #f3d176, #d4a82a)", boxShadow: "0 0 10px rgba(212,168,42,0.75)" }} />
+        {children}
+      </h3>
+      {sub && <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(212,168,42,0.55)", letterSpacing: "0.25em" }}>{sub}</span>}
     </div>
   );
 }
