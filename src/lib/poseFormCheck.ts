@@ -48,6 +48,12 @@ const std = (xs: number[]) => {
   return Math.sqrt(xs.reduce((s, v) => s + (v - m) ** 2, 0) / xs.length);
 };
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+// 移動平均（ジッタ低減）。w=隣接何点を平均するか
+const sma = (xs: number[], w = 1) => xs.map((_, i) => {
+  let s = 0, c = 0;
+  for (let k = -w; k <= w; k++) { const j = i + k; if (j >= 0 && j < xs.length) { s += xs[j]; c++; } }
+  return s / c;
+});
 // 値 v を [lo,hi] のとき [0,100] に線形マップ（外は0/100）
 const mapScore = (v: number, lo: number, hi: number) => clamp(((v - lo) / (hi - lo)) * 100, 0, 100);
 // 「ちょうど良い帯」評価：targetを中心に許容幅 tol で 100、離れるほど減点
@@ -66,7 +72,7 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task", delegate: "GPU" },
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_full.task", delegate: "GPU" },
       runningMode: "VIDEO",
       numPoses: 1,
       minPoseDetectionConfidence: 0.4,
@@ -145,13 +151,39 @@ export async function analyzeForm(
   const useRight = pathOf(R_WR) >= pathOf(L_WR);
   const WR = useRight ? R_WR : L_WR;
 
-  // ── 速度系列（worldLandmarks＝メートル空間）→ ピーク（インパクト/リリース） ──
+  // ── 速度系列（worldLandmarks＝メートル空間）→ 粗いピーク（インパクト/リリース） ──
   let peakSpeed = 0, peakIdx = 1; // m/s
   for (let i = 1; i < frames.length; i++) {
     const dt = frames[i].t - frames[i - 1].t || step;
     const v = dist3(frames[i].world[WR], frames[i - 1].world[WR]) / dt;
     if (v > peakSpeed) { peakSpeed = v; peakIdx = i; }
   }
+
+  // ── 2段階目：ピーク周辺を細かく再サンプリングして“真の最大手首速度”を捕捉 ──
+  // 粗サンプリングはインパクト/リリース最速点を取りこぼしやすいので、近傍を高密度で走査する。
+  {
+    const lo = frames[Math.max(0, peakIdx - 1)].t;
+    const hi = frames[Math.min(frames.length - 1, peakIdx + 1)].t;
+    const M = 18;
+    const dense: { t: number; w: LM }[] = [];
+    let lts = lastTs;
+    for (let j = 0; j <= M; j++) {
+      const t = lo + (hi - lo) * (j / M);
+      await seekTo(video, t);
+      const ts = Math.max(lts + 1, Math.round(t * 1000) + 1);
+      lts = ts;
+      let res;
+      try { res = landmarker.detectForVideo(video, ts); } catch { res = null; }
+      const w = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? (res?.landmarks?.[0] as LM[] | undefined);
+      if (w && w[WR]) dense.push({ t, w: w[WR] });
+    }
+    for (let j = 1; j < dense.length; j++) {
+      const dt = dense[j].t - dense[j - 1].t || (step / M);
+      const v = dist3(dense[j].w, dense[j - 1].w) / dt;
+      if (v > peakSpeed) peakSpeed = v;
+    }
+  }
+  onProgress?.(0.97);
   const handSpeedKmh = peakSpeed * 3.6;
   // バットヘッド/リリースの目安係数（手の速さからの近似）
   const factor = kind === "batting" ? 2.0 : 1.25;
@@ -163,12 +195,12 @@ export async function analyzeForm(
   const hipAngle = (f: Frame) => lineAngleDeg(f.lm[L_HIP], f.lm[R_HIP]);
   const bodyH = Math.max(0.05, dist2(mid(start.lm[L_SH], start.lm[R_SH]), mid(start.lm[L_AN], start.lm[R_AN])));
 
-  // 頭(鼻)の横ブレ（正規化x）— 小さいほど軸が安定
-  const noseXs = frames.map(f => f.lm[NOSE].x);
+  // 頭(鼻)の横ブレ（正規化x・スムージング後）— 小さいほど軸が安定
+  const noseXs = sma(frames.map(f => f.lm[NOSE].x));
   const headSway = std(noseXs) / bodyH; // 体長で正規化
 
-  // 重心（腰中点）の横移動量
-  const hipXs = frames.map(f => mid(f.lm[L_HIP], f.lm[R_HIP]).x);
+  // 重心（腰中点）の横移動量（スムージング後）
+  const hipXs = sma(frames.map(f => mid(f.lm[L_HIP], f.lm[R_HIP]).x));
   const hipTravel = (Math.max(...hipXs) - Math.min(...hipXs)) / bodyH;
 
   // 肩の回転量（セットアップ→区間内の最大変化、度）

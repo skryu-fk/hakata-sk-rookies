@@ -25,9 +25,9 @@ const CHANGELOG: ChangeLogEntry[] = [
     version: "1.3",
     date: "2026-06-24",
     items: [
-      "🎥 フォームチェックを追加（動画からAIが骨格を解析）",
-      "📊 バッティング/ピッチングを点数・項目別評価・改善点で診断",
-      "⚡ 推定スイング/リリース速度を表示（目安）",
+      "🧠 独自開発AI「SKドッパミンAI」を搭載（フォーム診断）",
+      "🎥 動画からバッティング/ピッチングを骨格解析→点数・項目別評価・改善点",
+      "⚡ 高精度モデル＋2段階解析で推定スイング/リリース速度を表示（目安）",
       "🔒 動画は端末内だけで解析・外部に送信しません",
     ],
   },
@@ -989,7 +989,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
             ["catching", "🧤 捕手", catchingStats.length],
             ["fielding", "🧱 守備", fieldingStats.length],
             ["schedule", "📅 日程", scheduleCount],
-            ["form", "🎥 フォーム", -1],
+            ["form", "🧠 SKドッパミンAI", -1],
           ] as [Tab, string, number][]).map(([key, label, count]) => {
             const active = tab === key;
             return (
@@ -1097,13 +1097,22 @@ function FormCheckView() {
 
   return (
     <div className="stx-detail">
-      {/* 説明 */}
-      <section style={{ ...cardStyle }}>
-        <H sub="AI FORM CHECK">フォームチェック <span style={{ fontSize: 10, fontWeight: 700, color: "#0a0e1a", background: "linear-gradient(135deg,#f3d176,#d4a82a)", padding: "2px 7px", borderRadius: 999, marginLeft: 4 }}>NEW</span></H>
-        <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.85, margin: 0 }}>
-          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、AIが骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・改善点・推定スピード</strong>を表示します。
-          動画は<strong style={{ color: "#67e088" }}>あなたの端末の中だけ</strong>で解析され、サーバーには送られません。
-          <span style={{ color: "rgba(255,255,255,0.45)" }}>（結果はあくまで目安です）</span>
+      {/* ブランドヘッダー */}
+      <section style={{ ...cardStyle, textAlign: "center", overflow: "hidden", position: "relative" }} className="stx-headline">
+        <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.34em", marginBottom: 6 }}>博多SKルーキーズ 独自開発AI</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+          <span style={{ fontSize: 30, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.6))" }}>🧠</span>
+          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 27, background: "linear-gradient(135deg,#f3d176,#d4a82a 55%,#ff8a5a)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", letterSpacing: "0.02em" }}>SKドッパミンAI</span>
+        </div>
+        <div style={{ display: "inline-flex", gap: 6, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          {["⚡高精度モデル", "🔒端末内解析", "📈フォーム診断"].map(t => (
+            <span key={t} style={{ fontSize: 10, fontWeight: 700, color: "#d4a82a", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", borderRadius: 999, padding: "3px 9px" }}>{t}</span>
+          ))}
+        </div>
+        <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", lineHeight: 1.9, margin: "0 auto", maxWidth: 460 }}>
+          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、<strong style={{ color: "#d4a82a" }}>SKドッパミンAI</strong>が骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・改善点・推定スピード</strong>を診断します。
+          動画は<strong style={{ color: "#67e088" }}>あなたの端末の中だけ</strong>で処理され、外部には一切送られません。
+          <span style={{ color: "rgba(255,255,255,0.45)" }}>（結果は目安です）</span>
         </p>
       </section>
 
@@ -1145,7 +1154,7 @@ function FormCheckView() {
         <section style={{ ...cardStyle, textAlign: "center", padding: "40px 24px" }}>
           <div className="stx-spin" style={{ width: 44, height: 44, margin: "0 auto 18px", border: "3px solid rgba(212,168,42,0.25)", borderTopColor: "#d4a82a", borderRadius: "50%" }} />
           <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, marginBottom: 6 }}>
-            {progress < 0.1 ? "AIモデルを準備中…" : progress < 0.95 ? "骨格を解析中…" : "結果をまとめています…"}
+            SKドッパミンAIが{progress < 0.12 ? "起動中…" : progress < 0.95 ? "骨格を解析中…" : "診断をまとめています…"}
           </div>
           <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>端末内で処理しています（動画は外部に送られません）</div>
           <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
@@ -1159,6 +1168,7 @@ function FormCheckView() {
         <>
           {/* 総合スコア + 推定スピード */}
           <section style={{ ...cardStyle }}>
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", textAlign: "center", marginBottom: 12 }}>SKドッパミンAI 診断結果</div>
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "center" }}>
               {/* リングゲージ */}
               <div style={{ position: "relative", width: 130, height: 130, flexShrink: 0 }}>
@@ -1227,7 +1237,7 @@ function FormCheckView() {
           </section>
 
           <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", textAlign: "center", marginBottom: 12, lineHeight: 1.6 }}>
-            {result.framesAnalyzed}フレーム解析 ・ AIによる推定のため誤差があります
+            SKドッパミンAI ・ {result.framesAnalyzed}フレーム解析 ・ 高精度モデル ・ 推定のため誤差があります
           </div>
           <button onClick={() => inputRef.current?.click()} className="stx-sheen"
             style={{ width: "100%", padding: "14px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12 }}>
