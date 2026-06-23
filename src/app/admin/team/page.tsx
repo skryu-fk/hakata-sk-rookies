@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -177,6 +177,25 @@ type ParticipantRow = {
   note: string;
   _row: number;
 };
+
+type PendingRow = {
+  id: string;
+  kind: string;       // "batting" | "pitching"
+  date: string;
+  opponent: string;
+  memberId: string;
+  memberName: string;
+  data: Record<string, number>;  // 種別ごとの数値フィールド
+  createdAt: string;
+  _row: number;
+};
+
+// 承認時に本シートへ書き出す列順（getOrCreateSheet のヘッダと一致させること）
+const BAT_ORDER = ["atBats", "hits", "doubles", "triples", "hr", "rbi", "bb", "so", "hbp", "sh", "sb", "cs"] as const;
+const PIT_ORDER = ["ipOuts", "hits", "runs", "er", "so", "bb", "hbp"] as const;
+// 編集UI用ラベル
+const BAT_FIELD_LABELS: [string, string][] = [["atBats", "打数"], ["hits", "安打"], ["doubles", "二塁打"], ["triples", "三塁打"], ["hr", "本塁打"], ["rbi", "打点"], ["bb", "四球"], ["so", "三振"], ["hbp", "死球"], ["sh", "犠打"], ["sb", "盗塁"], ["cs", "盗塁死"]];
+const PIT_FIELD_LABELS: [string, string][] = [["ipOuts", "投球回(アウト数)"], ["hits", "被安打"], ["runs", "失点"], ["er", "自責"], ["so", "奪三振"], ["bb", "与四球"], ["hbp", "与死球"]];
 
 const POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"] as const;
 const ATTENDANCE_STATUSES = ["出席", "欠席", "遅刻", "未定"] as const;
@@ -419,6 +438,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [pending, setPending] = useState<PendingRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
@@ -714,8 +734,31 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     })));
   }, [api]);
 
+  const loadPending = useCallback(async () => {
+    setLoadingFor("pending", true);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "pending" });
+    setLoadingFor("pending", false);
+    if (!data) return;
+    setPending((data.rows ?? []).map(r => {
+      let parsed: Record<string, number> = {};
+      try { const o = JSON.parse(r.data[6] ?? "{}"); if (o && typeof o === "object") parsed = o; } catch { /* 壊れたJSONは空に */ }
+      return {
+        id: r.data[0] ?? "",
+        kind: r.data[1] ?? "",
+        date: normalizeDate(r.data[2] ?? ""),
+        opponent: r.data[3] ?? "",
+        memberId: r.data[4] ?? "",
+        memberName: r.data[5] ?? "",
+        data: parsed,
+        createdAt: r.data[7] ?? "",
+        _row: r.rowIndex,
+      } as PendingRow;
+    }));
+  }, [api]);
+
   // 初回ロード
   useEffect(() => { loadMembers(); }, [loadMembers]);
+  useEffect(() => { loadPending(); }, [loadPending]);  // 承認待ちバッジ用に常に取得
   useEffect(() => {
     if (tab === "attendance") {
       if (attendance.length === 0) loadAttendance();
@@ -729,6 +772,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "fielding" && fielding.length === 0) loadFielding(); }, [tab, fielding.length, loadFielding]);
   useEffect(() => { if (tab === "notify" && announcements.length === 0) loadAnnouncements(); }, [tab, announcements.length, loadAnnouncements]);
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
+  useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
   useEffect(() => {
     if (tab === "probables") {
       if (probables.length === 0) loadProbables();
@@ -789,6 +833,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["receipt", "領収書", undefined],
             ["stats", "統計", undefined],
             ["notify", "🔔通知", undefined],
+            ["approvals", pending.length > 0 ? "🔴承認待ち" : "承認", pending.length],
             ["maintenance", "🛠メンテ", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
             <button
@@ -929,6 +974,18 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             loading={!!loading.announcements}
             api={api}
             reload={loadAnnouncements}
+            showToast={showToast}
+          />
+        )}
+        {tab === "approvals" && (
+          <PendingApprovalTab
+            pending={pending}
+            loading={!!loading.pending}
+            saving={saving}
+            api={api}
+            reload={loadPending}
+            reloadBatting={loadBatting}
+            reloadPitching={loadPitching}
             showToast={showToast}
           />
         )}
@@ -3421,6 +3478,159 @@ const presetBtnStyle: React.CSSProperties = {
 // ────────────────────────────────────────────────────────
 // メンテナンスタブ（成績アプリの公開可否を切り替え）
 // ────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────
+// 承認待ちタブ（スコアラーがアプリから送った記録を編集・承認・却下）
+// ────────────────────────────────────────────────────────
+function PendingApprovalTab({
+  pending, loading, saving, api, reload, reloadBatting, reloadPitching, showToast,
+}: {
+  pending: PendingRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  reloadBatting: () => void;
+  reloadPitching: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const sorted = useMemo(
+    () => [...pending].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    [pending],
+  );
+
+  async function approve(p: PendingRow, d: Record<string, number>) {
+    const order = p.kind === "pitching" ? PIT_ORDER : BAT_ORDER;
+    const row = [p.date, p.memberId, p.memberName, p.opponent, ...order.map(k => String(Math.max(0, Math.floor(d[k] || 0))))];
+    const ok = await api("/api/admin/append", { sheet: p.kind, row });
+    if (!ok) return;
+    await api("/api/admin/delete", { sheet: "pending", rowIndex: p._row });
+    showToast(true, `${p.memberName} の${p.kind === "pitching" ? "投球" : "打撃"}記録を承認・反映しました。`);
+    reload();
+    if (p.kind === "pitching") reloadPitching(); else reloadBatting();
+  }
+
+  async function save(p: PendingRow, d: Record<string, number>) {
+    const row = [p.id, p.kind, p.date, p.opponent, p.memberId, p.memberName, JSON.stringify(d), p.createdAt];
+    const ok = await api("/api/admin/update", { sheet: "pending", rowIndex: p._row, row });
+    if (ok) { showToast(true, "編集内容を保存しました（未反映）。"); reload(); }
+  }
+
+  async function reject(p: PendingRow) {
+    if (typeof window !== "undefined" && !window.confirm(`${p.memberName} の記録を却下（削除）しますか？この操作は元に戻せません。`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "pending", rowIndex: p._row });
+    if (ok) { showToast(true, "却下しました。"); reload(); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <H3>承認待ち（アプリからの記録）</H3>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: 0 }}>
+            メンバーが成績アプリのスコアラーから送った打撃・投球です。内容を確認・編集してから<strong style={{ color: "#67e088" }}>承認</strong>すると本成績に反映されます。<strong style={{ color: "#ff6982" }}>却下</strong>すると破棄されます。
+          </p>
+        </div>
+        <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div style={{ ...cardStyle, textAlign: "center", padding: "44px 20px", color: "rgba(255,255,255,0.5)" }}>
+          {loading ? "確認中…" : "承認待ちの記録はありません。"}
+        </div>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {sorted.map(p => (
+            <PendingCard
+              key={p.id || p._row}
+              p={p}
+              saving={saving}
+              onApprove={approve}
+              onSave={save}
+              onReject={reject}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PendingCard({
+  p, saving, onApprove, onSave, onReject,
+}: {
+  p: PendingRow;
+  saving: boolean;
+  onApprove: (p: PendingRow, d: Record<string, number>) => void;
+  onSave: (p: PendingRow, d: Record<string, number>) => void;
+  onReject: (p: PendingRow) => void;
+}) {
+  const isPitch = p.kind === "pitching";
+  const fields = isPitch ? PIT_FIELD_LABELS : BAT_FIELD_LABELS;
+  const [d, setD] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    fields.forEach(([k]) => { init[k] = Math.max(0, Math.floor(p.data[k] || 0)); });
+    return init;
+  });
+  const set = (k: string, v: string) => setD(prev => ({ ...prev, [k]: Math.max(0, Math.floor(Number(v) || 0)) }));
+
+  const ipOuts = d.ipOuts || 0;
+  const ipLabel = `${Math.floor(ipOuts / 3)}回${ipOuts % 3 ? ` ${ipOuts % 3}/3` : ""}`;
+
+  return (
+    <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.35)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <span style={{ padding: "3px 9px", fontSize: 11, fontWeight: 800, fontFamily: "var(--font-zen),sans-serif", color: "#0a0e1a", background: isPitch ? "#7fb3ff" : "#67e088" }}>
+          {isPitch ? "⚾ 投球" : "🏏 打撃"}
+        </span>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{p.memberName || "（無名）"}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11.5, color: "rgba(255,255,255,0.5)" }}>{formatDateShort(p.date)}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 12 }}>
+        対戦：{p.opponent || "（未入力）"}{p.createdAt ? ` ・ 送信 ${p.createdAt.slice(5, 16)}` : ""}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))", gap: 8 }}>
+        {fields.map(([k, label]) => (
+          <div key={k}>
+            <label style={{ display: "block", fontSize: 10.5, color: "rgba(255,255,255,0.55)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</label>
+            <input
+              type="number" inputMode="numeric" min={0}
+              value={d[k] ? String(d[k]) : ""}
+              onChange={e => set(k, e.target.value)}
+              placeholder="0"
+              style={{ width: "100%", padding: "8px 6px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 15, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif" }}
+            />
+          </div>
+        ))}
+      </div>
+      {isPitch && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "rgba(255,255,255,0.5)", textAlign: "right" }}>投球回 = {ipLabel}</div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button
+          onClick={() => onApprove(p, d)} disabled={saving}
+          style={{ flex: 2, padding: "12px", background: "#1a9f3a", color: "#fff", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+        >
+          ✅ 承認して反映
+        </button>
+        <button
+          onClick={() => onSave(p, d)} disabled={saving}
+          style={{ flex: 1, padding: "12px", background: "transparent", color: "#d4a82a", border: "1px solid rgba(212,168,42,0.5)", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+        >
+          編集保存
+        </button>
+        <button
+          onClick={() => onReject(p)} disabled={saving}
+          style={{ flex: 1, padding: "12px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.5)", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+        >
+          却下
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function MaintenanceTab({
   settings, loading, saving, api, reload, showToast,
 }: {

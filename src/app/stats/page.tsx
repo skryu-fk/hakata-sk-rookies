@@ -1297,11 +1297,12 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Td({ children }: { children: React.ReactNode }) {
+function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <td style={{
       padding: "10px",
       whiteSpace: "nowrap",
+      ...style,
     }}>{children}</td>
   );
 }
@@ -1898,6 +1899,20 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
   const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[practice.type] ?? "#d4a82a");
   const [voting, setVoting] = useState<"" | "出席" | "欠席">("");
   const [changeMe, setChangeMe] = useState(false);
+  const [scoring, setScoring] = useState(false);
+  const isGame = isGameType(practice.type);
+
+  if (scoring) {
+    return (
+      <Scorer
+        date={practice.date}
+        defaultOpponent={probable?.opponent || practice.note || ""}
+        members={members}
+        membersById={membersById}
+        onClose={() => setScoring(false)}
+      />
+    );
+  }
 
   const myVote = attendance.find(a => a.memberId === me)?.status ?? "";
   const yes = attendance.filter(a => a.status === "出席");
@@ -1947,6 +1962,17 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
           </div>
         </div>
       </section>
+
+      {/* スコアをつける（試合のみ・承認制） */}
+      {isGame && (
+        <button
+          onClick={() => setScoring(true)}
+          style={{ width: "100%", padding: "14px", marginBottom: 14, cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          📋 スコアをつける
+          <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.75 }}>（記録 → 管理者の承認で反映）</span>
+        </button>
+      )}
 
       {/* あなたの出欠（投票） */}
       <section style={{ ...cardStyle, marginBottom: 14, border: "1px solid rgba(212,168,42,0.3)" }}>
@@ -2038,6 +2064,305 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
           </p>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ── スコアラー（試合のスコアを記録 → 承認待ちに送る） ──────── */
+type BLine = { atBats: number; hits: number; doubles: number; triples: number; hr: number; rbi: number; bb: number; so: number; hbp: number; sh: number; sb: number; cs: number };
+type PUI = { inn: number; outs: number; hits: number; runs: number; er: number; so: number; bb: number; hbp: number };
+const emptyB = (): BLine => ({ atBats: 0, hits: 0, doubles: 0, triples: 0, hr: 0, rbi: 0, bb: 0, so: 0, hbp: 0, sh: 0, sb: 0, cs: 0 });
+const emptyP = (): PUI => ({ inn: 0, outs: 0, hits: 0, runs: 0, er: 0, so: 0, bb: 0, hbp: 0 });
+
+const BAT_ACTIONS: { key: string; label: string; deltas: Partial<BLine>; tone: string }[] = [
+  { key: "1b", label: "単打", deltas: { atBats: 1, hits: 1 }, tone: "#67e088" },
+  { key: "2b", label: "二塁打", deltas: { atBats: 1, hits: 1, doubles: 1 }, tone: "#67e088" },
+  { key: "3b", label: "三塁打", deltas: { atBats: 1, hits: 1, triples: 1 }, tone: "#67e088" },
+  { key: "hr", label: "本塁打", deltas: { atBats: 1, hits: 1, hr: 1 }, tone: "#d4a82a" },
+  { key: "bb", label: "四球", deltas: { bb: 1 }, tone: "#7fb3ff" },
+  { key: "hbp", label: "死球", deltas: { hbp: 1 }, tone: "#7fb3ff" },
+  { key: "so", label: "三振", deltas: { atBats: 1, so: 1 }, tone: "#ff6982" },
+  { key: "out", label: "凡退", deltas: { atBats: 1 }, tone: "rgba(255,255,255,0.6)" },
+  { key: "sh", label: "犠打", deltas: { sh: 1 }, tone: "#7fb3ff" },
+];
+const BAT_MODS: { key: string; label: string; deltas: Partial<BLine>; tone: string }[] = [
+  { key: "rbi", label: "打点 +1", deltas: { rbi: 1 }, tone: "#d4a82a" },
+  { key: "sb", label: "盗塁 +1", deltas: { sb: 1 }, tone: "#67e088" },
+  { key: "cs", label: "盗塁死 +1", deltas: { cs: 1 }, tone: "#ff6982" },
+];
+
+function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
+  date: string;
+  defaultOpponent: string;
+  members: Member[];
+  membersById: Map<string, Member>;
+  onClose: () => void;
+}) {
+  const active = useMemo(() =>
+    [...members].filter(m => m.active).sort((a, b) => (Number(a.jerseyNumber) || 999) - (Number(b.jerseyNumber) || 999)),
+    [members]);
+  const [opponent, setOpponent] = useState(defaultOpponent);
+  const [tab, setTab] = useState<"bat" | "pitch">("bat");
+  const [batter, setBatter] = useState("");
+  const [batLines, setBatLines] = useState<Record<string, BLine>>({});
+  const [events, setEvents] = useState<{ memberId: string; deltas: Partial<BLine> }[]>([]);
+  const [pitcher, setPitcher] = useState("");
+  const [pitchLines, setPitchLines] = useState<Record<string, PUI>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState("");
+
+  function applyBat(deltas: Partial<BLine>) {
+    if (!batter) { setErr("先に打者を選んでください。"); return; }
+    setErr("");
+    setBatLines(prev => {
+      const cur = prev[batter] ?? emptyB();
+      const next = { ...cur };
+      (Object.keys(deltas) as (keyof BLine)[]).forEach(k => { next[k] = (next[k] || 0) + (deltas[k] || 0); });
+      return { ...prev, [batter]: next };
+    });
+    setEvents(e => [...e, { memberId: batter, deltas }]);
+  }
+  function undo() {
+    setEvents(e => {
+      if (!e.length) return e;
+      const last = e[e.length - 1];
+      setBatLines(prev => {
+        const cur = prev[last.memberId] ?? emptyB();
+        const next = { ...cur };
+        (Object.keys(last.deltas) as (keyof BLine)[]).forEach(k => { next[k] = (next[k] || 0) - (last.deltas[k] || 0); });
+        return { ...prev, [last.memberId]: next };
+      });
+      return e.slice(0, -1);
+    });
+  }
+  function setPitchField(id: string, field: keyof PUI, value: number) {
+    setPitchLines(prev => ({ ...prev, [id]: { ...(prev[id] ?? emptyP()), [field]: Math.max(0, Math.floor(value) || 0) } }));
+  }
+
+  const batRows = active.filter(m => batLines[m.id] && Object.values(batLines[m.id]).some(v => v > 0));
+  const pitchRows = active.filter(m => {
+    const p = pitchLines[m.id];
+    return p && Object.values(p).some(v => v > 0);
+  });
+  const totalRecords = batRows.length + pitchRows.length;
+
+  function post(kind: "batting" | "pitching", memberId: string, data: Record<string, number>) {
+    return fetch("/api/member/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, date, opponent, memberId, memberName: membersById.get(memberId)?.name || "", data }),
+    }).then(r => r.json()).then(r => !!r?.ok).catch(() => false);
+  }
+  async function submit() {
+    if (submitting) return;
+    setErr("");
+    const tasks: Promise<boolean>[] = [];
+    batRows.forEach(m => tasks.push(post("batting", m.id, batLines[m.id])));
+    pitchRows.forEach(m => {
+      const p = pitchLines[m.id];
+      tasks.push(post("pitching", m.id, { ipOuts: p.inn * 3 + p.outs, hits: p.hits, runs: p.runs, er: p.er, so: p.so, bb: p.bb, hbp: p.hbp }));
+    });
+    if (!tasks.length) { setErr("記録がありません。打撃か投球を入力してください。"); return; }
+    setSubmitting(true);
+    const results = await Promise.all(tasks);
+    setSubmitting(false);
+    if (results.every(Boolean)) setDone(true);
+    else setErr("一部の送信に失敗しました。通信環境を確認して、もう一度お試しください。");
+  }
+
+  if (done) {
+    return (
+      <div className="stx-detail" style={{ ...cardStyle, textAlign: "center", padding: "40px 20px" }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>📨</div>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 18, marginBottom: 8 }}>承認待ちに送信しました</div>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.7 }}>
+          管理者が内容を確認して承認すると、成績に反映されます。<br />（承認まで成績ランキングには表示されません）
+        </p>
+        <button onClick={onClose} style={{ marginTop: 20, padding: "12px 28px", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>日程に戻る</button>
+      </div>
+    );
+  }
+
+  const cur = batter ? (batLines[batter] ?? emptyB()) : null;
+  const curP = pitcher ? (pitchLines[pitcher] ?? emptyP()) : null;
+  const numInput: React.CSSProperties = { width: "100%", padding: "8px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 16, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif" };
+
+  return (
+    <div className="stx-detail">
+      <button onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", marginBottom: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+        ← 日程に戻る
+      </button>
+
+      {/* ヘッダー：日付・対戦相手 */}
+      <section style={{ ...cardStyle, marginBottom: 14 }}>
+        <H sub="SCORER">スコア記録 — {mdLabel(date)}</H>
+        <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>対戦相手</label>
+        <input value={opponent} onChange={e => setOpponent(e.target.value)} placeholder="例）福岡ベアーズ" className="admin-dark"
+          style={{ width: "100%", padding: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 14 }} />
+      </section>
+
+      {/* 打撃 / 投球 切替 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {([["bat", "🏏 打撃"], ["pitch", "⚾ 投球"]] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => setTab(k)} className="stx-chip"
+            style={{ flex: 1, padding: "10px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: tab === k ? "#0a0e1a" : "#fff", background: tab === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (tab === k ? "transparent" : "rgba(255,255,255,0.15)") }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {tab === "bat" && (
+        <>
+          {/* 打者選択 */}
+          <section style={{ ...cardStyle, marginBottom: 14 }}>
+            <H sub="BATTER">打者を選ぶ</H>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {active.map(m => {
+                const on = batter === m.id;
+                const has = batLines[m.id] && Object.values(batLines[m.id]).some(v => v > 0);
+                return (
+                  <button key={m.id} onClick={() => setBatter(m.id)} className="stx-chip"
+                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
+                    #{m.jerseyNumber || "—"} {m.name}{has && !on ? " ✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 打席結果ボタン */}
+          {batter ? (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <H sub="RESULT">{membersById.get(batter)?.name} の打席結果</H>
+                <button onClick={undo} disabled={!events.length} style={{ fontSize: 11.5, color: events.length ? "#d4a82a" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (events.length ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), padding: "5px 11px", cursor: events.length ? "pointer" : "default" }}>↩︎ 1つ戻す</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {BAT_ACTIONS.map(a => (
+                  <button key={a.key} onClick={() => applyBat(a.deltas)}
+                    style={{ padding: "13px 4px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: a.tone, background: "rgba(255,255,255,0.05)", border: "1px solid " + a.tone + "55" }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                {BAT_MODS.map(a => (
+                  <button key={a.key} onClick={() => applyBat(a.deltas)}
+                    style={{ flex: 1, padding: "10px 4px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 12.5, color: a.tone, background: "rgba(255,255,255,0.03)", border: "1px dashed " + a.tone + "55" }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+              {cur && (
+                <div style={{ marginTop: 12, fontSize: 12, color: "rgba(255,255,255,0.7)", textAlign: "center" }}>
+                  今の集計：{cur.atBats}打数 {cur.hits}安打{cur.hr ? ` 本${cur.hr}` : ""}{cur.rbi ? ` 点${cur.rbi}` : ""}{cur.bb ? ` 四${cur.bb}` : ""}{cur.so ? ` 振${cur.so}` : ""}
+                </div>
+              )}
+            </section>
+          ) : (
+            <p style={{ ...emptyMsg, marginBottom: 14 }}>上から打者を選ぶと結果ボタンが出ます。</p>
+          )}
+
+          {/* 集計プレビュー */}
+          {batRows.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="PREVIEW">打撃 集計（{batRows.length}人）</H>
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table style={tableStyle}>
+                  <thead><tr><Th>選手</Th><Th>打数</Th><Th>安</Th><Th>本</Th><Th>点</Th><Th>四</Th><Th>振</Th><Th>盗</Th></tr></thead>
+                  <tbody>
+                    {batRows.map(m => { const l = batLines[m.id]; return (
+                      <tr key={m.id}>
+                        <Td style={{ textAlign: "left", fontWeight: 700 }}>{m.name}</Td>
+                        <Td>{l.atBats}</Td><Td>{l.hits}</Td><Td>{l.hr}</Td><Td>{l.rbi}</Td><Td>{l.bb + l.hbp}</Td><Td>{l.so}</Td><Td>{l.sb}</Td>
+                      </tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === "pitch" && (
+        <>
+          <section style={{ ...cardStyle, marginBottom: 14 }}>
+            <H sub="PITCHER">投手を選ぶ</H>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {active.map(m => {
+                const on = pitcher === m.id;
+                const has = pitchRows.some(p => p.id === m.id);
+                return (
+                  <button key={m.id} onClick={() => setPitcher(m.id)} className="stx-chip"
+                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
+                    #{m.jerseyNumber || "—"} {m.name}{has && !on ? " ✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {pitcher && curP ? (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="PITCHING LINE">{membersById.get(pitcher)?.name} の投球</H>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>投球回</label>
+                  <input type="number" inputMode="numeric" min={0} value={curP.inn || ""} onChange={e => setPitchField(pitcher, "inn", Number(e.target.value))} style={numInput} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>+アウト(0〜2)</label>
+                  <input type="number" inputMode="numeric" min={0} max={2} value={curP.outs || ""} onChange={e => setPitchField(pitcher, "outs", Math.min(2, Number(e.target.value)))} style={numInput} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                {([["hits", "被安打"], ["runs", "失点"], ["er", "自責点"], ["so", "奪三振"], ["bb", "与四球"], ["hbp", "与死球"]] as const).map(([f, lbl]) => (
+                  <div key={f}>
+                    <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>{lbl}</label>
+                    <input type="number" inputMode="numeric" min={0} value={curP[f] || ""} onChange={e => setPitchField(pitcher, f, Number(e.target.value))} style={numInput} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.6)", textAlign: "center" }}>
+                {curP.inn}回{curP.outs ? `${curP.outs}/3` : ""} 投球
+              </div>
+            </section>
+          ) : (
+            <p style={{ ...emptyMsg, marginBottom: 14 }}>上から投手を選ぶと入力欄が出ます。</p>
+          )}
+
+          {pitchRows.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="PREVIEW">投球 集計（{pitchRows.length}人）</H>
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <table style={tableStyle}>
+                  <thead><tr><Th>選手</Th><Th>回</Th><Th>安</Th><Th>失</Th><Th>責</Th><Th>奪三</Th><Th>四</Th></tr></thead>
+                  <tbody>
+                    {pitchRows.map(m => { const p = pitchLines[m.id]; return (
+                      <tr key={m.id}>
+                        <Td style={{ textAlign: "left", fontWeight: 700 }}>{m.name}</Td>
+                        <Td>{p.inn}{p.outs ? `.${p.outs}` : ""}</Td><Td>{p.hits}</Td><Td>{p.runs}</Td><Td>{p.er}</Td><Td>{p.so}</Td><Td>{p.bb}</Td>
+                      </tr>
+                    ); })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {/* 送信 */}
+      {err && <p style={{ color: "#ff6982", fontSize: 13, textAlign: "center", marginBottom: 10 }}>{err}</p>}
+      <button onClick={submit} disabled={submitting || totalRecords === 0}
+        style={{ width: "100%", padding: "16px", cursor: submitting || totalRecords === 0 ? "default" : "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: totalRecords === 0 ? "rgba(255,255,255,0.4)" : "#0a0e1a", background: totalRecords === 0 ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none" }}>
+        {submitting ? "送信中…" : totalRecords === 0 ? "記録を入力してください" : `📨 ${totalRecords}件を承認待ちに送信`}
+      </button>
+      <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>
+        送信後、管理者が承認すると成績に反映されます。<br />承認前は管理者が内容を編集できます。
+      </p>
     </div>
   );
 }
