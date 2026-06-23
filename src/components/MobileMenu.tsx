@@ -6,6 +6,8 @@ const MENU: [string, string][] = [
   ["#news", "お知らせ"],
   ["/blog", "ブログ"],
   ["#about", "チーム紹介"],
+  ["#app", "公式アプリ"],
+  ["#vision", "目標・ビジョン"],
   ["#activity", "活動概要"],
   ["/uniform", "ユニフォーム紹介"],
   ["#recruit", "メンバー募集"],

@@ -111,7 +111,7 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden lg:flex items-stretch h-full">
-          {([["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -500,6 +500,115 @@ function AboutSection() {
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
             <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
             <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── AppSection（メンバー専用 公式アプリ） ───────────────── */
+const APP_FEATURES = [
+  { icon: "🧠", tag: "独自開発AI", title: "SKドッパミンAI", body: "スイング・投球フォームを動画でAIが解析。点数・改善点・推定スイングスピードまで自動で診断します。" },
+  { icon: "📊", tag: "STATS", title: "成績アプリ", body: "打率・防御率・OPS・守備率に加え、WAR・wRC+ などプロ級の指標まで自動集計。試合別／通算でいつでも確認。" },
+  { icon: "🎙", tag: "LIVE", title: "ライブスコア記録", body: "試合の打席・走者・カウント・回をその場で記録。承認制で成績へ自動反映されます。" },
+  { icon: "🔔", tag: "SCHEDULE", title: "日程・出欠・通知", body: "練習日程の確認、参加投票、予告先発、プッシュ通知。チームの「今」がいつでも手元に。" },
+];
+
+function AppSection() {
+  return (
+    <section id="app" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+      <div className="field-grid absolute inset-0" />
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="mark-drift absolute pointer-events-none select-none hidden md:block"
+        style={{ left: "-5%", bottom: -40, width: "clamp(280px, 30vw, 440px)", height: "auto", opacity: 0.05 }} />
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="メンバー専用 公式アプリ" en="App" light />
+        <p className="reveal" style={{ color: "rgba(255,255,255,0.66)", fontSize: 15, lineHeight: 1.9, marginTop: -28, marginBottom: 28, maxWidth: 680 }}>
+          博多SKルーキーズには、他のチームにはまずない<strong style={{ color: "#fff" }}>メンバー専用の公式アプリ</strong>があります。成績管理から<strong style={{ color: "#d4a82a" }}>AIフォーム診断</strong>まで——“草野球”の枠を超えた、最先端の環境を用意しています。
+        </p>
+
+        {/* 強調バナー */}
+        <div className="reveal" style={{ background: "linear-gradient(135deg, rgba(212,168,42,0.1), rgba(209,0,36,0.06))", border: "1px solid rgba(212,168,42,0.4)", padding: "20px 24px", marginBottom: 32, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 30, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.6))" }}>🚀</span>
+          <div>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(17px,2.2vw,23px)", fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
+              他のチームには、まずない。<span style={{ color: "#d4a82a" }}>最先端の草野球チーム。</span>
+            </p>
+            <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginTop: 4, lineHeight: 1.7 }}>テクノロジーで、初心者の上達と「楽しい」をとことん後押しします。</p>
+          </div>
+        </div>
+
+        {/* 機能カード */}
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2">
+          {APP_FEATURES.map((f, i) => (
+            <div key={f.title} className="support-card reveal" data-delay={String(i * 110)}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", padding: "26px 24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, filter: "drop-shadow(0 0 10px rgba(212,168,42,0.4))" }}>{f.icon}</span>
+              <div>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.3em", marginBottom: 6 }}>{f.tag}</p>
+                <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 18, fontWeight: 900, color: "#fff", marginBottom: 8 }}>{f.title}</h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", lineHeight: 1.85 }}>{f.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="reveal" style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>
+            ※ アプリはメンバー専用（パスワード制・個人情報を厳重に保護）。入団後にご案内します。
+          </p>
+          <Link href="/stats" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(212,168,42,0.14)", border: "1px solid rgba(212,168,42,0.4)", color: "#d4a82a", padding: "10px 20px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+            メンバーの方は 成績アプリへ →
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── VisionSection（目標・リーグ構想） ────────────────────── */
+const VISIONS = [
+  { no: "01", icon: "🏟", eyebrow: "GOAL — DREAM STAGE", title: "みずほPayPayドーム福岡で試合する", body: "福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。" },
+  { no: "02", icon: "🏆", eyebrow: "LEAGUE — COMING SOON", title: "設立2年以内のチーム限定リーグを創設", body: "今あるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めないのが現状。だからこそ“設立して2年以内のチーム限定”の公式リーグを、近いうちに自分たちで立ち上げます。他のリーグに所属していても加入OK。同じスタートラインのチーム同士で、本気の公式戦を。" },
+];
+
+function VisionSection() {
+  return (
+    <section id="vision" className="bg-white border-b border-line-2 relative overflow-hidden">
+      <div style={{ position: "absolute", right: -50, top: -40, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 360, lineHeight: 1, color: "rgba(11,30,63,0.03)", userSelect: "none", pointerEvents: "none" }}>V</div>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="私たちの目標" en="Vision" />
+        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
+          立ち上げたばかりのチームだからこそ、大きな夢を本気で追いかけます。
+        </p>
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+          {VISIONS.map((v, i) => (
+            <div key={v.no} className="about-card reveal" data-delay={String(i * 130)}
+              style={{ padding: "36px 30px", background: "#f9f6f2", border: "1px solid #e4e0d8", borderTop: "4px solid #d10024", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", right: 12, top: 6, fontFamily: "var(--font-oswald),sans-serif", fontSize: 88, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{v.no}</div>
+              <div style={{ fontSize: 34, marginBottom: 14, lineHeight: 1 }}>{v.icon}</div>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10.5, color: "#d10024", letterSpacing: "0.3em", marginBottom: 10, fontWeight: 700 }}>{v.eyebrow}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(18px,2.4vw,23px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 14, lineHeight: 1.35 }}>{v.title}</h3>
+              <p style={{ fontSize: 14, color: "rgba(19,25,34,0.7)", lineHeight: 1.95 }}>{v.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* CTA */}
+        <div className="reveal" style={{ marginTop: 22, background: "#0b1e3f", padding: "26px 30px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em", marginBottom: 8 }}>JOIN THE CHALLENGE</p>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,20px)", fontWeight: 900, color: "#fff", lineHeight: 1.5 }}>
+              一緒に夢を追う<span style={{ color: "#d4a82a" }}>仲間</span>・<span style={{ color: "#d4a82a" }}>対戦相手</span>・<span style={{ color: "#d4a82a" }}>リーグ参加チーム</span>を募集中。
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href="#recruit" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+              メンバー募集 →
+            </a>
+            <a href="#contact" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", border: "1px solid rgba(255,255,255,0.3)" }}>
+              対戦・リーグの相談 →
+            </a>
           </div>
         </div>
       </div>
@@ -907,7 +1016,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -970,6 +1079,8 @@ export default async function Home() {
         <NewsSection news={news} />
         <ScheduleSection practices={practices} />
         <AboutSection />
+        <AppSection />
+        <VisionSection />
         <ActivitySection />
         <RecruitSection />
         <SupportSection />
