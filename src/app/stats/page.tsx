@@ -13,13 +13,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.3";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "1.3",
+    date: "2026-06-24",
+    items: [
+      "🎥 フォームチェックを追加（動画からAIが骨格を解析）",
+      "📊 バッティング/ピッチングを点数・項目別評価・改善点で診断",
+      "⚡ 推定スイング/リリース速度を表示（目安）",
+      "🔒 動画は端末内だけで解析・外部に送信しません",
+    ],
+  },
   {
     version: "1.2",
     date: "2026-06-23",
@@ -518,7 +529,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule";
+type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule" | "form";
 const TOTAL_SCOPE = "__total__";
 
 function StatsDashboard({ onLogout }: { onLogout: () => void }) {
@@ -978,6 +989,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
             ["catching", "🧤 捕手", catchingStats.length],
             ["fielding", "🧱 守備", fieldingStats.length],
             ["schedule", "📅 日程", scheduleCount],
+            ["form", "🎥 フォーム", -1],
           ] as [Tab, string, number][]).map(([key, label, count]) => {
             const active = tab === key;
             return (
@@ -1003,14 +1015,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
                   boxShadow: active ? "0 4px 18px rgba(212,168,42,0.45)" : "none",
                 }}
               >
-                {label}<span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>
+                {label}{count >= 0 && <span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>}
               </button>
             );
           })}
         </div>
 
         {/* ── スコープ切り替え（通算 / 試合別）— 成績タブのみ表示 ── */}
-        {tab !== "schedule" && tab !== "news" && (
+        {tab !== "schedule" && tab !== "news" && tab !== "form" && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
             <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
               通算
@@ -1044,10 +1056,185 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           <CatchingStatsView key={`c-${scope}`} stats={catchingStats} scopeLabel={scopeLabel} />
         ) : tab === "fielding" ? (
           <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
+        ) : tab === "form" ? (
+          <FormCheckView />
         ) : (
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         )}
       </main>
+    </div>
+  );
+}
+
+/* ── フォームチェック（端末内AI解析） ────────────────────── */
+function FormCheckView() {
+  const [kind, setKind] = useState<Kind>("batting");
+  const [phase, setPhase] = useState<"idle" | "analyzing" | "done" | "error">("idle");
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<FormResult | null>(null);
+  const [errMsg, setErrMsg] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setPhase("analyzing"); setProgress(0); setResult(null); setErrMsg("");
+    try {
+      const r = await analyzeForm(f, kind, p => setProgress(p));
+      setResult(r); setPhase("done");
+    } catch (err) {
+      setErrMsg(err instanceof Error ? err.message : "解析に失敗しました。もう一度お試しください。");
+      setPhase("error");
+    }
+  }
+  function reset() { setPhase("idle"); setResult(null); setProgress(0); setErrMsg(""); }
+
+  const scoreColor = (s: number) => (s >= 80 ? "#67e088" : s >= 60 ? "#d4a82a" : "#ff6982");
+  const grade = (s: number) => (s >= 90 ? "S" : s >= 80 ? "A" : s >= 70 ? "B" : s >= 60 ? "C" : "D");
+
+  const kindLabel = kind === "batting" ? "バッティング" : "ピッチング";
+
+  return (
+    <div className="stx-detail">
+      {/* 説明 */}
+      <section style={{ ...cardStyle }}>
+        <H sub="AI FORM CHECK">フォームチェック <span style={{ fontSize: 10, fontWeight: 700, color: "#0a0e1a", background: "linear-gradient(135deg,#f3d176,#d4a82a)", padding: "2px 7px", borderRadius: 999, marginLeft: 4 }}>NEW</span></H>
+        <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.85, margin: 0 }}>
+          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、AIが骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・改善点・推定スピード</strong>を表示します。
+          動画は<strong style={{ color: "#67e088" }}>あなたの端末の中だけ</strong>で解析され、サーバーには送られません。
+          <span style={{ color: "rgba(255,255,255,0.45)" }}>（結果はあくまで目安です）</span>
+        </p>
+      </section>
+
+      {/* 種別切替 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {([["batting", "⚾ バッティング"], ["pitching", "🔥 ピッチング"]] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => { setKind(k); reset(); }} className="stx-chip"
+            style={{ flex: 1, padding: "12px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: kind === k ? "#0a0e1a" : "#fff", background: kind === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (kind === k ? "transparent" : "rgba(255,255,255,0.15)"), boxShadow: kind === k ? "0 4px 16px rgba(212,168,42,0.4)" : "none" }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      <input ref={inputRef} type="file" accept="video/*" onChange={onPick} style={{ display: "none" }} />
+
+      {(phase === "idle" || phase === "error") && (
+        <section style={{ ...cardStyle, textAlign: "center" }}>
+          {errMsg && (
+            <div style={{ marginBottom: 14, padding: "12px 14px", background: "rgba(209,0,36,0.12)", border: "1px solid rgba(209,0,36,0.4)", color: "#ff6982", fontSize: 13, lineHeight: 1.7, borderRadius: 10 }}>{errMsg}</div>
+          )}
+          <div style={{ fontSize: 44, marginBottom: 8 }}>🎥</div>
+          <button onClick={() => inputRef.current?.click()} className="stx-sheen"
+            style={{ padding: "15px 30px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12, boxShadow: "0 6px 22px rgba(212,168,42,0.45)" }}>
+            📹 {kindLabel}動画を選ぶ
+          </button>
+          <div style={{ marginTop: 20, textAlign: "left", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#d4a82a", letterSpacing: "0.1em", marginBottom: 8 }}>📌 撮影のコツ</div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.9 }}>
+              <li><strong style={{ color: "#fff" }}>横から</strong>・全身が画面に収まるように撮る</li>
+              <li>明るい場所で、背景はシンプルだと精度UP</li>
+              <li>1〜数秒の短い動画でOK（長すぎると時間がかかります）</li>
+              <li>スイング/投球の全体が1回入っていれば十分</li>
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {phase === "analyzing" && (
+        <section style={{ ...cardStyle, textAlign: "center", padding: "40px 24px" }}>
+          <div className="stx-spin" style={{ width: 44, height: 44, margin: "0 auto 18px", border: "3px solid rgba(212,168,42,0.25)", borderTopColor: "#d4a82a", borderRadius: "50%" }} />
+          <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, marginBottom: 6 }}>
+            {progress < 0.1 ? "AIモデルを準備中…" : progress < 0.95 ? "骨格を解析中…" : "結果をまとめています…"}
+          </div>
+          <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>端末内で処理しています（動画は外部に送られません）</div>
+          <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${Math.round(progress * 100)}%`, background: "linear-gradient(90deg,#d4a82a,#f0cf6a)", transition: "width 0.25s", boxShadow: "0 0 10px rgba(212,168,42,0.7)" }} />
+          </div>
+          <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginTop: 8 }}>{Math.round(progress * 100)}%</div>
+        </section>
+      )}
+
+      {phase === "done" && result && (
+        <>
+          {/* 総合スコア + 推定スピード */}
+          <section style={{ ...cardStyle }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "center" }}>
+              {/* リングゲージ */}
+              <div style={{ position: "relative", width: 130, height: 130, flexShrink: 0 }}>
+                <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
+                  <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
+                  <circle cx="60" cy="60" r="52" fill="none" stroke={scoreColor(result.overall)} strokeWidth="10" strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 52} strokeDashoffset={2 * Math.PI * 52 * (1 - result.overall / 100)}
+                    style={{ filter: `drop-shadow(0 0 6px ${scoreColor(result.overall)})`, transition: "stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
+                </svg>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 40, fontWeight: 700, lineHeight: 1, color: "#fff" }}>{result.overall}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>/ 100</div>
+                </div>
+                <div style={{ position: "absolute", top: -6, right: -6, width: 34, height: 34, borderRadius: "50%", background: scoreColor(result.overall), color: "#0a0e1a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 18, boxShadow: `0 0 14px ${scoreColor(result.overall)}` }}>{grade(result.overall)}</div>
+              </div>
+              {/* 推定スピード */}
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", marginBottom: 2 }}>{result.speedLabel}</div>
+                <div>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 46, fontWeight: 700, color: "#d4a82a", textShadow: "0 0 18px rgba(212,168,42,0.5)" }}>{result.speedKmh.toFixed(0)}</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginLeft: 4 }}>km/h</span>
+                </div>
+                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>手の速さ {result.handSpeedKmh.toFixed(0)} km/h ・ 目安値</div>
+              </div>
+            </div>
+          </section>
+
+          {/* キーフレーム（骨格オーバーレイ） */}
+          {result.keyframeDataUrl && (
+            <section style={{ ...cardStyle, padding: 14 }}>
+              <H sub="KEY FRAME">{kind === "batting" ? "インパクト付近" : "リリース付近"}</H>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={result.keyframeDataUrl} alt="解析フレーム" style={{ width: "100%", maxWidth: 320, display: "block", margin: "0 auto", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
+            </section>
+          )}
+
+          {/* 指標バー */}
+          <section style={{ ...cardStyle }}>
+            <H sub="DETAIL">項目別スコア</H>
+            <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
+              {result.metrics.map(m => (
+                <div key={m.key}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, fontWeight: 700, color: scoreColor(m.score) }}>{m.score}</span>
+                  </div>
+                  <div style={{ height: 7, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${m.score}%`, background: scoreColor(m.score), borderRadius: 999, boxShadow: `0 0 8px ${scoreColor(m.score)}`, transition: "width 0.7s cubic-bezier(0.16,1,0.3,1)" }} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", marginTop: 4, lineHeight: 1.6 }}>{m.comment}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 改善点 */}
+          <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.3)" }}>
+            <H sub="ADVICE">改善ポイント</H>
+            <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+              {result.tips.map((t, i) => (
+                <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.7 }}>
+                  <span style={{ color: "#d4a82a", flexShrink: 0 }}>▸</span><span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", textAlign: "center", marginBottom: 12, lineHeight: 1.6 }}>
+            {result.framesAnalyzed}フレーム解析 ・ AIによる推定のため誤差があります
+          </div>
+          <button onClick={() => inputRef.current?.click()} className="stx-sheen"
+            style={{ width: "100%", padding: "14px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12 }}>
+            🔄 別の動画でもう一度
+          </button>
+        </>
+      )}
     </div>
   );
 }

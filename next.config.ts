@@ -18,12 +18,13 @@ const csp = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"} https://va.vercel-scripts.com https://platform.twitter.com https://cdn.syndication.twimg.com`,
-  "connect-src 'self' https://va.vercel-scripts.com https://vitals.vercel-insights.com https://formspree.io https://syndication.twitter.com",
+  // 'wasm-unsafe-eval' と blob: は端末内フォーム解析（MediaPipe / WASM・Worker）に必要
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:${isProd ? "" : " 'unsafe-eval'"} https://va.vercel-scripts.com https://platform.twitter.com https://cdn.syndication.twimg.com`,
+  "connect-src 'self' blob: https://va.vercel-scripts.com https://vitals.vercel-insights.com https://formspree.io https://syndication.twitter.com",
   "frame-src https://platform.twitter.com https://syndication.twitter.com",
-  "worker-src 'self'",
+  "worker-src 'self' blob:",
   "manifest-src 'self'",
-  "media-src 'self'",
+  "media-src 'self' blob:",
   "upgrade-insecure-requests",
 ].join("; ");
 
