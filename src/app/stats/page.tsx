@@ -2167,6 +2167,86 @@ const BAT_MODS: { key: string; label: string; deltas: Partial<BLine>; tone: stri
   { key: "cs", label: "盗塁死 +1", deltas: { cs: 1 }, tone: "#ff6982" },
 ];
 
+/* ── ライブ記録：試合状況（回・表裏・アウト・カウント・走者・得点） ── */
+type RunnerSlot = { id: string; name: string } | null;
+type Bases = { b1: RunnerSlot; b2: RunnerSlot; b3: RunnerSlot };
+type Live = {
+  inning: number; half: "top" | "bottom";
+  outs: number; balls: number; strikes: number;
+  bases: Bases; ourScore: number; oppScore: number;
+};
+const emptyBases = (): Bases => ({ b1: null, b2: null, b3: null });
+const initLive = (): Live => ({ inning: 1, half: "top", outs: 0, balls: 0, strikes: 0, bases: emptyBases(), ourScore: 0, oppScore: 0 });
+const occCount = (b: Bases) => (b.b1 ? 1 : 0) + (b.b2 ? 1 : 0) + (b.b3 ? 1 : 0);
+const inningLabel = (l: Live) => `${l.inning}回${l.half === "top" ? "表" : "裏"}`;
+const oppRunner = (): RunnerSlot => ({ id: "o" + Math.random().toString(36).slice(2, 7), name: "走者" });
+
+// 走者を n 塁進める（打者は含まない）。戻り値：新ベースと得点数
+function advanceRunners(bases: Bases, n: number): { bases: Bases; runs: number } {
+  const occ: { base: number; r: RunnerSlot }[] = [];
+  if (bases.b3) occ.push({ base: 3, r: bases.b3 });
+  if (bases.b2) occ.push({ base: 2, r: bases.b2 });
+  if (bases.b1) occ.push({ base: 1, r: bases.b1 });
+  const nb = emptyBases(); let runs = 0;
+  for (const o of occ) {
+    const dest = o.base + n;
+    if (dest >= 4) runs++;
+    else if (dest === 3) nb.b3 = o.r;
+    else if (dest === 2) nb.b2 = o.r;
+    else nb.b1 = o.r;
+  }
+  return { bases: nb, runs };
+}
+// 四死球の押し出し：詰まっている走者だけ進める
+function forcePush(bases: Bases, batter: RunnerSlot): { bases: Bases; runs: number } {
+  const nb: Bases = { ...bases }; let runs = 0;
+  if (!nb.b1) nb.b1 = batter;
+  else if (!nb.b2) { nb.b2 = nb.b1; nb.b1 = batter; }
+  else if (!nb.b3) { nb.b3 = nb.b2; nb.b2 = nb.b1; nb.b1 = batter; }
+  else { runs = 1; nb.b3 = nb.b2; nb.b2 = nb.b1; nb.b1 = batter; }
+  return { bases: nb, runs };
+}
+// アウトを加算し、3アウトで攻守交代（回・表裏を進めベース/カウントを空に）
+function liveAddOuts(prev: Live, add: number): Live {
+  const outs = prev.outs + add;
+  if (outs < 3) return { ...prev, outs, balls: 0, strikes: 0 };
+  const toBottom = prev.half === "top";
+  return { ...prev, outs: 0, balls: 0, strikes: 0, bases: emptyBases(), half: toBottom ? "bottom" : "top", inning: toBottom ? prev.inning : prev.inning + 1 };
+}
+
+function LiveDots({ label, n, max, color }: { label: string; n: number; max: number; color: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "rgba(255,255,255,0.55)", width: 12 }}>{label}</span>
+      <div style={{ display: "flex", gap: 5 }}>
+        {Array.from({ length: max }).map((_, i) => (
+          <span key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: i < n ? color : "rgba(255,255,255,0.12)", boxShadow: i < n ? `0 0 9px ${color}` : "none", transition: "background .15s, box-shadow .15s" }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+function BaseDiamond({ bases }: { bases: Bases }) {
+  const sq = (occ: boolean): React.CSSProperties => ({
+    position: "absolute", width: 32, height: 32, transform: "translate(-50%,-50%) rotate(45deg)",
+    background: occ ? "linear-gradient(135deg,#f0cf6a,#d4a82a)" : "rgba(255,255,255,0.06)",
+    border: "1px solid " + (occ ? "#f0cf6a" : "rgba(255,255,255,0.2)"),
+    boxShadow: occ ? "0 0 16px rgba(212,168,42,0.65)" : "none", transition: "background .2s, box-shadow .2s",
+  });
+  const lbl = (occ: boolean): React.CSSProperties => ({ position: "absolute", transform: "translate(-50%,-50%)", fontSize: 9, fontWeight: 800, color: occ ? "#0a0e1a" : "rgba(255,255,255,0.5)", zIndex: 1, fontFamily: "var(--font-oswald),sans-serif" });
+  return (
+    <div style={{ position: "relative", width: 150, height: 118, margin: "12px auto 2px" }}>
+      <div style={{ ...sq(!!bases.b2), left: "50%", top: "26%" }} />
+      <div style={{ ...sq(!!bases.b3), left: "20%", top: "60%" }} />
+      <div style={{ ...sq(!!bases.b1), left: "80%", top: "60%" }} />
+      <div style={{ position: "absolute", left: "50%", top: "92%", transform: "translate(-50%,-50%)", width: 15, height: 15, background: "rgba(255,255,255,0.45)", clipPath: "polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)" }} />
+      <span style={{ ...lbl(!!bases.b2), left: "50%", top: "26%" }}>2</span>
+      <span style={{ ...lbl(!!bases.b3), left: "20%", top: "60%" }}>3</span>
+      <span style={{ ...lbl(!!bases.b1), left: "80%", top: "60%" }}>1</span>
+    </div>
+  );
+}
+
 function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
   date: string;
   defaultOpponent: string;
@@ -2187,6 +2267,178 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState("");
+
+  // ── ライブ記録モード ──
+  const [mode, setMode] = useState<"live" | "simple">("live");
+  const [live, setLive] = useState<Live>(initLive);
+  const [weBatHalf, setWeBatHalf] = useState<"top" | "bottom">("bottom"); // 自チームが攻撃する回（既定：裏＝ホーム）
+  const [feed, setFeed] = useState<string[]>([]);
+  const histRef = useRef<{ live: Live; batLines: Record<string, BLine>; pitchLines: Record<string, PUI>; batter: string; pitcher: string; feed: string[] }[]>([]);
+  const [histLen, setHistLen] = useState(0);
+  const ourTurn = live.half === weBatHalf;
+
+  function snap() {
+    histRef.current.push(JSON.parse(JSON.stringify({ live, batLines, pitchLines, batter, pitcher, feed })));
+    if (histRef.current.length > 60) histRef.current.shift();
+    setHistLen(histRef.current.length);
+  }
+  function undoLive() {
+    const s = histRef.current.pop();
+    setHistLen(histRef.current.length);
+    if (!s) return;
+    setLive(s.live); setBatLines(s.batLines); setPitchLines(s.pitchLines); setBatter(s.batter); setPitcher(s.pitcher); setFeed(s.feed);
+  }
+  const pushFeed = (t: string) => setFeed(f => [t, ...f].slice(0, 8));
+
+  function addBatStat(id: string, deltas: Partial<BLine>) {
+    setBatLines(prev => {
+      const cur = prev[id] ?? emptyB(); const next = { ...cur };
+      (Object.keys(deltas) as (keyof BLine)[]).forEach(k => { next[k] = (next[k] || 0) + (deltas[k] || 0); });
+      return { ...prev, [id]: next };
+    });
+  }
+  function addPitchStat(id: string, deltas: Partial<PUI>) {
+    setPitchLines(prev => {
+      const cur = prev[id] ?? emptyP(); const next = { ...cur };
+      (Object.keys(deltas) as (keyof PUI)[]).forEach(k => { next[k] = (next[k] || 0) + (deltas[k] || 0); });
+      return { ...prev, [id]: next };
+    });
+  }
+  function addPitchOut(id: string, n = 1) {
+    setPitchLines(prev => {
+      const cur = prev[id] ?? emptyP(); let inn = cur.inn, outs = cur.outs + n;
+      while (outs >= 3) { inn++; outs -= 3; }
+      return { ...prev, [id]: { ...cur, inn, outs } };
+    });
+  }
+
+  // ── 自チーム攻撃 ──
+  function ourHit(baseReached: 1 | 2 | 3 | 4, label: string) {
+    if (!batter) { setErr("打者を選んでください。"); return; }
+    setErr(""); snap();
+    const runner: RunnerSlot = { id: batter, name: membersById.get(batter)?.name || "" };
+    let runs = 0; let bases: Bases;
+    if (baseReached === 4) { runs = occCount(live.bases) + 1; bases = emptyBases(); }
+    else {
+      const adv = advanceRunners(live.bases, baseReached); runs = adv.runs; bases = adv.bases;
+      if (baseReached === 1) bases.b1 = runner; else if (baseReached === 2) bases.b2 = runner; else bases.b3 = runner;
+    }
+    const deltas: Partial<BLine> = { atBats: 1, hits: 1 };
+    if (baseReached === 2) deltas.doubles = 1; else if (baseReached === 3) deltas.triples = 1; else if (baseReached === 4) deltas.hr = 1;
+    if (runs > 0) deltas.rbi = runs;
+    addBatStat(batter, deltas);
+    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} ${runner.name} ${label}${runs ? `・${runs}点` : ""}`);
+  }
+  function ourOut(kind: "so" | "go" | "fo" | "sh") {
+    if (!batter) { setErr("打者を選んでください。"); return; }
+    setErr(""); snap();
+    const deltas: Partial<BLine> = kind === "so" ? { atBats: 1, so: 1 } : kind === "sh" ? { sh: 1 } : { atBats: 1 };
+    addBatStat(batter, deltas);
+    setLive(prev => liveAddOuts(prev, 1));
+    const name = membersById.get(batter)?.name || "";
+    pushFeed(`${inningLabel(live)} ${name} ${kind === "so" ? "三振" : kind === "sh" ? "犠打" : kind === "go" ? "ゴロ" : "フライ"}`);
+  }
+  function ourWalk(hbp = false) {
+    if (!batter) { setErr("打者を選んでください。"); return; }
+    setErr(""); snap();
+    const runner: RunnerSlot = { id: batter, name: membersById.get(batter)?.name || "" };
+    const { bases, runs } = forcePush(live.bases, runner);
+    const deltas: Partial<BLine> = hbp ? { hbp: 1 } : { bb: 1 };
+    if (runs > 0) deltas.rbi = runs;
+    addBatStat(batter, deltas);
+    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} ${runner.name} ${hbp ? "死球" : "四球"}`);
+  }
+  function ourReachError() {
+    if (!batter) { setErr("打者を選んでください。"); return; }
+    setErr(""); snap();
+    const runner: RunnerSlot = { id: batter, name: membersById.get(batter)?.name || "" };
+    const adv = advanceRunners(live.bases, 1); const bases = adv.bases; bases.b1 = runner;
+    addBatStat(batter, { atBats: 1 });
+    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + adv.runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} ${runner.name} 失策出塁`);
+  }
+  function ourBall() { if (live.balls + 1 >= 4) { ourWalk(false); return; } snap(); setLive(p => ({ ...p, balls: p.balls + 1 })); }
+  function ourStrike() { if (live.strikes + 1 >= 3) { ourOut("so"); return; } snap(); setLive(p => ({ ...p, strikes: p.strikes + 1 })); }
+  function ourFoul() { if (live.strikes >= 2) return; snap(); setLive(p => ({ ...p, strikes: p.strikes + 1 })); }
+
+  // ── 守備（相手攻撃・自チーム投手） ──
+  function oppHit(baseReached: 1 | 2 | 3 | 4, label: string) {
+    if (!pitcher) { setErr("投手を選んでください。"); return; }
+    setErr(""); snap();
+    addPitchStat(pitcher, { hits: 1 });
+    let runs = 0; let bases: Bases;
+    if (baseReached === 4) { runs = occCount(live.bases) + 1; bases = emptyBases(); }
+    else {
+      const adv = advanceRunners(live.bases, baseReached); runs = adv.runs; bases = adv.bases;
+      const r = oppRunner();
+      if (baseReached === 1) bases.b1 = r; else if (baseReached === 2) bases.b2 = r; else bases.b3 = r;
+    }
+    if (runs > 0) addPitchStat(pitcher, { runs, er: runs });
+    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} 相手 ${label}${runs ? `・${runs}失点` : ""}`);
+  }
+  function oppOut(kind: "go" | "fo") {
+    if (!pitcher) { setErr("投手を選んでください。"); return; }
+    setErr(""); snap(); addPitchOut(pitcher, 1);
+    setLive(prev => liveAddOuts(prev, 1));
+    pushFeed(`${inningLabel(live)} 相手 ${kind === "go" ? "ゴロ" : "フライ"}アウト`);
+  }
+  function oppStrikeout() {
+    if (!pitcher) { setErr("投手を選んでください。"); return; }
+    setErr(""); snap(); addPitchStat(pitcher, { so: 1 }); addPitchOut(pitcher, 1);
+    setLive(prev => liveAddOuts(prev, 1));
+    pushFeed(`${inningLabel(live)} 奪三振`);
+  }
+  function oppWalk(hbp = false) {
+    if (!pitcher) { setErr("投手を選んでください。"); return; }
+    setErr(""); snap(); addPitchStat(pitcher, hbp ? { hbp: 1 } : { bb: 1 });
+    const { bases, runs } = forcePush(live.bases, oppRunner());
+    if (runs > 0) addPitchStat(pitcher, { runs, er: runs });
+    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} ${hbp ? "与死球" : "与四球"}`);
+  }
+  function oppRun() {
+    if (!pitcher) { setErr("投手を選んでください。"); return; }
+    setErr(""); snap(); addPitchStat(pitcher, { runs: 1, er: 1 });
+    setLive(prev => ({ ...prev, oppScore: prev.oppScore + 1 }));
+    pushFeed(`${inningLabel(live)} 失点 +1`);
+  }
+  function oppError() {
+    setErr(""); snap();
+    const adv = advanceRunners(live.bases, 1); const bases = adv.bases; bases.b1 = oppRunner();
+    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + adv.runs, balls: 0, strikes: 0 }));
+    pushFeed(`${inningLabel(live)} 失策で出塁`);
+  }
+  function defBall() { if (live.balls + 1 >= 4) { oppWalk(false); return; } snap(); setLive(p => ({ ...p, balls: p.balls + 1 })); }
+  function defStrike() { if (live.strikes + 1 >= 3) { oppStrikeout(); return; } snap(); setLive(p => ({ ...p, strikes: p.strikes + 1 })); }
+  function defFoul() { if (live.strikes >= 2) return; snap(); setLive(p => ({ ...p, strikes: p.strikes + 1 })); }
+
+  // ── 走者操作（進塁/生還/盗塁/走塁死） ──
+  function runnerOp(base: "b1" | "b2" | "b3", op: "adv" | "steal" | "out") {
+    const r = live.bases[base]; if (!r) return;
+    setErr(""); snap();
+    if (ourTurn && op === "steal") addBatStat(r.id, { sb: 1 });
+    if (ourTurn && op === "out") addBatStat(r.id, { cs: 1 });
+    if (!ourTurn && op === "out" && pitcher) addPitchOut(pitcher, 1);
+    setLive(prev => {
+      const bases = { ...prev.bases }; bases[base] = null;
+      if (op === "out") return liveAddOuts({ ...prev, bases }, 1);
+      const to = base === "b1" ? "b2" : base === "b2" ? "b3" : null;
+      let scoreRun = 0;
+      if (to === null) scoreRun = 1; else bases[to] = r;
+      return ourTurn
+        ? { ...prev, bases, ourScore: prev.ourScore + scoreRun }
+        : { ...prev, bases, oppScore: prev.oppScore + scoreRun };
+    });
+    pushFeed(`${inningLabel(live)} ${r.name} ${op === "steal" ? "盗塁" : op === "out" ? "走塁死" : base === "b3" ? "生還" : "進塁"}`);
+  }
+  function manualChange() {
+    snap();
+    setLive(prev => { const toBottom = prev.half === "top"; return { ...prev, outs: 0, balls: 0, strikes: 0, bases: emptyBases(), half: toBottom ? "bottom" : "top", inning: toBottom ? prev.inning : prev.inning + 1 }; });
+    pushFeed("攻守交代");
+  }
 
   function applyBat(deltas: Partial<BLine>) {
     if (!batter) { setErr("先に打者を選んでください。"); return; }
@@ -2278,6 +2530,172 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
           style={{ width: "100%", padding: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 14 }} />
       </section>
 
+      {/* ライブ記録 / かんたん集計 モード切替 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {([["live", "🎙 ライブ記録"], ["simple", "✍️ かんたん集計"]] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => setMode(k)} className="stx-chip"
+            style={{ flex: 1, padding: "11px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13.5, color: mode === k ? "#0a0e1a" : "#fff", background: mode === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (mode === k ? "transparent" : "rgba(255,255,255,0.15)"), boxShadow: mode === k ? "0 4px 16px rgba(212,168,42,0.4)" : "none" }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {mode === "live" && (() => {
+        const liveBtn = (onClick: () => void, label: string, tone: string, big = false): React.ReactNode => (
+          <button onClick={onClick} key={label}
+            style={{ padding: big ? "14px 4px" : "11px 4px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: big ? 14 : 12.5, color: tone, background: "rgba(255,255,255,0.05)", border: "1px solid " + tone + "55", borderRadius: 9 }}>
+            {label}
+          </button>
+        );
+        return (
+        <>
+          {/* スコアボード */}
+          <section style={{ ...cardStyle, marginBottom: 14, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              {([["自", live.ourScore, ourTurn], ["相手", live.oppScore, !ourTurn]] as const).map(([lab, sc, act], idx) => (
+                <div key={idx} style={{ textAlign: "center", flex: 1, opacity: act ? 1 : 0.55 }}>
+                  <div style={{ fontSize: 11, color: act ? "#d4a82a" : "rgba(255,255,255,0.5)", fontWeight: 700, letterSpacing: "0.1em" }}>{lab}{act ? " ●攻撃" : ""}</div>
+                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1, color: "#fff", textShadow: act ? "0 0 18px rgba(212,168,42,0.5)" : "none" }}>{sc}</div>
+                </div>
+              ))}
+              <div style={{ textAlign: "center", flex: 1.1, borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#d4a82a" }}>{live.inning}</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#fff" }}>{live.half === "top" ? "回 表" : "回 裏"}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 14, flexWrap: "wrap" }}>
+              <LiveDots label="O" n={live.outs} max={2} color="#ff6982" />
+              <LiveDots label="B" n={live.balls} max={3} color="#67e088" />
+              <LiveDots label="S" n={live.strikes} max={2} color="#d4a82a" />
+            </div>
+            <BaseDiamond bases={live.bases} />
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button onClick={manualChange} className="stx-chip" style={{ flex: 1, padding: "10px", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "#fff", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", fontFamily: "var(--font-zen),sans-serif" }}>▶ 攻守交代</button>
+              <button onClick={undoLive} disabled={!histLen} style={{ flex: 1, padding: "10px", cursor: histLen ? "pointer" : "default", fontWeight: 800, fontSize: 13, color: histLen ? "#d4a82a" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (histLen ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), borderRadius: 9, fontFamily: "var(--font-zen),sans-serif" }}>↩︎ 1つ戻す</button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, justifyContent: "center", fontSize: 11.5, color: "rgba(255,255,255,0.55)" }}>
+              <span>自チームの攻撃：</span>
+              {([["top", "表"], ["bottom", "裏"]] as const).map(([h, l]) => (
+                <button key={h} onClick={() => setWeBatHalf(h)} style={{ padding: "4px 12px", cursor: "pointer", borderRadius: 7, fontWeight: 800, fontSize: 12, color: weBatHalf === h ? "#0a0e1a" : "#fff", background: weBatHalf === h ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (weBatHalf === h ? "transparent" : "rgba(255,255,255,0.15)") }}>{l}</button>
+              ))}
+            </div>
+          </section>
+
+          {/* 走者操作 */}
+          {occCount(live.bases) > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="RUNNERS">走者</H>
+              {(["b3", "b2", "b1"] as const).filter(b => live.bases[b]).map(b => {
+                const r = live.bases[b]!; const bn = b === "b1" ? "一塁" : b === "b2" ? "二塁" : "三塁";
+                return (
+                  <div key={b} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}><span style={{ color: "#d4a82a" }}>{bn}</span>　{r.name}</span>
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                      <button onClick={() => runnerOp(b, "adv")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#67e088", background: "rgba(255,255,255,0.04)", border: "1px solid #67e08855", borderRadius: 7 }}>{b === "b3" ? "生還" : "進塁"}</button>
+                      {ourTurn && <button onClick={() => runnerOp(b, "steal")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#d4a82a", background: "rgba(255,255,255,0.04)", border: "1px solid #d4a82a55", borderRadius: 7 }}>盗塁</button>}
+                      <button onClick={() => runnerOp(b, "out")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#ff6982", background: "rgba(255,255,255,0.04)", border: "1px solid #ff698255", borderRadius: 7 }}>アウト</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
+          {/* 攻撃／守備 入力 */}
+          {ourTurn ? (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="OUR BATTING">打者を選ぶ（自チーム攻撃）</H>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
+                {active.map(m => {
+                  const on = batter === m.id;
+                  return (
+                    <button key={m.id} onClick={() => setBatter(m.id)} className="stx-chip"
+                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
+                      #{m.jerseyNumber || "—"} {m.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {batter ? (
+                <>
+                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", marginBottom: 8, fontWeight: 700 }}>打席：{membersById.get(batter)?.name}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    {liveBtn(() => ourHit(1, "単打"), "単打", "#67e088", true)}
+                    {liveBtn(() => ourHit(2, "二塁打"), "二塁打", "#67e088", true)}
+                    {liveBtn(() => ourHit(3, "三塁打"), "三塁打", "#67e088", true)}
+                    {liveBtn(() => ourHit(4, "本塁打"), "本塁打", "#d4a82a", true)}
+                    {liveBtn(() => ourWalk(false), "四球", "#7fb3ff", true)}
+                    {liveBtn(() => ourWalk(true), "死球", "#7fb3ff", true)}
+                    {liveBtn(() => ourOut("so"), "三振", "#ff6982", true)}
+                    {liveBtn(() => ourOut("go"), "ゴロ", "rgba(255,255,255,0.65)", true)}
+                    {liveBtn(() => ourOut("fo"), "フライ", "rgba(255,255,255,0.65)", true)}
+                    {liveBtn(() => ourOut("sh"), "犠打", "#7fb3ff", true)}
+                    {liveBtn(() => ourReachError(), "失策出塁", "rgba(255,255,255,0.65)", true)}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
+                    {liveBtn(ourBall, "ボール", "#67e088")}
+                    {liveBtn(ourStrike, "ストライク", "#d4a82a")}
+                    {liveBtn(ourFoul, "ファウル", "rgba(255,255,255,0.6)")}
+                  </div>
+                </>
+              ) : <p style={emptyMsg}>打者を選ぶと結果ボタンが出ます。</p>}
+            </section>
+          ) : (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="OUR PITCHING">投手を選ぶ（守備中）</H>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 14 }}>
+                {active.map(m => {
+                  const on = pitcher === m.id;
+                  return (
+                    <button key={m.id} onClick={() => setPitcher(m.id)} className="stx-chip"
+                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
+                      #{m.jerseyNumber || "—"} {m.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {pitcher ? (
+                <>
+                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", marginBottom: 8, fontWeight: 700 }}>投手：{membersById.get(pitcher)?.name}（相手の打席）</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    {liveBtn(() => oppStrikeout(), "奪三振", "#67e088", true)}
+                    {liveBtn(() => oppOut("go"), "ゴロアウト", "rgba(255,255,255,0.65)", true)}
+                    {liveBtn(() => oppOut("fo"), "フライアウト", "rgba(255,255,255,0.65)", true)}
+                    {liveBtn(() => oppHit(1, "被安打"), "被安打", "#ff6982", true)}
+                    {liveBtn(() => oppHit(2, "被二塁打"), "被二塁打", "#ff6982", true)}
+                    {liveBtn(() => oppHit(4, "被本塁打"), "被本塁打", "#ff6982", true)}
+                    {liveBtn(() => oppWalk(false), "与四球", "#7fb3ff", true)}
+                    {liveBtn(() => oppWalk(true), "与死球", "#7fb3ff", true)}
+                    {liveBtn(() => oppRun(), "失点 +1", "#ff6982", true)}
+                    {liveBtn(() => oppError(), "失策で出塁", "rgba(255,255,255,0.65)", true)}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
+                    {liveBtn(defBall, "ボール", "#67e088")}
+                    {liveBtn(defStrike, "ストライク", "#d4a82a")}
+                    {liveBtn(defFoul, "ファウル", "rgba(255,255,255,0.6)")}
+                  </div>
+                </>
+              ) : <p style={emptyMsg}>投手を選ぶと結果ボタンが出ます。</p>}
+            </section>
+          )}
+
+          {/* 実況ログ */}
+          {feed.length > 0 && (
+            <section style={{ ...cardStyle, marginBottom: 14 }}>
+              <H sub="LOG">実況</H>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", fontSize: 12.5, color: "rgba(255,255,255,0.7)" }}>
+                {feed.map((t, i) => (
+                  <li key={i} style={{ padding: "5px 0", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)", opacity: 1 - i * 0.08 }}>{t}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+        );
+      })()}
+
+      {mode === "simple" && (
+      <>
       {/* 打撃 / 投球 切替 */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {([["bat", "🏏 打撃"], ["pitch", "⚾ 投球"]] as const).map(([k, lbl]) => (
@@ -2428,6 +2846,46 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
             </section>
           )}
         </>
+      )}
+      </>
+      )}
+
+      {/* ライブモードの集計プレビュー */}
+      {mode === "live" && batRows.length > 0 && (
+        <section style={{ ...cardStyle, marginBottom: 14 }}>
+          <H sub="BATTING">打撃 集計（{batRows.length}人）</H>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={tableStyle}>
+              <thead><tr><Th>選手</Th><Th>打数</Th><Th>安</Th><Th>本</Th><Th>点</Th><Th>四死</Th><Th>振</Th><Th>盗</Th></tr></thead>
+              <tbody>
+                {batRows.map(m => { const l = batLines[m.id]; return (
+                  <tr key={m.id}>
+                    <Td style={{ textAlign: "left", fontWeight: 700 }}>{m.name}</Td>
+                    <Td>{l.atBats}</Td><Td>{l.hits}</Td><Td>{l.hr}</Td><Td>{l.rbi}</Td><Td>{l.bb + l.hbp}</Td><Td>{l.so}</Td><Td>{l.sb}</Td>
+                  </tr>
+                ); })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {mode === "live" && pitchRows.length > 0 && (
+        <section style={{ ...cardStyle, marginBottom: 14 }}>
+          <H sub="PITCHING">投球 集計（{pitchRows.length}人）</H>
+          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            <table style={tableStyle}>
+              <thead><tr><Th>選手</Th><Th>回</Th><Th>安</Th><Th>失</Th><Th>責</Th><Th>奪三</Th><Th>四</Th></tr></thead>
+              <tbody>
+                {pitchRows.map(m => { const p = pitchLines[m.id]; return (
+                  <tr key={m.id}>
+                    <Td style={{ textAlign: "left", fontWeight: 700 }}>{m.name}</Td>
+                    <Td>{p.inn}{p.outs ? `.${p.outs}` : ""}</Td><Td>{p.hits}</Td><Td>{p.runs}</Td><Td>{p.er}</Td><Td>{p.so}</Td><Td>{p.bb}</Td>
+                  </tr>
+                ); })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {/* 送信 */}
