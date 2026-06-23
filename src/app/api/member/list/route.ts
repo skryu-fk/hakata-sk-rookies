@@ -23,6 +23,8 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "announcements", // お知らせ表示用
   "participants",  // 練習の参加予定メンバー表示用
   "settings",      // メンテナンス状態の確認用
+  "attendance",    // 練習参加投票（自分の出欠）表示用
+  "pending",       // スコアラー記録の確認用
 ]);
 
 export async function POST(request: Request) {

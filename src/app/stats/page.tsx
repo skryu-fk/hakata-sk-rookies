@@ -120,6 +120,7 @@ type ParticipantRow = {
 };
 
 type SettingRow = { key: string; value: string; note: string };
+type AttendanceRow = { date: string; memberId: string; memberName: string; status: string; note: string };
 
 type BattingStat = {
   m: Member; games: number; ab: number; h: number; hr: number; rbi: number; bb: number; so: number;
@@ -520,7 +521,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [probables, setProbables] = useState<ProbableRow[]>([]);
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
+  const [me, setMe] = useState<string>("");  // 自分の memberId（localStorage 記憶）
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("news");
@@ -542,7 +545,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts] = await Promise.all([
+      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts, atts] = await Promise.all([
         fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
@@ -627,6 +630,13 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           value: r.data[1] ?? "",
           note: r.data[2] ?? "",
         })),
+        fetchList<AttendanceRow>("attendance", r => ({
+          date: normalizeDate(r.data[0] ?? ""),
+          memberId: r.data[1] ?? "",
+          memberName: r.data[2] ?? "",
+          status: r.data[3] ?? "",
+          note: r.data[4] ?? "",
+        })),
       ]);
       setMembers(ms);
       setBatting(bs);
@@ -637,6 +647,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       setProbables(pbs);
       setAnnouncements(ans);
       setParticipants(parts);
+      setAttendance(atts);
       const mt = setts.find(s => s.key === "maintenance");
       setMaintenance({ on: mt?.value === "on", message: mt?.note ?? "" });
       setUpdatedAt(new Date());
@@ -717,7 +728,37 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
     members.forEach(mm => m.set(mm.id, mm));
     return m;
   }, [members]);
+  // 出欠（投票）を日付で引けるように
+  const attendanceByDate = useMemo(() => {
+    const m = new Map<string, AttendanceRow[]>();
+    attendance.forEach(a => {
+      if (!a.date) return;
+      if (!m.has(a.date)) m.set(a.date, []);
+      m.get(a.date)!.push(a);
+    });
+    return m;
+  }, [attendance]);
   const scheduleCount = upcoming.length;
+
+  // 自分（memberId）の記憶
+  useEffect(() => {
+    try { setMe(window.localStorage.getItem("skr_me") || ""); } catch {}
+  }, []);
+  const pickMe = useCallback((id: string) => {
+    setMe(id);
+    try { window.localStorage.setItem("skr_me", id); } catch {}
+  }, []);
+  // 練習参加投票
+  const vote = useCallback(async (date: string, status: "出席" | "欠席") => {
+    if (!me) return false;
+    const res = await fetch("/api/member/vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, memberId: me, status }),
+    }).then(r => r.json()).catch(() => null);
+    if (res?.ok) { await loadAll(); return true; }
+    return false;
+  }, [me, loadAll]);
 
   const scopeLabel = scope === TOTAL_SCOPE
     ? "通算"
@@ -936,7 +977,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         ) : tab === "fielding" ? (
           <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
         ) : (
-          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} />
+          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         )}
       </main>
     </div>
@@ -1642,12 +1683,17 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
 }
 
 /* ── 日程ビュー（練習・試合 + 予告先発） ──────────────────── */
-function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate, membersById }: {
+function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate, membersById, attendanceByDate, members, me, onPickMe, onVote }: {
   upcoming: PracticeRow[];
   pastGames: PracticeRow[];
   probableByDate: Map<string, ProbableRow>;
   participantsByDate: Map<string, ParticipantRow[]>;
   membersById: Map<string, Member>;
+  attendanceByDate: Map<string, AttendanceRow[]>;
+  members: Member[];
+  me: string;
+  onPickMe: (id: string) => void;
+  onVote: (date: string, status: "出席" | "欠席") => Promise<boolean>;
 }) {
   const [selected, setSelected] = useState<PracticeRow | null>(null);
 
@@ -1657,7 +1703,12 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
       <ParticipantDetail
         practice={selected}
         participants={participantsByDate.get(selected.date) ?? []}
+        attendance={attendanceByDate.get(selected.date) ?? []}
         membersById={membersById}
+        members={members}
+        me={me}
+        onPickMe={onPickMe}
+        onVote={onVote}
         probable={isGameType(selected.type) ? probableByDate.get(selected.date) : undefined}
         onClose={() => setSelected(null)}
       />
@@ -1666,7 +1717,11 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
 
   const next = upcoming[0];
   const rest = upcoming.slice(1);
-  const countFor = (d: string) => participantsByDate.get(d)?.length ?? 0;
+  // 「参加」票数（出席投票）を優先、無ければ事前登録数
+  const countFor = (d: string) => {
+    const yes = (attendanceByDate.get(d) ?? []).filter(a => a.status === "出席").length;
+    return yes > 0 ? yes : (participantsByDate.get(d)?.length ?? 0);
+  };
 
   return (
     <div>
@@ -1827,20 +1882,37 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
 }
 
 /* ── 参加メンバー詳細（練習タップで表示・閉じると一覧へ） ──────── */
-function ParticipantDetail({ practice, participants, membersById, probable, onClose }: {
+function ParticipantDetail({ practice, participants, attendance, membersById, members, me, onPickMe, onVote, probable, onClose }: {
   practice: PracticeRow;
   participants: ParticipantRow[];
+  attendance: AttendanceRow[];
   membersById: Map<string, Member>;
+  members: Member[];
+  me: string;
+  onPickMe: (id: string) => void;
+  onVote: (date: string, status: "出席" | "欠席") => Promise<boolean>;
   probable?: ProbableRow;
   onClose: () => void;
 }) {
   const st = practiceStatusLabel(practice.status);
   const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[practice.type] ?? "#d4a82a");
-  const sorted = [...participants].sort((a, b) => {
-    const ja = Number(membersById.get(a.memberId)?.jerseyNumber) || 999;
-    const jb = Number(membersById.get(b.memberId)?.jerseyNumber) || 999;
-    return ja - jb;
-  });
+  const [voting, setVoting] = useState<"" | "出席" | "欠席">("");
+  const [changeMe, setChangeMe] = useState(false);
+
+  const myVote = attendance.find(a => a.memberId === me)?.status ?? "";
+  const yes = attendance.filter(a => a.status === "出席");
+  const no = attendance.filter(a => a.status === "欠席");
+  const byJersey = <T extends { memberId: string }>(arr: T[]): T[] => [...arr].sort((a, b) =>
+    (Number(membersById.get(a.memberId)?.jerseyNumber) || 999) - (Number(membersById.get(b.memberId)?.jerseyNumber) || 999));
+
+  async function doVote(status: "出席" | "欠席") {
+    if (!me || voting) return;
+    setVoting(status);
+    await onVote(practice.date, status);
+    setVoting("");
+  }
+
+  const meMember = membersById.get(me);
 
   return (
     <div className="stx-detail">
@@ -1876,37 +1948,94 @@ function ParticipantDetail({ practice, participants, membersById, probable, onCl
         </div>
       </section>
 
-      {/* 参加メンバー */}
-      <section style={cardStyle}>
-        <H sub="ATTENDING">参加予定メンバー（{sorted.length}人）</H>
-        {sorted.length === 0 ? (
-          <p style={emptyMsg}>この日の参加メンバーはまだ登録されていません。<br />（管理者が事前登録すると、ここに表示されます）</p>
+      {/* あなたの出欠（投票） */}
+      <section style={{ ...cardStyle, marginBottom: 14, border: "1px solid rgba(212,168,42,0.3)" }}>
+        <H sub="YOUR RSVP">参加投票</H>
+        {(!me || changeMe) ? (
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.6)", marginBottom: 6 }}>あなたの名前を選んでください</label>
+            <select
+              value={me}
+              onChange={e => { onPickMe(e.target.value); setChangeMe(false); }}
+              className="admin-dark"
+              style={{ width: "100%", padding: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 14 }}
+            >
+              <option value="">— 選んでください —</option>
+              {members.filter(m => m.active).map(m => (
+                <option key={m.id} value={m.id}>#{m.jerseyNumber || "—"} {m.name}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>※ この端末に記憶されます（次回から選択不要）。</p>
+          </div>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {sorted.map((p, i) => {
-              const m = membersById.get(p.memberId);
-              const name = m?.name || p.memberName || "—";
-              return (
-                <li key={p.memberId + i} className="stx-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", animationDelay: `${i * 45}ms` }}>
-                  <span style={{ flexShrink: 0, width: 34, height: 34, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#d4a82a" }}>
-                    {m?.jerseyNumber || "—"}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>
-                      {name}
-                      {m?.nickname && <span style={{ marginLeft: 7, color: "rgba(255,255,255,0.4)", fontSize: 11.5 }}>({m.nickname})</span>}
-                    </div>
-                    {(m?.position || p.note) && (
-                      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 1 }}>
-                        {m?.position}{m?.position && p.note ? " ・ " : ""}{p.note}
-                      </div>
-                    )}
-                  </div>
-                  <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "#67e088", background: "rgba(103,224,136,0.12)", padding: "2px 8px" }}>参加</span>
-                </li>
-              );
-            })}
-          </ul>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>あなた：</span>
+              <strong style={{ fontSize: 14 }}>#{meMember?.jerseyNumber || "—"} {meMember?.name || "（不明）"}</strong>
+              <button onClick={() => setChangeMe(true)} style={{ marginLeft: "auto", fontSize: 11, color: "#d4a82a", background: "transparent", border: "1px solid rgba(212,168,42,0.4)", padding: "3px 10px", cursor: "pointer" }}>変更</button>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => doVote("出席")}
+                disabled={!!voting}
+                style={{ flex: 1, padding: "14px", cursor: voting ? "wait" : "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: myVote === "出席" ? "#0a0e1a" : "#67e088", background: myVote === "出席" ? "linear-gradient(135deg,#67e088,#9ff0b3)" : "rgba(103,224,136,0.12)", border: myVote === "出席" ? "none" : "1px solid rgba(103,224,136,0.4)" }}
+              >
+                {voting === "出席" ? "送信中…" : "⭕ 参加する"}
+              </button>
+              <button
+                onClick={() => doVote("欠席")}
+                disabled={!!voting}
+                style={{ flex: 1, padding: "14px", cursor: voting ? "wait" : "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: myVote === "欠席" ? "#fff" : "#ff6982", background: myVote === "欠席" ? "linear-gradient(135deg,#d10024,#ff4d6a)" : "rgba(209,0,36,0.1)", border: myVote === "欠席" ? "none" : "1px solid rgba(209,0,36,0.4)" }}
+              >
+                {voting === "欠席" ? "送信中…" : "❌ 不参加"}
+              </button>
+            </div>
+            {myVote && <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 8, textAlign: "center" }}>現在の回答：<strong style={{ color: myVote === "出席" ? "#67e088" : "#ff6982" }}>{myVote === "出席" ? "参加" : "不参加"}</strong>（押し直しで変更できます）</p>}
+          </div>
+        )}
+      </section>
+
+      {/* 参加 / 不参加 一覧（投票結果＝管理者の出欠と同じ） */}
+      <section style={cardStyle}>
+        <H sub="ATTENDING">参加 {yes.length}人 ／ 不参加 {no.length}人</H>
+        {yes.length === 0 && no.length === 0 ? (
+          <p style={emptyMsg}>まだ投票がありません。<br />上のボタンから参加/不参加を回答してください。</p>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#67e088", letterSpacing: "0.1em", margin: "4px 0 6px" }}>⭕ 参加（{yes.length}）</div>
+            <ul style={{ listStyle: "none", margin: "0 0 14px", padding: 0 }}>
+              {byJersey(yes).map((a, i) => {
+                const m = membersById.get(a.memberId);
+                return (
+                  <li key={a.memberId + i} className="stx-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", animationDelay: `${i * 35}ms` }}>
+                    <span style={{ flexShrink: 0, width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(103,224,136,0.12)", border: "1px solid rgba(103,224,136,0.35)", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, fontWeight: 700, color: "#67e088" }}>{m?.jerseyNumber || "—"}</span>
+                    <span style={{ fontWeight: 700, fontSize: 13.5 }}>{m?.name || a.memberName}{m?.nickname && <span style={{ marginLeft: 6, color: "rgba(255,255,255,0.4)", fontSize: 11 }}>({m.nickname})</span>}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {no.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#ff6982", letterSpacing: "0.1em", margin: "0 0 6px" }}>❌ 不参加（{no.length}）</div>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {byJersey(no).map((a, i) => {
+                    const m = membersById.get(a.memberId);
+                    return (
+                      <li key={a.memberId + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)", opacity: 0.7 }}>
+                        <span style={{ flexShrink: 0, width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(255,255,255,0.05)", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "rgba(255,255,255,0.6)" }}>{m?.jerseyNumber || "—"}</span>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{m?.name || a.memberName}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+        {participants.length > 0 && (
+          <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.35)", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            事前登録（管理者）: {participants.length}人
+          </p>
         )}
       </section>
     </div>

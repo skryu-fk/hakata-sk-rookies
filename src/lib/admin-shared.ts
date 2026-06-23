@@ -28,6 +28,8 @@ export const ALLOWED_SHEETS = new Set([
   "announcements",// 成績アプリのお知らせ欄
   // 設定（メンテナンスフラグ等）
   "settings",
+  // 承認待ち（スコアラーがアプリから記録した暫定結果）
+  "pending",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
