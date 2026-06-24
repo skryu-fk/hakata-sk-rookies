@@ -175,9 +175,10 @@ export async function analyzeForm(
     if (b != null) briSamples.push(b);
   }
   const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
-  // 暗いほど強く持ち上げる（夜間でも検出できるよう最大7倍まで）。明るい映像は補正なし（ゲイン1）。
-  const gain = brightness < 115 ? clamp(130 / Math.max(6, brightness), 1, 7) : 1;
-  const contrast = gain > 1.6 ? 1.22 : gain > 1.02 ? 1.12 : 1;
+  // 暗いほど明るさを持ち上げる（夜間でも検出できるよう最大7倍まで）。明るい映像は補正なし。
+  // ※これは“検出を助ける”ための内部処理。警告を出すかどうかとは別物。
+  const gain = brightness < 105 ? clamp(105 / Math.max(6, brightness), 1, 7) : 1;
+  const contrast = gain > 1.6 ? 1.2 : gain > 1.02 ? 1.1 : 1;
   onProgress?.(0.12);
 
   const frames: Frame[] = [];
@@ -197,9 +198,10 @@ export async function analyzeForm(
   }
   onProgress?.(0.92);
 
-  const lowLight = brightness < 60;            // これ未満は「暗い」と判定
-  const veryDark = brightness < 22;            // 夜間レベル
-  const fewFrames = frames.length < 14;
+  // 「暗い」と判定する基準は本当に暗い時だけに緩めている（通常の屋外/室内では警告を出さない）。
+  const lowLight = brightness < 34;            // これ未満を「暗い」と判定
+  const veryDark = brightness < 15;            // 夜間レベル
+  const fewFrames = frames.length < 9;
 
   // 夜間など暗い映像でも“一応”解析できるよう、最低3コマあれば続行する。
   if (frames.length < 3) {
