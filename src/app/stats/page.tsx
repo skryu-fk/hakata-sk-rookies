@@ -1069,6 +1069,24 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
 }
 
 /* ── フォームチェック（端末内AI解析） ────────────────────── */
+// dataURL の画像を端末に保存（ダウンロード）。iOSで効かない時は長押し保存の案内あり。
+function downloadDataUrl(dataUrl: string, filename: string) {
+  try {
+    const [head, b64] = dataUrl.split(",");
+    const mime = (head.match(/:(.*?);/) || [])[1] || "image/jpeg";
+    const bin = atob(b64);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u8], { type: mime }));
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch {
+    try { window.open(dataUrl, "_blank"); } catch { /* noop */ }
+  }
+}
+
 function FormCheckView() {
   const [kind, setKind] = useState<Kind>("batting");
   const [phase, setPhase] = useState<"idle" | "analyzing" | "done" | "error">("idle");
@@ -1221,6 +1239,17 @@ function FormCheckView() {
                 <div style={{ textAlign: "center", marginTop: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: "#d4a82a" }}>
                   {sel.label}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{kfIndex + 1}/{result.keyframes.length}</span>
                 </div>
+                {/* 保存ボタン */}
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
+                  <button onClick={() => downloadDataUrl(sel.dataUrl, `SKドッパミンAI_${kind}_${sel.phase}.jpg`)}
+                    style={{ padding: "9px 16px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 12.5, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 9 }}>
+                    💾 この写真を保存
+                  </button>
+                  <button onClick={() => result.keyframes.forEach((k, i) => setTimeout(() => downloadDataUrl(k.dataUrl, `SKドッパミンAI_${kind}_${i + 1}_${k.phase}.jpg`), i * 350))}
+                    style={{ padding: "9px 16px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 12.5, color: "#d4a82a", background: "transparent", border: "1px solid rgba(212,168,42,0.5)", borderRadius: 9 }}>
+                    全部保存
+                  </button>
+                </div>
                 {/* サムネイル切替（横スクロール） */}
                 <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 12, paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
                   {result.keyframes.map((k, i) => (
@@ -1232,7 +1261,7 @@ function FormCheckView() {
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8 }}>サムネイルをタップで各フェーズの骨格を確認できます</p>
+                <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>サムネイルをタップで各フェーズを確認できます。<br />保存できない場合は写真を長押し →「写真に追加」でも保存できます。</p>
               </section>
             );
           })()}

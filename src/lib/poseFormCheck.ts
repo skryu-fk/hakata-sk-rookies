@@ -92,8 +92,9 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
 
 // 取り込んだ静止コマ（再生中に貯める。検出はあとでまとめて行う）
 type Shot = { t: number; cv: HTMLCanvasElement };
-const SHOT_W = 280;     // 取り込み解像度（省メモリ）
-const MAX_SHOTS = 110;  // メモリ保護のための上限
+const SHOT_W = 260;     // 取り込み解像度（省メモリ）
+const MAX_SHOTS = 130;  // メモリ保護のための上限
+const TARGET_SHOTS = 90; // 動画全体に均等取り込みする目標コマ数
 
 // キャンバスの平均輝度（0〜255）。実フレームから測るので暗さ誤判定しない。
 function canvasBrightness(cv: HTMLCanvasElement): number | null {
@@ -153,20 +154,22 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
   };
 
   const rv = video as RVFC;
+  // 動画全体を均等にカバーする取り込み間隔（秒）。最初だけ大量に取って終わるのを防ぐ。
+  const interval = Math.max(0.02, duration / TARGET_SHOTS);
   if (typeof rv.requestVideoFrameCallback === "function") {
     await new Promise<void>((resolve) => {
-      let done = false, prevT = -1, sameCt = 0, calls = 0;
+      let done = false, prevT = -1, sameCt = 0, calls = 0, nextDrawT = 0;
       const startMs = Date.now();
       const finish = () => { if (done) return; done = true; try { video.pause(); } catch { /* noop */ } resolve(); };
       const onFrame = () => {
         if (done) return;
         // 同期的な打ち切り（タイマーが詰まっても必ず効く）：経過時間・回数・固まり
-        if (Date.now() - startMs > 7000) { finish(); return; }
-        if (++calls > 400 || shots.length >= MAX_SHOTS) { finish(); return; }
+        if (Date.now() - startMs > 11000) { finish(); return; }
+        if (++calls > 1500 || shots.length >= MAX_SHOTS) { finish(); return; }
         const ct = video.currentTime;
-        if (Math.abs(ct - prevT) < 1e-4) { if (++sameCt > 8) { finish(); return; } }
+        if (Math.abs(ct - prevT) < 1e-4) { if (++sameCt > 10) { finish(); return; } }
         else { sameCt = 0; prevT = ct; }
-        draw();
+        if (ct >= nextDrawT) { draw(); nextDrawT = ct + interval; } // 間隔ごとに取り込む＝動画全体をカバー
         onProgress?.(0.08 + 0.34 * clamp(ct / duration, 0, 1));
         if (video.ended || ct >= duration - 0.04) { finish(); return; }
         rv.requestVideoFrameCallback!(onFrame);
@@ -175,14 +178,14 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
       try { video.currentTime = 0; video.playbackRate = clamp(duration / 6, 1, 2); } catch { /* noop */ }
       Promise.resolve(video.play()).catch(() => { /* 取り込めなければ下のシークへ */ });
       rv.requestVideoFrameCallback!(onFrame);
-      setTimeout(finish, 7500);
+      setTimeout(finish, 11500);
     });
   }
 
-  // 再生で取り込めなかった時のみシーク取り込み（長さが分かる場合だけ）
-  if (shots.length < 6 && isFinite(video.duration) && video.duration > 0.3) {
+  // 再生で取り込めなかった時のみシーク取り込み（全体に均等・長さが分かる場合だけ）
+  if (shots.length < 8 && isFinite(video.duration) && video.duration > 0.3) {
     shots.length = 0;
-    const N = clamp(Math.round(duration * 18), 18, 60);
+    const N = clamp(Math.round(duration * 14), 18, TARGET_SHOTS);
     for (let i = 0; i <= N; i++) { await seekTo(video, (duration * i) / N); draw(); onProgress?.(0.08 + 0.34 * (i / N)); }
   }
   return shots;
