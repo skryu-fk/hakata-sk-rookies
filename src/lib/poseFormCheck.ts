@@ -14,6 +14,7 @@ import type { PoseLandmarker as PoseLandmarkerType } from "@mediapipe/tasks-visi
 export type Kind = "batting" | "pitching";
 export type LM = { x: number; y: number; z: number; visibility?: number };
 export type Metric = { key: string; label: string; score: number; comment: string };
+export type KeyFrame = { label: string; phase: string; dataUrl: string };
 export type FormResult = {
   kind: Kind;
   overall: number;
@@ -22,7 +23,8 @@ export type FormResult = {
   handSpeedKmh: number;
   metrics: Metric[];
   tips: string[];
-  keyframeDataUrl: string;
+  keyframeDataUrl: string;     // インパクト/リリース（代表コマ）
+  keyframes: KeyFrame[];       // 構え〜フォロースルーまでの連続コマ
   framesAnalyzed: number;
   durationSec: number;
   lowLight: boolean;       // 暗い映像（精度が落ちる）
@@ -75,7 +77,7 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_full.task", delegate: "GPU" },
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_heavy.task", delegate: "GPU" },
       runningMode: "VIDEO",
       numPoses: 1,
       // 暗い映像でも拾えるよう、しきい値はやや低め
@@ -103,6 +105,30 @@ function frameBrightness(video: HTMLVideoElement): number | null {
     for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
     return sum / (d.length / 4);
   } catch { return null; }
+}
+
+// 検出用の前処理キャンバス。暗い映像は明るさ・コントラストを持ち上げてから検出する。
+const _procCv = typeof document !== "undefined" ? document.createElement("canvas") : null;
+function processedSource(video: HTMLVideoElement, gain: number, contrast: number): HTMLCanvasElement | HTMLVideoElement {
+  if (!_procCv || gain <= 1.02) return video;
+  const vw = video.videoWidth || 480, vh = video.videoHeight || 640;
+  const W = Math.min(vw, 640), H = Math.round(vh * (W / vw));
+  _procCv.width = W; _procCv.height = H;
+  const ctx = _procCv.getContext("2d");
+  if (!ctx) return video;
+  try {
+    ctx.filter = `brightness(${gain}) contrast(${contrast})`;
+    ctx.drawImage(video, 0, 0, W, H);
+    ctx.filter = "none";
+    return _procCv;
+  } catch { return video; }
+}
+
+// 指定時刻に最も近い解析済みフレームを返す
+function nearestFrame(frames: Frame[], t: number): Frame {
+  let best = frames[0], bd = Infinity;
+  for (const f of frames) { const d = Math.abs(f.t - t); if (d < bd) { bd = d; best = f; } }
+  return best;
 }
 
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
@@ -138,29 +164,39 @@ export async function analyzeForm(
   let duration = video.duration;
   if (!isFinite(duration) || duration <= 0) duration = 4; // 一部スマホ動画対策
   duration = Math.min(duration, 12);
-  const N = clamp(Math.round(duration * 30), 24, 150);
+  const N = clamp(Math.round(duration * 30), 24, 140);
   const step = duration / N;
 
-  const frames: Frame[] = [];
+  // ── 事前パス：明るさを測って自動補正ゲインを決める ──
   const briSamples: number[] = [];
+  for (let k = 0; k <= 6; k++) {
+    await seekTo(video, (duration * k) / 6);
+    const b = frameBrightness(video);
+    if (b != null) briSamples.push(b);
+  }
+  const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
+  // 暗いほど強く持ち上げる（最大3.4倍）。明るい映像は補正なし（ゲイン1）。
+  const gain = brightness < 110 ? clamp(125 / Math.max(8, brightness), 1, 3.4) : 1;
+  const contrast = gain > 1.02 ? 1.12 : 1;
+  onProgress?.(0.12);
+
+  const frames: Frame[] = [];
   let lastTs = 0;
   for (let i = 0; i <= N; i++) {
     const t = i * step;
     await seekTo(video, t);
     const ts = Math.max(lastTs + 1, Math.round(t * 1000));
     lastTs = ts;
-    // 明るさサンプル（数フレームおきに・ポーズ検出とは独立に測る）
-    if (i % 4 === 0) { const b = frameBrightness(video); if (b != null) briSamples.push(b); }
+    const src = processedSource(video, gain, contrast); // 暗所は補正後の映像で検出
     let res;
-    try { res = landmarker.detectForVideo(video, ts); } catch { res = null; }
+    try { res = landmarker.detectForVideo(src, ts); } catch { res = null; }
     const lm = res?.landmarks?.[0] as LM[] | undefined;
     const world = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? lm;
     if (lm && world && lm.length >= 29) frames.push({ t, lm, world });
-    if (i % 3 === 0) onProgress?.(0.08 + 0.84 * (i / N));
+    if (i % 3 === 0) onProgress?.(0.12 + 0.78 * (i / N));
   }
-  onProgress?.(0.94);
+  onProgress?.(0.92);
 
-  const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
   const lowLight = brightness < 60;            // これ未満は「暗い」と判定
   const fewFrames = frames.length < 14;
 
@@ -173,7 +209,7 @@ export async function analyzeForm(
   }
 
   const notes: string[] = [];
-  if (lowLight) notes.push("⚠ 暗い映像のため、解析精度は低めです（明るい場所での撮影をおすすめします）。");
+  if (lowLight) notes.push("⚠ 暗い映像です。明るさを自動補正して解析しましたが、精度は通常より低めです（明るい場所での撮影をおすすめします）。");
   if (fewFrames) notes.push("⚠ 検出できたコマが少ないため、数値は参考値です。");
 
   // ── 利き手側（よく動く手首）を選ぶ ──
@@ -198,7 +234,7 @@ export async function analyzeForm(
   {
     const lo = frames[Math.max(0, peakIdx - 1)].t;
     const hi = frames[Math.min(frames.length - 1, peakIdx + 1)].t;
-    const M = 18;
+    const M = 24;
     const dense: { t: number; w: LM }[] = [];
     let lts = lastTs;
     for (let j = 0; j <= M; j++) {
@@ -207,7 +243,7 @@ export async function analyzeForm(
       const ts = Math.max(lts + 1, Math.round(t * 1000) + 1);
       lts = ts;
       let res;
-      try { res = landmarker.detectForVideo(video, ts); } catch { res = null; }
+      try { res = landmarker.detectForVideo(processedSource(video, gain, contrast), ts); } catch { res = null; }
       const w = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? (res?.landmarks?.[0] as LM[] | undefined);
       if (w && w[WR]) dense.push({ t, w: w[WR] });
     }
@@ -298,9 +334,27 @@ export async function analyzeForm(
     .map(m => `${m.label}：${m.comment}`);
   if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを継続しよう！");
 
-  // ── キーフレーム画像（骨格オーバーレイ） ──
-  await seekTo(video, impact.t);
-  const keyframeDataUrl = drawSkeleton(video, impact.lm, WR);
+  // ── キーフレーム連続コマ（構え〜インパクト〜フォロースルー） ──
+  const s0 = frames[0].t, pT = impact.t, eT = frames[frames.length - 1].t;
+  const isBat = kind === "batting";
+  const phaseDefs = [
+    { label: "構え", phase: "SET", t: s0 + (pT - s0) * 0.12 },
+    { label: isBat ? "始動・トップ" : "ステップ", phase: "LOAD", t: s0 + (pT - s0) * 0.62 },
+    { label: isBat ? "インパクト" : "リリース", phase: "IMPACT", t: pT },
+    { label: "フォロー①", phase: "FOLLOW1", t: pT + (eT - pT) * 0.30 },
+    { label: "フォロー②", phase: "FOLLOW2", t: pT + (eT - pT) * 0.62 },
+    { label: "フィニッシュ", phase: "FINISH", t: eT },
+  ];
+  const keyframes: KeyFrame[] = [];
+  for (let p = 0; p < phaseDefs.length; p++) {
+    const ph = phaseDefs[p];
+    const fr = nearestFrame(frames, ph.t);
+    await seekTo(video, fr.t);
+    const dataUrl = drawSkeleton(video, fr.lm, WR, gain, contrast);
+    if (dataUrl) keyframes.push({ label: ph.label, phase: ph.phase, dataUrl });
+    onProgress?.(0.97 + 0.03 * ((p + 1) / phaseDefs.length));
+  }
+  const keyframeDataUrl = (keyframes.find(k => k.phase === "IMPACT") ?? keyframes[0])?.dataUrl ?? "";
 
   URL.revokeObjectURL(url);
   onProgress?.(1);
@@ -308,7 +362,7 @@ export async function analyzeForm(
   return {
     kind, overall, speedKmh, handSpeedKmh,
     speedLabel: kind === "batting" ? "推定スイング速度" : "推定リリース速度",
-    metrics, tips, keyframeDataUrl,
+    metrics, tips, keyframeDataUrl, keyframes,
     framesAnalyzed: frames.length, durationSec: duration,
     lowLight, brightness: Math.round(brightness), notes,
   };
@@ -318,14 +372,19 @@ function mkMetric(key: string, label: string, score: number, comment: string): M
   return { key, label, score: Math.round(clamp(score, 0, 100)), comment };
 }
 
-function drawSkeleton(video: HTMLVideoElement, lm: LM[], wr: number): string {
+function drawSkeleton(video: HTMLVideoElement, lm: LM[], wr: number, gain = 1, contrast = 1): string {
   const vw = video.videoWidth || 360, vh = video.videoHeight || 640;
   const W = 360, H = Math.round((vh / vw) * W);
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d");
   if (!ctx) return "";
-  try { ctx.drawImage(video, 0, 0, W, H); } catch { /* drawImage失敗時は骨格のみ */ }
+  // 暗い映像は表示コマも明るさ補正して見やすく
+  try {
+    if (gain > 1.02) ctx.filter = `brightness(${gain}) contrast(${contrast})`;
+    ctx.drawImage(video, 0, 0, W, H);
+    ctx.filter = "none";
+  } catch { /* drawImage失敗時は骨格のみ */ }
   ctx.save();
   // 接続線
   ctx.strokeStyle = "rgba(212,168,42,0.95)";

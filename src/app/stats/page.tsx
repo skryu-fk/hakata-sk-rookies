@@ -27,7 +27,9 @@ const CHANGELOG: ChangeLogEntry[] = [
     items: [
       "🧠 独自開発AI「SKドッパミンAI」を搭載（フォーム診断）",
       "🎥 動画からバッティング/ピッチングを骨格解析→点数・項目別評価・改善点",
-      "⚡ 高精度モデル＋2段階解析で推定スイング/リリース速度を表示（目安）",
+      "🖼 構え〜インパクト〜フォロースルーの連続写真（骨格つき）を表示",
+      "⚡ 最高精度モデル＋2段階解析で推定スイング/リリース速度を表示（目安）",
+      "🌙 暗い映像は明るさを自動補正して解析（精度は控えめ表示）",
       "🔒 動画は端末内だけで解析・外部に送信しません",
     ],
   },
@@ -1073,13 +1075,14 @@ function FormCheckView() {
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<FormResult | null>(null);
   const [errMsg, setErrMsg] = useState("");
+  const [kfIndex, setKfIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
-    setPhase("analyzing"); setProgress(0); setResult(null); setErrMsg("");
+    setPhase("analyzing"); setProgress(0); setResult(null); setErrMsg(""); setKfIndex(0);
     try {
       const r = await analyzeForm(f, kind, p => setProgress(p));
       setResult(r); setPhase("done");
@@ -1205,14 +1208,33 @@ function FormCheckView() {
             </div>
           </section>
 
-          {/* キーフレーム（骨格オーバーレイ） */}
-          {result.keyframeDataUrl && (
-            <section style={{ ...cardStyle, padding: 14 }}>
-              <H sub="KEY FRAME">{kind === "batting" ? "インパクト付近" : "リリース付近"}</H>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={result.keyframeDataUrl} alt="解析フレーム" style={{ width: "100%", maxWidth: 320, display: "block", margin: "0 auto", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
-            </section>
-          )}
+          {/* キーフレーム連続写真（構え〜フォロースルー） */}
+          {result.keyframes.length > 0 && (() => {
+            const sel = result.keyframes[Math.min(kfIndex, result.keyframes.length - 1)];
+            return (
+              <section style={{ ...cardStyle, padding: 14 }}>
+                <H sub="KEY FRAMES">フォーム連続写真</H>
+                {/* メイン表示 */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sel.dataUrl} alt={sel.label} style={{ width: "100%", maxWidth: 320, display: "block", margin: "0 auto", borderRadius: 10, border: "1px solid rgba(212,168,42,0.4)" }} />
+                <div style={{ textAlign: "center", marginTop: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: "#d4a82a" }}>
+                  {sel.label}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{kfIndex + 1}/{result.keyframes.length}</span>
+                </div>
+                {/* サムネイル切替（横スクロール） */}
+                <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 12, paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+                  {result.keyframes.map((k, i) => (
+                    <button key={i} onClick={() => setKfIndex(i)}
+                      style={{ flex: "0 0 auto", width: 66, cursor: "pointer", padding: 0, background: "transparent", border: "2px solid " + (i === kfIndex ? "#d4a82a" : "rgba(255,255,255,0.15)"), borderRadius: 8, overflow: "hidden" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={k.dataUrl} alt={k.label} style={{ width: "100%", display: "block" }} />
+                      <div style={{ fontSize: 9, fontWeight: 700, color: i === kfIndex ? "#0a0e1a" : "rgba(255,255,255,0.6)", background: i === kfIndex ? "#d4a82a" : "transparent", padding: "3px 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.label}</div>
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8 }}>サムネイルをタップで各フェーズの骨格を確認できます</p>
+              </section>
+            );
+          })()}
 
           {/* 指標バー */}
           <section style={{ ...cardStyle }}>
