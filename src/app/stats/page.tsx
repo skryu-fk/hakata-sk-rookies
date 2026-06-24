@@ -28,7 +28,7 @@ const CHANGELOG: ChangeLogEntry[] = [
       "🧠 独自開発AI「SKドッパミンAI」を搭載（フォーム診断）",
       "🎥 動画からバッティング/ピッチングを骨格解析→点数・項目別評価・改善点",
       "🖼 構え〜インパクト〜フォロースルーの連続写真（骨格つき）を表示",
-      "⚡ 2段階解析で推定スイング/リリース速度を表示（目安）",
+      "🎯 改善アドバイスはプロ・指導者のフォーム理論ベース",
       "🌙 暗い映像は明るさを自動補正して解析（精度は控えめ表示）",
       "🔒 動画は端末内だけで解析・外部に送信しません",
     ],
@@ -1113,7 +1113,7 @@ function FormCheckView() {
           ))}
         </div>
         <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", lineHeight: 1.9, margin: "0 auto", maxWidth: 460 }}>
-          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、<strong style={{ color: "#d4a82a" }}>SKドッパミンAI</strong>が骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・改善点・推定スピード</strong>を診断します。
+          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、<strong style={{ color: "#d4a82a" }}>SKドッパミンAI</strong>が骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・項目別評価・改善点</strong>を、プロのフォーム理論をもとに診断します。
           動画は<strong style={{ color: "#67e088" }}>あなたの端末の中だけ</strong>で処理され、外部には一切送られません。
           <span style={{ color: "rgba(255,255,255,0.45)" }}>（結果は目安です）</span>
         </p>
@@ -1196,14 +1196,15 @@ function FormCheckView() {
                 </div>
                 <div style={{ position: "absolute", top: -6, right: -6, width: 34, height: 34, borderRadius: "50%", background: scoreColor(result.overall), color: "#0a0e1a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 18, boxShadow: `0 0 14px ${scoreColor(result.overall)}` }}>{grade(result.overall)}</div>
               </div>
-              {/* 推定スピード */}
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", marginBottom: 2 }}>{result.speedLabel}</div>
-                <div>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 46, fontWeight: 700, color: "#d4a82a", textShadow: "0 0 18px rgba(212,168,42,0.5)" }}>{result.speedKmh.toFixed(0)}</span>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.6)", marginLeft: 4 }}>km/h</span>
+              {/* 総合評価メッセージ */}
+              <div style={{ textAlign: "center", maxWidth: 190 }}>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", marginBottom: 4 }}>総合評価</div>
+                <div style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: scoreColor(result.overall) }}>
+                  {result.overall >= 85 ? "文句なし！" : result.overall >= 72 ? "とても良いフォーム" : result.overall >= 60 ? "基礎はバッチリ" : "伸びしろたっぷり"}
                 </div>
-                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>手の速さ {result.handSpeedKmh.toFixed(0)} km/h ・ 目安値</div>
+                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.7 }}>
+                  下の<strong style={{ color: "#d4a82a" }}>「もっと良くするには」</strong>を1つずつ試してみよう。
+                </div>
               </div>
             </div>
           </section>
@@ -1272,6 +1273,7 @@ function FormCheckView() {
           {/* 改善ポイント */}
           <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.3)" }}>
             <H sub="ADVICE">🎯 もっと良くするには</H>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "0 0 10px", lineHeight: 1.6 }}>※ プロ・指導者のフォーム理論をもとにした改善ポイントです。</p>
             <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
               {result.tips.map((t, i) => (
                 <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.8 }}>

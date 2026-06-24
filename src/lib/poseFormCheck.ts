@@ -18,9 +18,6 @@ export type KeyFrame = { label: string; phase: string; dataUrl: string };
 export type FormResult = {
   kind: Kind;
   overall: number;
-  speedKmh: number;
-  speedLabel: string;
-  handSpeedKmh: number;
   metrics: Metric[];
   strengths: string[];         // 良かった点
   tips: string[];              // 改善アドバイス（具体的）
@@ -191,6 +188,35 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
   return shots;
 }
 
+// 隣接コマの画像差分が最大の位置 ＝ いちばん動いた瞬間（スイング/リリース）。
+// 速い動きはモーションブラーで骨格検出が外れがちなので、画像の動きで瞬間を当てる。
+function motionPeakIndex(shots: Shot[]): number {
+  if (shots.length < 3) return Math.floor(shots.length / 2);
+  const c = typeof document !== "undefined" ? document.createElement("canvas") : null;
+  if (!c) return Math.floor(shots.length / 2);
+  c.width = 40; c.height = 30;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return Math.floor(shots.length / 2);
+  const sigs: Uint8ClampedArray[] = [];
+  for (const s of shots) {
+    try { ctx.drawImage(s.cv, 0, 0, 40, 30); sigs.push(ctx.getImageData(0, 0, 40, 30).data); }
+    catch { sigs.push(new Uint8ClampedArray(40 * 30 * 4)); }
+  }
+  const diffs = [0];
+  for (let i = 1; i < sigs.length; i++) {
+    let d = 0; const a = sigs[i], b = sigs[i - 1];
+    for (let j = 0; j < a.length; j += 4) d += Math.abs(a[j] - b[j]) + Math.abs(a[j + 1] - b[j + 1]) + Math.abs(a[j + 2] - b[j + 2]);
+    diffs.push(d);
+  }
+  // 3点平滑して単発ノイズを除き、最大の所を採用
+  let peak = Math.floor(shots.length / 2), pd = -1;
+  for (let i = 1; i < diffs.length; i++) {
+    const v = (diffs[i - 1] + diffs[i] + (diffs[i + 1] || diffs[i])) / 3;
+    if (v > pd) { pd = v; peak = i; }
+  }
+  return peak;
+}
+
 /** 動画ファイルを解析して結果を返す。onProgress(0..1) で進捗を通知。 */
 export async function analyzeForm(
   file: File,
@@ -293,23 +319,13 @@ export async function analyzeForm(
     : "🌙 やや暗い映像です。明るさを自動補正して解析しています。明るい場所ほど精度が高くなります。");
   if (fewFrames) notes.push("⚠ 解析できたコマが少なめのため、数値は参考値です（横から・全身・なるべくブレずに撮ると精度UP）。");
 
-  // ── 速度：ピーク周辺が密なので正確。3点平滑でノイズ除去 ──
-  const rawSpeeds: number[] = [0];
-  for (let i = 1; i < frames.length; i++) {
-    const dt = frames[i].t - frames[i - 1].t || 0.033;
-    rawSpeeds.push(dist3(frames[i].world[WR], frames[i - 1].world[WR]) / dt);
-  }
-  const smSpeeds = sma(rawSpeeds, 1);
-  let peakIdx = 1, peakSpeed = 0;
-  for (let i = 1; i < frames.length; i++) { if (smSpeeds[i] > peakSpeed) { peakSpeed = smSpeeds[i]; peakIdx = i; } }
-  peakSpeed = Math.max(peakSpeed, rawSpeeds[peakIdx] || 0); // m/s
+  // ── スイング/リリースの瞬間を「画像の動きが最大の所」から検出（ブラーでも効く） ──
+  const impactShotIdx = motionPeakIndex(shots);
+  const impactT = shots[impactShotIdx].t;
+  let peakIdx = 0; { let bd = Infinity; for (let i = 0; i < frames.length; i++) { const d = Math.abs(frames[i].t - impactT); if (d < bd) { bd = d; peakIdx = i; } } }
   onProgress?.(0.95);
-  const handSpeedKmh = peakSpeed * 3.6;
-  // バットヘッド/リリースの目安係数（手の速さからの近似）。異常値は安全側にクランプ。
-  const factor = kind === "batting" ? 2.0 : 1.25;
-  const speedKmh = clamp(handSpeedKmh * factor, 0, 180);
 
-  // ── 解析用のセットアップ〜ピーク区間 ──
+  // ── 解析用のセットアップ〜インパクト区間 ──
   const start = frames[0], impact = frames[peakIdx];
   const shAngle = (f: Frame) => lineAngleDeg(f.lm[L_SH], f.lm[R_SH]);
   const hipAngle = (f: Frame) => lineAngleDeg(f.lm[L_HIP], f.lm[R_HIP]);
@@ -403,23 +419,25 @@ export async function analyzeForm(
   if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを維持しつつ、さらにスイング/球のキレを磨いていきましょう！");
   if (strengths.length === 0) strengths.push("まずは反復で“同じ動き”を固めることから。続けるほど数値は必ず伸びます。");
 
-  // ── キーフレーム連続コマ（構え〜インパクト〜フォロースルー） ──
-  const s0 = frames[0].t, pT = impact.t, eT = frames[frames.length - 1].t;
+  // ── キーフレーム連続コマ（取り込んだ“全コマ”から＝ブレた瞬間も表示する） ──
+  const sS = shots[0].t, sE = shots[shots.length - 1].t, pT = impactT;
   const isBat = kind === "batting";
   const phaseDefs = [
-    { label: "構え", phase: "SET", t: s0 + (pT - s0) * 0.12 },
-    { label: isBat ? "始動・トップ" : "ステップ", phase: "LOAD", t: s0 + (pT - s0) * 0.62 },
+    { label: "構え", phase: "SET", t: sS + (pT - sS) * 0.10 },
+    { label: isBat ? "始動・トップ" : "ステップ", phase: "LOAD", t: sS + (pT - sS) * 0.60 },
     { label: isBat ? "インパクト" : "リリース", phase: "IMPACT", t: pT },
-    { label: "フォロー①", phase: "FOLLOW1", t: pT + (eT - pT) * 0.30 },
-    { label: "フォロー②", phase: "FOLLOW2", t: pT + (eT - pT) * 0.62 },
-    { label: "フィニッシュ", phase: "FINISH", t: eT },
+    { label: "フォロー①", phase: "FOLLOW1", t: pT + (sE - pT) * 0.30 },
+    { label: "フォロー②", phase: "FOLLOW2", t: pT + (sE - pT) * 0.62 },
+    { label: "フィニッシュ", phase: "FINISH", t: sE },
   ];
-  const nearestDet = (t: number) => { let b = detList[0], bd = Infinity; for (const f of detList) { const d = Math.abs(f.t - t); if (d < bd) { bd = d; b = f; } } return b; };
+  const nearestShotIdx = (t: number) => { let b = 0, bd = Infinity; for (let i = 0; i < shots.length; i++) { const d = Math.abs(shots[i].t - t); if (d < bd) { bd = d; b = i; } } return b; };
+  const detByIdx = new Map(detList.map(f => [f.idx, f.lm] as const));
   const keyframes: KeyFrame[] = [];
   for (let p = 0; p < phaseDefs.length; p++) {
     const ph = phaseDefs[p];
-    const fr = nearestDet(ph.t);
-    const dataUrl = drawSkeleton(shots[fr.idx].cv, fr.lm, WR, gain, contrast);
+    const si = nearestShotIdx(ph.t);
+    const lm = detByIdx.get(si) ?? null; // 検出済みなら骨格を重ね、未検出（ブレ等）なら画像だけ
+    const dataUrl = drawSkeleton(shots[si].cv, lm, WR, gain, contrast);
     if (dataUrl) keyframes.push({ label: ph.label, phase: ph.phase, dataUrl });
     onProgress?.(0.97 + 0.03 * ((p + 1) / phaseDefs.length));
   }
@@ -429,15 +447,14 @@ export async function analyzeForm(
   onProgress?.(1);
 
   return {
-    kind, overall, speedKmh, handSpeedKmh,
-    speedLabel: kind === "batting" ? "推定スイング速度" : "推定リリース速度",
+    kind, overall,
     metrics, strengths, tips, keyframeDataUrl, keyframes,
     framesAnalyzed: frames.length, durationSec: duration,
     lowLight, brightness: Math.round(brightness), notes,
   };
 }
 
-function drawSkeleton(srcCv: HTMLCanvasElement, lm: LM[], wr: number, gain = 1, contrast = 1): string {
+function drawSkeleton(srcCv: HTMLCanvasElement, lm: LM[] | null, wr: number, gain = 1, contrast = 1): string {
   const vw = srcCv.width || 360, vh = srcCv.height || 640;
   const W = 360, H = Math.round((vh / vw) * W);
   const cv = document.createElement("canvas");
@@ -450,27 +467,28 @@ function drawSkeleton(srcCv: HTMLCanvasElement, lm: LM[], wr: number, gain = 1, 
     ctx.drawImage(srcCv, 0, 0, W, H);
     ctx.filter = "none";
   } catch { /* drawImage失敗時は骨格のみ */ }
-  ctx.save();
-  // 接続線
-  ctx.strokeStyle = "rgba(212,168,42,0.95)";
-  ctx.lineWidth = 3; ctx.lineCap = "round";
-  for (const [a, b] of CONNECTIONS) {
-    const pa = lm[a], pb = lm[b];
-    if (!pa || !pb) continue;
-    ctx.beginPath();
-    ctx.moveTo(pa.x * W, pa.y * H);
-    ctx.lineTo(pb.x * W, pb.y * H);
-    ctx.stroke();
+  // 骨格は検出できたコマだけ重ねる（ブレて未検出のコマは画像だけ表示）
+  if (lm) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(212,168,42,0.95)";
+    ctx.lineWidth = 3; ctx.lineCap = "round";
+    for (const [a, b] of CONNECTIONS) {
+      const pa = lm[a], pb = lm[b];
+      if (!pa || !pb) continue;
+      ctx.beginPath();
+      ctx.moveTo(pa.x * W, pa.y * H);
+      ctx.lineTo(pb.x * W, pb.y * H);
+      ctx.stroke();
+    }
+    for (let i = 0; i < lm.length; i++) {
+      const p = lm[i];
+      if (!p || (p.visibility ?? 1) < 0.3) continue;
+      ctx.beginPath();
+      ctx.fillStyle = i === wr ? "#ff5a7a" : "#67e0ff";
+      ctx.arc(p.x * W, p.y * H, i === wr ? 6 : 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
-  // 関節点
-  for (let i = 0; i < lm.length; i++) {
-    const p = lm[i];
-    if (!p || (p.visibility ?? 1) < 0.3) continue;
-    ctx.beginPath();
-    ctx.fillStyle = i === wr ? "#ff5a7a" : "#67e0ff";
-    ctx.arc(p.x * W, p.y * H, i === wr ? 6 : 3.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
   return cv.toDataURL("image/jpeg", 0.82);
 }
