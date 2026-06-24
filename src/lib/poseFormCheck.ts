@@ -175,9 +175,9 @@ export async function analyzeForm(
     if (b != null) briSamples.push(b);
   }
   const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
-  // 暗いほど強く持ち上げる（最大3.4倍）。明るい映像は補正なし（ゲイン1）。
-  const gain = brightness < 110 ? clamp(125 / Math.max(8, brightness), 1, 3.4) : 1;
-  const contrast = gain > 1.02 ? 1.12 : 1;
+  // 暗いほど強く持ち上げる（夜間でも検出できるよう最大7倍まで）。明るい映像は補正なし（ゲイン1）。
+  const gain = brightness < 115 ? clamp(130 / Math.max(6, brightness), 1, 7) : 1;
+  const contrast = gain > 1.6 ? 1.22 : gain > 1.02 ? 1.12 : 1;
   onProgress?.(0.12);
 
   const frames: Frame[] = [];
@@ -198,19 +198,23 @@ export async function analyzeForm(
   onProgress?.(0.92);
 
   const lowLight = brightness < 60;            // これ未満は「暗い」と判定
+  const veryDark = brightness < 22;            // 夜間レベル
   const fewFrames = frames.length < 14;
 
-  // 暗い・検出不足でも、最低限のフレームがあれば“精度低め”として解析を続ける。
-  if (frames.length < 5) {
+  // 夜間など暗い映像でも“一応”解析できるよう、最低3コマあれば続行する。
+  if (frames.length < 3) {
     URL.revokeObjectURL(url);
     throw new Error(lowLight
-      ? "映像が暗すぎて人物を検出できませんでした。もう少し明るい場所で撮り直してください。"
+      ? "夜間など暗い映像で、人物をうまく検出できませんでした。可能ならもう少し明るい場所で撮ってみてください。"
       : "人物の全身が検出できませんでした。横から、全身が画面に収まるように撮影してください。");
   }
 
   const notes: string[] = [];
-  if (lowLight) notes.push("⚠ 暗い映像です。明るさを自動補正して解析しましたが、精度は通常より低めです（明るい場所での撮影をおすすめします）。");
-  if (fewFrames) notes.push("⚠ 検出できたコマが少ないため、数値は参考値です。");
+  if (lowLight) notes.push(veryDark
+    ? "🌙 かなり暗い映像です。明るさを自動補正して解析しました。明るい場所で撮るほど精度が上がります。"
+    : "🌙 やや暗い映像です。明るさを自動補正して解析しています。明るい場所ほど精度が高くなります。");
+  if (fewFrames && !lowLight) notes.push("⚠ 検出できたコマが少ないため、数値は参考値です。");
+  else if (fewFrames && lowLight) notes.push("（検出コマが少なめのため、数値は参考値です）");
 
   // ── 利き手側（よく動く手首）を選ぶ ──
   const pathOf = (idx: number) => {
