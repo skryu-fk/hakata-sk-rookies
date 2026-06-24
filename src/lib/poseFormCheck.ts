@@ -140,6 +140,76 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   });
 }
 
+type RVFC = HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
+
+/**
+ * フレーム取得。まず“再生しながら”取得する（requestVideoFrameCallback）。
+ * これは常にデコード済みフレームが得られるため、シークより速く・検出も安定する。
+ * 使えない/再生できない端末ではシーク方式に自動フォールバック。
+ */
+async function captureFrames(
+  video: HTMLVideoElement, landmarker: PoseLandmarkerType,
+  gain: number, contrast: number, duration: number,
+  onProgress?: (p: number) => void,
+): Promise<Frame[]> {
+  const frames: Frame[] = [];
+  let lastTs = 0;
+  const detectAt = (t: number) => {
+    const src = processedSource(video, gain, contrast);
+    const ts = Math.max(lastTs + 1, Math.round(t * 1000));
+    lastTs = ts;
+    let res;
+    try { res = landmarker.detectForVideo(src, ts); } catch { res = null; }
+    const lm = res?.landmarks?.[0] as LM[] | undefined;
+    const world = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? lm;
+    if (lm && world && lm.length >= 20) frames.push({ t, lm, world });
+  };
+
+  const rv = video as RVFC;
+  if (typeof rv.requestVideoFrameCallback === "function") {
+    // play() の解決を待たない（端末/動画によっては解決しないため）。
+    // フレーム取得・停滞検知・タイムアウトはすべて Promise 内で完結させる。
+    await new Promise<void>((resolve) => {
+      let done = false, prevT = -1, sameCt = 0, calls = 0;
+      let watch: ReturnType<typeof setInterval> | undefined;
+      const finish = () => { if (done) return; done = true; if (watch) clearInterval(watch); try { video.pause(); } catch { /* noop */ } resolve(); };
+      const onFrame = () => {
+        if (done) return;
+        const ct = video.currentTime;
+        // ① 再生位置が進んでいない（固まり）→ 同期的に即終了（メインスレッド占有を防ぐ）
+        if (Math.abs(ct - prevT) < 1e-4) { if (++sameCt > 6) { finish(); return; } }
+        else { sameCt = 0; prevT = ct; }
+        // ② コマを取りすぎたら終了（暴走防止）
+        if (++calls > 320) { finish(); return; }
+        detectAt(ct);
+        onProgress?.(0.14 + 0.76 * clamp(ct / duration, 0, 1));
+        if (video.ended || ct >= duration - 0.04) { finish(); return; }
+        rv.requestVideoFrameCallback!(onFrame);
+      };
+      // 予備の安全装置（メインスレッドが空いていれば効く）
+      watch = setInterval(() => { if (done) { clearInterval(watch!); return; } }, 500);
+      video.addEventListener("ended", finish, { once: true });
+      try { video.currentTime = 0; video.playbackRate = clamp(duration / 4, 1, 3); } catch { /* noop */ }
+      Promise.resolve(video.play()).catch(() => { /* 再生失敗は下の検知が処理 */ });
+      rv.requestVideoFrameCallback!(onFrame);
+      setTimeout(finish, 6000); // 安全タイムアウト
+    });
+  }
+
+  // 1コマも取れず、かつ動画が「正しい長さ」を持つ時だけシークで再取得（フリーズ防止のため長さ不明はスキップ）
+  if (frames.length < 4 && isFinite(video.duration) && video.duration > 0.3) {
+    frames.length = 0; lastTs = 0;
+    const N = clamp(Math.round(duration * 16), 14, 50);
+    for (let i = 0; i <= N; i++) {
+      const t = (duration * i) / N;
+      await seekTo(video, t);
+      detectAt(t);
+      if (i % 3 === 0) onProgress?.(0.14 + 0.76 * (i / N));
+    }
+  }
+  return frames;
+}
+
 /** 動画ファイルを解析して結果を返す。onProgress(0..1) で進捗を通知。 */
 export async function analyzeForm(
   file: File,
@@ -157,45 +227,27 @@ export async function analyzeForm(
     const ok = () => resolve();
     video.addEventListener("loadeddata", ok, { once: true });
     video.addEventListener("error", () => reject(new Error("動画を読み込めませんでした。")), { once: true });
-    setTimeout(ok, 4000);
+    setTimeout(ok, 3000);
   });
 
   let duration = video.duration;
-  if (!isFinite(duration) || duration <= 0) duration = 4; // 一部スマホ動画対策
+  if (!isFinite(duration) || duration <= 0) duration = 5; // 一部スマホ動画対策
   duration = Math.min(duration, 12);
-  // フレーム数は控えめに（反応速度優先・端末でフリーズしないように）
-  const N = clamp(Math.round(duration * 20), 18, 80);
-  const step = duration / N;
 
-  // ── 事前パス：明るさを測って自動補正ゲインを決める ──
+  // ── 明るさを2点で測って自動補正ゲインを決める（軽量） ──
   const briSamples: number[] = [];
-  for (let k = 0; k <= 6; k++) {
-    await seekTo(video, (duration * k) / 6);
-    const b = frameBrightness(video);
-    if (b != null) briSamples.push(b);
-  }
+  { const b = frameBrightness(video); if (b != null) briSamples.push(b); }      // t=0 の現フレーム
+  await seekTo(video, duration / 2);
+  { const b = frameBrightness(video); if (b != null) briSamples.push(b); }
+  await seekTo(video, 0);
   const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
   // 暗いほど明るさを持ち上げる（夜間でも検出できるよう最大7倍まで）。明るい映像は補正なし。
-  // ※これは“検出を助ける”ための内部処理。警告を出すかどうかとは別物。
   const gain = brightness < 105 ? clamp(105 / Math.max(6, brightness), 1, 7) : 1;
   const contrast = gain > 1.6 ? 1.2 : gain > 1.02 ? 1.1 : 1;
-  onProgress?.(0.12);
+  onProgress?.(0.14);
 
-  const frames: Frame[] = [];
-  let lastTs = 0;
-  for (let i = 0; i <= N; i++) {
-    const t = i * step;
-    await seekTo(video, t);
-    const ts = Math.max(lastTs + 1, Math.round(t * 1000));
-    lastTs = ts;
-    const src = processedSource(video, gain, contrast); // 暗所は補正後の映像で検出
-    let res;
-    try { res = landmarker.detectForVideo(src, ts); } catch { res = null; }
-    const lm = res?.landmarks?.[0] as LM[] | undefined;
-    const world = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? lm;
-    if (lm && world && lm.length >= 29) frames.push({ t, lm, world });
-    if (i % 3 === 0) onProgress?.(0.12 + 0.78 * (i / N));
-  }
+  // ── フレーム取得（再生しながら＝高速・確実。不可ならシーク） ──
+  const frames = await captureFrames(video, landmarker, gain, contrast, duration, onProgress);
   onProgress?.(0.92);
 
   // 「暗い」と判定する基準は本当に暗い時だけに緩めている（通常の屋外/室内では警告を出さない）。
@@ -227,39 +279,15 @@ export async function analyzeForm(
   const useRight = pathOf(R_WR) >= pathOf(L_WR);
   const WR = useRight ? R_WR : L_WR;
 
-  // ── 速度系列（worldLandmarks＝メートル空間）→ 粗いピーク（インパクト/リリース） ──
+  // ── 速度系列（worldLandmarks＝メートル空間）→ ピーク（インパクト/リリース） ──
+  // 再生取得でフレームが実fps（細かい）ため、追加のシーク精査は不要。
   let peakSpeed = 0, peakIdx = 1; // m/s
   for (let i = 1; i < frames.length; i++) {
-    const dt = frames[i].t - frames[i - 1].t || step;
+    const dt = frames[i].t - frames[i - 1].t || 0.033;
     const v = dist3(frames[i].world[WR], frames[i - 1].world[WR]) / dt;
     if (v > peakSpeed) { peakSpeed = v; peakIdx = i; }
   }
-
-  // ── 2段階目：ピーク周辺を細かく再サンプリングして“真の最大手首速度”を捕捉 ──
-  // 粗サンプリングはインパクト/リリース最速点を取りこぼしやすいので、近傍を高密度で走査する。
-  {
-    const lo = frames[Math.max(0, peakIdx - 1)].t;
-    const hi = frames[Math.min(frames.length - 1, peakIdx + 1)].t;
-    const M = 12;
-    const dense: { t: number; w: LM }[] = [];
-    let lts = lastTs;
-    for (let j = 0; j <= M; j++) {
-      const t = lo + (hi - lo) * (j / M);
-      await seekTo(video, t);
-      const ts = Math.max(lts + 1, Math.round(t * 1000) + 1);
-      lts = ts;
-      let res;
-      try { res = landmarker.detectForVideo(processedSource(video, gain, contrast), ts); } catch { res = null; }
-      const w = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? (res?.landmarks?.[0] as LM[] | undefined);
-      if (w && w[WR]) dense.push({ t, w: w[WR] });
-    }
-    for (let j = 1; j < dense.length; j++) {
-      const dt = dense[j].t - dense[j - 1].t || (step / M);
-      const v = dist3(dense[j].w, dense[j - 1].w) / dt;
-      if (v > peakSpeed) peakSpeed = v;
-    }
-  }
-  onProgress?.(0.97);
+  onProgress?.(0.95);
   const handSpeedKmh = peakSpeed * 3.6;
   // バットヘッド/リリースの目安係数（手の速さからの近似）
   const factor = kind === "batting" ? 2.0 : 1.25;
