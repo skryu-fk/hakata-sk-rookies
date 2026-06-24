@@ -74,14 +74,13 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      // 反応速度・端末での安定性を優先して軽量モデルを使用（精度はやや控えめ）
-      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task", delegate: "GPU" },
+      // 最高精度モデル（関節の追従が正確）。固まり対策は別途ガード済み。
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_heavy.task", delegate: "GPU" },
       runningMode: "VIDEO",
       numPoses: 1,
-      // 検出されにくい問題を避けるため、しきい値はかなり低め
-      minPoseDetectionConfidence: 0.2,
-      minPosePresenceConfidence: 0.2,
-      minTrackingConfidence: 0.2,
+      minPoseDetectionConfidence: 0.4,
+      minPosePresenceConfidence: 0.4,
+      minTrackingConfidence: 0.4,
     });
     _landmarker = lm;
     return lm;
@@ -189,7 +188,7 @@ async function captureFrames(
       // 予備の安全装置（メインスレッドが空いていれば効く）
       watch = setInterval(() => { if (done) { clearInterval(watch!); return; } }, 500);
       video.addEventListener("ended", finish, { once: true });
-      try { video.currentTime = 0; video.playbackRate = clamp(duration / 4, 1, 3); } catch { /* noop */ }
+      try { video.currentTime = 0; video.playbackRate = clamp(duration / 6, 1, 2); } catch { /* noop */ }
       Promise.resolve(video.play()).catch(() => { /* 再生失敗は下の検知が処理 */ });
       rv.requestVideoFrameCallback!(onFrame);
       setTimeout(finish, 6000); // 安全タイムアウト
@@ -280,18 +279,45 @@ export async function analyzeForm(
   const WR = useRight ? R_WR : L_WR;
 
   // ── 速度系列（worldLandmarks＝メートル空間）→ ピーク（インパクト/リリース） ──
-  // 再生取得でフレームが実fps（細かい）ため、追加のシーク精査は不要。
-  let peakSpeed = 0, peakIdx = 1; // m/s
+  const rawSpeeds: number[] = [0];
   for (let i = 1; i < frames.length; i++) {
     const dt = frames[i].t - frames[i - 1].t || 0.033;
-    const v = dist3(frames[i].world[WR], frames[i - 1].world[WR]) / dt;
-    if (v > peakSpeed) { peakSpeed = v; peakIdx = i; }
+    rawSpeeds.push(dist3(frames[i].world[WR], frames[i - 1].world[WR]) / dt);
+  }
+  // 3点平滑で“単発ノイズのスパイク”ではない本当の最速点を選ぶ
+  const smSpeeds = sma(rawSpeeds, 1);
+  let peakIdx = 1, peakSm = 0;
+  for (let i = 1; i < frames.length; i++) { if (smSpeeds[i] > peakSm) { peakSm = smSpeeds[i]; peakIdx = i; } }
+  let peakSpeed = Math.max(rawSpeeds[peakIdx] || 0, smSpeeds[peakIdx] || 0); // m/s
+
+  // ── ピーク周辺だけ高密度シークで精査（最高精度モデルで真の最大手首速度を捕捉） ──
+  {
+    const lo = frames[Math.max(0, peakIdx - 2)].t;
+    const hi = frames[Math.min(frames.length - 1, peakIdx + 2)].t;
+    if (hi > lo + 0.01) {
+      const M = 14;
+      let lts = 10_000_000; // 再生時のタイムスタンプより十分大きく（単調増加を保証）
+      const dw: LM[] = [];
+      const dt2: number[] = [];
+      let prevT = -1;
+      for (let j = 0; j <= M; j++) {
+        const t = lo + (hi - lo) * (j / M);
+        await seekTo(video, t);
+        let res;
+        try { res = landmarker.detectForVideo(processedSource(video, gain, contrast), (lts += 1)); } catch { res = null; }
+        const w = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? (res?.landmarks?.[0] as LM[] | undefined);
+        if (w && w[WR]) { dw.push(w[WR]); dt2.push(prevT < 0 ? 0.02 : Math.max(0.005, t - prevT)); prevT = t; }
+      }
+      const dsp: number[] = [];
+      for (let j = 1; j < dw.length; j++) dsp.push(dist3(dw[j], dw[j - 1]) / (dt2[j] || 0.02));
+      for (const v of sma(dsp, 1)) if (v > peakSpeed) peakSpeed = v; // 平滑後の最大
+    }
   }
   onProgress?.(0.95);
   const handSpeedKmh = peakSpeed * 3.6;
-  // バットヘッド/リリースの目安係数（手の速さからの近似）
+  // バットヘッド/リリースの目安係数（手の速さからの近似）。異常値は安全側にクランプ。
   const factor = kind === "batting" ? 2.0 : 1.25;
-  const speedKmh = handSpeedKmh * factor;
+  const speedKmh = clamp(handSpeedKmh * factor, 0, 180);
 
   // ── 解析用のセットアップ〜ピーク区間 ──
   const start = frames[0], impact = frames[peakIdx];
