@@ -25,6 +25,9 @@ export type FormResult = {
   keyframeDataUrl: string;
   framesAnalyzed: number;
   durationSec: number;
+  lowLight: boolean;       // 暗い映像（精度が落ちる）
+  brightness: number;      // 平均輝度 0〜255（目安）
+  notes: string[];         // 精度に関する注意（暗い・フレーム少 など）
 };
 
 // BlazePose 33点のインデックス
@@ -75,14 +78,31 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
       baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_full.task", delegate: "GPU" },
       runningMode: "VIDEO",
       numPoses: 1,
-      minPoseDetectionConfidence: 0.4,
-      minPosePresenceConfidence: 0.4,
-      minTrackingConfidence: 0.4,
+      // 暗い映像でも拾えるよう、しきい値はやや低め
+      minPoseDetectionConfidence: 0.3,
+      minPosePresenceConfidence: 0.3,
+      minTrackingConfidence: 0.3,
     });
     _landmarker = lm;
     return lm;
   })();
   return _loading;
+}
+
+// フレームの平均輝度（0〜255）を小さなキャンバスで概算。暗さ判定に使う。
+const _briCv = typeof document !== "undefined" ? document.createElement("canvas") : null;
+function frameBrightness(video: HTMLVideoElement): number | null {
+  if (!_briCv) return null;
+  _briCv.width = 24; _briCv.height = 24;
+  const ctx = _briCv.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  try {
+    ctx.drawImage(video, 0, 0, 24, 24);
+    const d = ctx.getImageData(0, 0, 24, 24).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    return sum / (d.length / 4);
+  } catch { return null; }
 }
 
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
@@ -122,12 +142,15 @@ export async function analyzeForm(
   const step = duration / N;
 
   const frames: Frame[] = [];
+  const briSamples: number[] = [];
   let lastTs = 0;
   for (let i = 0; i <= N; i++) {
     const t = i * step;
     await seekTo(video, t);
     const ts = Math.max(lastTs + 1, Math.round(t * 1000));
     lastTs = ts;
+    // 明るさサンプル（数フレームおきに・ポーズ検出とは独立に測る）
+    if (i % 4 === 0) { const b = frameBrightness(video); if (b != null) briSamples.push(b); }
     let res;
     try { res = landmarker.detectForVideo(video, ts); } catch { res = null; }
     const lm = res?.landmarks?.[0] as LM[] | undefined;
@@ -137,10 +160,21 @@ export async function analyzeForm(
   }
   onProgress?.(0.94);
 
-  if (frames.length < 8) {
+  const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
+  const lowLight = brightness < 60;            // これ未満は「暗い」と判定
+  const fewFrames = frames.length < 14;
+
+  // 暗い・検出不足でも、最低限のフレームがあれば“精度低め”として解析を続ける。
+  if (frames.length < 5) {
     URL.revokeObjectURL(url);
-    throw new Error("人物の全身が検出できませんでした。明るい場所で、全身が画面に収まるように撮影してください。");
+    throw new Error(lowLight
+      ? "映像が暗すぎて人物を検出できませんでした。もう少し明るい場所で撮り直してください。"
+      : "人物の全身が検出できませんでした。横から、全身が画面に収まるように撮影してください。");
   }
+
+  const notes: string[] = [];
+  if (lowLight) notes.push("⚠ 暗い映像のため、解析精度は低めです（明るい場所での撮影をおすすめします）。");
+  if (fewFrames) notes.push("⚠ 検出できたコマが少ないため、数値は参考値です。");
 
   // ── 利き手側（よく動く手首）を選ぶ ──
   const pathOf = (idx: number) => {
@@ -276,6 +310,7 @@ export async function analyzeForm(
     speedLabel: kind === "batting" ? "推定スイング速度" : "推定リリース速度",
     metrics, tips, keyframeDataUrl,
     framesAnalyzed: frames.length, durationSec: duration,
+    lowLight, brightness: Math.round(brightness), notes,
   };
 }
 

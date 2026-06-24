@@ -1166,9 +1166,18 @@ function FormCheckView() {
 
       {phase === "done" && result && (
         <>
+          {/* 精度に関する注意（暗い映像・コマ少 など） */}
+          {result.notes.length > 0 && (
+            <div style={{ ...cardStyle, background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.4)", padding: "14px 16px" }}>
+              {result.notes.map((n, i) => (
+                <p key={i} style={{ fontSize: 12.5, color: "#f0cf6a", lineHeight: 1.7, margin: i ? "6px 0 0" : 0 }}>{n}</p>
+              ))}
+            </div>
+          )}
+
           {/* 総合スコア + 推定スピード */}
           <section style={{ ...cardStyle }}>
-            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", textAlign: "center", marginBottom: 12 }}>SKドッパミンAI 診断結果</div>
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", textAlign: "center", marginBottom: 12 }}>SKドッパミンAI 診断結果{result.lowLight ? "（暗いため精度低め）" : ""}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "center" }}>
               {/* リングゲージ */}
               <div style={{ position: "relative", width: 130, height: 130, flexShrink: 0 }}>
