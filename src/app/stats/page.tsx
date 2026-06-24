@@ -28,7 +28,7 @@ const CHANGELOG: ChangeLogEntry[] = [
       "🧠 独自開発AI「SKドッパミンAI」を搭載（フォーム診断）",
       "🎥 動画からバッティング/ピッチングを骨格解析→点数・項目別評価・改善点",
       "🖼 構え〜インパクト〜フォロースルーの連続写真（骨格つき）を表示",
-      "⚡ 最高精度モデル＋2段階解析で推定スイング/リリース速度を表示（目安）",
+      "⚡ 2段階解析で推定スイング/リリース速度を表示（目安）",
       "🌙 暗い映像は明るさを自動補正して解析（精度は控えめ表示）",
       "🔒 動画は端末内だけで解析・外部に送信しません",
     ],
@@ -1108,7 +1108,7 @@ function FormCheckView() {
           <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 27, background: "linear-gradient(135deg,#f3d176,#d4a82a 55%,#ff8a5a)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", letterSpacing: "0.02em" }}>SKドッパミンAI</span>
         </div>
         <div style={{ display: "inline-flex", gap: 6, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
-          {["⚡高精度モデル", "🔒端末内解析", "📈フォーム診断"].map(t => (
+          {["⚡スピード解析", "🔒端末内解析", "📈フォーム診断"].map(t => (
             <span key={t} style={{ fontSize: 10, fontWeight: 700, color: "#d4a82a", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", borderRadius: 999, padding: "3px 9px" }}>{t}</span>
           ))}
         </div>

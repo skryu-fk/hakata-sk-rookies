@@ -77,13 +77,14 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_heavy.task", delegate: "GPU" },
+      // 反応速度・端末での安定性を優先して軽量モデルを使用（精度はやや控えめ）
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_lite.task", delegate: "GPU" },
       runningMode: "VIDEO",
       numPoses: 1,
-      // 暗い映像でも拾えるよう、しきい値はやや低め
-      minPoseDetectionConfidence: 0.3,
-      minPosePresenceConfidence: 0.3,
-      minTrackingConfidence: 0.3,
+      // 検出されにくい問題を避けるため、しきい値はかなり低め
+      minPoseDetectionConfidence: 0.2,
+      minPosePresenceConfidence: 0.2,
+      minTrackingConfidence: 0.2,
     });
     _landmarker = lm;
     return lm;
@@ -134,10 +135,11 @@ function nearestFrame(frames: Frame[], t: number): Frame {
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
-    const finish = () => { if (done) return; done = true; video.removeEventListener("seeked", finish); resolve(); };
+    // seeked 後に1フレーム待ってから解決（フレーム未デコードで検出に失敗するのを防ぐ）
+    const finish = () => { if (done) return; done = true; video.removeEventListener("seeked", finish); requestAnimationFrame(() => resolve()); };
     video.addEventListener("seeked", finish);
     try { video.currentTime = Math.max(0, Math.min(t, (video.duration || 0) - 0.001)); } catch { finish(); }
-    setTimeout(finish, 600); // フリーズ防止フォールバック
+    setTimeout(finish, 400); // フリーズ防止フォールバック
   });
 }
 
@@ -164,7 +166,8 @@ export async function analyzeForm(
   let duration = video.duration;
   if (!isFinite(duration) || duration <= 0) duration = 4; // 一部スマホ動画対策
   duration = Math.min(duration, 12);
-  const N = clamp(Math.round(duration * 30), 24, 140);
+  // フレーム数は控えめに（反応速度優先・端末でフリーズしないように）
+  const N = clamp(Math.round(duration * 20), 18, 80);
   const step = duration / N;
 
   // ── 事前パス：明るさを測って自動補正ゲインを決める ──
@@ -240,7 +243,7 @@ export async function analyzeForm(
   {
     const lo = frames[Math.max(0, peakIdx - 1)].t;
     const hi = frames[Math.min(frames.length - 1, peakIdx + 1)].t;
-    const M = 24;
+    const M = 12;
     const dense: { t: number; w: LM }[] = [];
     let lts = lastTs;
     for (let j = 0; j <= M; j++) {
