@@ -22,7 +22,8 @@ export type FormResult = {
   speedLabel: string;
   handSpeedKmh: number;
   metrics: Metric[];
-  tips: string[];
+  strengths: string[];         // 良かった点
+  tips: string[];              // 改善アドバイス（具体的）
   keyframeDataUrl: string;     // インパクト/リリース（代表コマ）
   keyframes: KeyFrame[];       // 構え〜フォロースルーまでの連続コマ
   framesAnalyzed: number;
@@ -59,10 +60,6 @@ const sma = (xs: number[], w = 1) => xs.map((_, i) => {
   for (let k = -w; k <= w; k++) { const j = i + k; if (j >= 0 && j < xs.length) { s += xs[j]; c++; } }
   return s / c;
 });
-// 値 v を [lo,hi] のとき [0,100] に線形マップ（外は0/100）
-const mapScore = (v: number, lo: number, hi: number) => clamp(((v - lo) / (hi - lo)) * 100, 0, 100);
-// 「ちょうど良い帯」評価：targetを中心に許容幅 tol で 100、離れるほど減点
-const bandScore = (v: number, target: number, tol: number) => clamp(100 - (Math.abs(v - target) / tol) * 100, 0, 100);
 
 type Frame = { t: number; lm: LM[]; world: LM[] };
 
@@ -303,45 +300,64 @@ export async function analyzeForm(
   const shY = mid(impact.lm[L_SH], impact.lm[R_SH]).y;
   const handAboveShoulder = (shY - impact.lm[WR].y) / bodyH; // +で肩より上
 
-  let metrics: Metric[];
+  // 各指標：甘め＆下限ありで採点（普通のフォームはB〜A帯に入るよう調整）。
+  // good=良かった点 / tip=具体的な改善アドバイス（コツ・ドリル）。
+  const FLOOR = 48;
+  const sc = (v: number) => Math.round(clamp(v, FLOOR, 100));
+  const firstLine = (s: string) => s.split("。")[0] + "。";
+  type Def = { key: string; label: string; score: number; good: string; tip: string };
+  let defs: Def[];
   if (kind === "batting") {
-    metrics = [
-      mkMetric("axis", "軸の安定（頭のブレ）", mapScore(0.16 - headSway, 0, 0.16),
-        headSway < 0.05 ? "頭がほとんどブレず良い軸。" : "スイング中に頭が動きやすい。目線を残す意識を。"),
-      mkMetric("rotation", "体の回転", bandScore(shoulderRot, 55, 40),
-        shoulderRot < 25 ? "回転が小さめ。骨盤から大きく捻ろう。" : shoulderRot > 95 ? "開きすぎ気味。タメを作ろう。" : "しっかり回転できている。"),
-      mkMetric("stride", "踏み込み（ステップ）", bandScore(strideMax, 0.55, 0.4),
-        strideMax < 0.3 ? "ステップが小さい。前足へ踏み込もう。" : "良い踏み込み幅。"),
-      mkMetric("weight", "重心の安定", mapScore(0.5 - hipTravel, 0, 0.5),
-        hipTravel > 0.35 ? "上体が突っ込み気味。軸足で我慢を。" : "重心が安定している。"),
-      mkMetric("follow", "フォロースルー", mapScore(follow, 0.2, 1.0),
-        follow < 0.35 ? "振り切れていない。最後まで大きく振ろう。" : "最後までしっかり振れている。"),
+    const rotTip = shoulderRot < 40
+      ? "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。"
+      : "体の開きが早めです。前の肩（左打ちなら右肩）を内に入れて“タメ”を作り、ボールを引きつけてから回ると差し込まれにくくなります。";
+    defs = [
+      { key: "axis", label: "軸の安定（頭のブレ）", score: sc(104 - headSway * 320),
+        good: "頭の位置が安定していて、ブレない良い軸です。",
+        tip: "スイング中に頭が動いています。アゴを軽く引き、目線をインパクト位置に最後まで残す意識を。鏡の前でゆっくり素振りし、頭が左右に流れないか確認すると効果的です。" },
+      { key: "rotation", label: "体の回転", score: sc(100 - Math.abs(shoulderRot - 52) * 0.85),
+        good: "骨盤からしっかり回転できていて、力が伝わるスイングです。", tip: rotTip },
+      { key: "stride", label: "踏み込み（ステップ）", score: sc(100 - Math.abs(strideMax - 0.5) * 115),
+        good: "前足へしっかり踏み込めていて、下半身主導のスイングです。",
+        tip: "ステップ幅にムラがあります。軸足に体重を乗せてから、ピッチャー方向へ同じ幅で大きく一歩踏み込むと力が安定して伝わります。" },
+      { key: "weight", label: "重心の安定", score: sc(102 - hipTravel * 150),
+        good: "重心が安定し、突っ込みもなく良いバランスです。",
+        tip: "上体が前に突っ込み気味です。軸足で粘り、頭をボールの後ろに残したまま回転すると安定します。“我慢して引きつける”意識を持ちましょう。" },
+      { key: "follow", label: "フォロースルー", score: sc(56 + follow * 60),
+        good: "最後までしっかり振り切れていて、理想的なフィニッシュです。",
+        tip: "振り切りが小さめです。インパクトで止めず、両手が肩の高さまで来るイメージで大きく振り抜きましょう。フィニッシュまで一気に振る素振りを。" },
     ];
   } else {
-    metrics = [
-      mkMetric("balance", "軸足バランス", mapScore(0.16 - headSway, 0, 0.16),
-        headSway < 0.05 ? "頭の軸が安定。" : "立ち姿勢で頭が揺れやすい。軸足で立つ意識を。"),
-      mkMetric("stride", "ステップ幅", bandScore(strideMax, 0.7, 0.45),
-        strideMax < 0.4 ? "歩幅が狭い。もう一歩前へ。" : strideMax > 1.1 ? "踏み込みすぎ気味。" : "良いステップ幅。"),
-      mkMetric("open", "開きの早さ", mapScore(0.55 - earlyOpenRatio, 0, 0.55),
-        earlyOpenRatio > 0.45 ? "体の開きが早い。胸を見せるのを我慢しよう。" : "開きを我慢できている。"),
-      mkMetric("release", "リリースの高さ", bandScore(handAboveShoulder, 0.18, 0.45),
-        handAboveShoulder < -0.05 ? "リリースが低い。肘を上げよう。" : "良いリリースポイント。"),
-      mkMetric("follow", "フォロースルー", mapScore(follow, 0.2, 1.1),
-        follow < 0.35 ? "振り切りが小さい。最後まで腕を振ろう。" : "しっかり振り切れている。"),
+    const strideTip = strideMax < 0.55
+      ? "歩幅が狭めです。身長の6〜7割を目安に、もう一歩ホーム方向へ踏み出すと球威が増します。"
+      : "踏み込みがやや大きく、リリースが安定しにくいです。体重を乗せ切れる幅まで少し詰めましょう。";
+    defs = [
+      { key: "balance", label: "軸足バランス", score: sc(104 - headSway * 320),
+        good: "軸足で立った時の頭の軸が安定しています。",
+        tip: "立ち上がりで上体が揺れています。軸足一本で2秒静止できるバランス練習を。お腹に力を入れ、頭の真下に軸足を置く意識で。" },
+      { key: "stride", label: "ステップ幅", score: sc(100 - Math.abs(strideMax - 0.65) * 105),
+        good: "良いステップ幅で、下半身をしっかり使えています。", tip: strideTip },
+      { key: "open", label: "開きの早さ", score: sc(102 - earlyOpenRatio * 88),
+        good: "体の開きを我慢できていて、力の伝わるフォームです。",
+        tip: "体（胸・肩）の開きが早いです。グラブ側の肩を打者へ向けたまま我慢し、最後に一気に開くと球速・制球が上がります。タオルシャドーで開きを抑える練習を。" },
+      { key: "release", label: "リリースの高さ", score: sc(100 - Math.abs(handAboveShoulder - 0.2) * 115),
+        good: "リリースポイントが高く、角度のある良い腕の振りです。",
+        tip: "リリースが低めです。肘を肩より上げ、頭の近くで離すイメージで。肩・肩甲骨の柔軟性を上げると改善します。" },
+      { key: "follow", label: "フォロースルー", score: sc(56 + follow * 58),
+        good: "腕を最後までしっかり振り切れています。",
+        tip: "振り切りが小さめです。リリース後も腕を振り抜き、グラブ側の膝の外まで手を持っていくと、肩肘の負担も減り球威も出ます。" },
     ];
   }
 
+  const metrics: Metric[] = defs.map(d => ({ key: d.key, label: d.label, score: d.score, comment: d.score >= 68 ? d.good : firstLine(d.tip) }));
   // 総合点（各指標の平均）
-  const overall = Math.round(metrics.reduce((s, m) => s + m.score, 0) / metrics.length);
+  const overall = Math.round(defs.reduce((s, d) => s + d.score, 0) / defs.length);
 
-  // 改善点：低い指標から最大3件
-  const tips = metrics
-    .filter(m => m.score < 70)
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 3)
-    .map(m => `${m.label}：${m.comment}`);
-  if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを継続しよう！");
+  // 良かった点（高スコア）と 改善アドバイス（低スコア・具体的）
+  const strengths = defs.filter(d => d.score >= 76).sort((a, b) => b.score - a.score).slice(0, 3).map(d => d.good);
+  const tips = defs.filter(d => d.score < 72).sort((a, b) => a.score - b.score).slice(0, 4).map(d => d.tip);
+  if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを維持しつつ、さらにスイング/球のキレを磨いていきましょう！");
+  if (strengths.length === 0) strengths.push("まずは反復で“同じ動き”を固めることから。続けるほど数値は必ず伸びます。");
 
   // ── キーフレーム連続コマ（構え〜インパクト〜フォロースルー） ──
   const s0 = frames[0].t, pT = impact.t, eT = frames[frames.length - 1].t;
@@ -371,14 +387,10 @@ export async function analyzeForm(
   return {
     kind, overall, speedKmh, handSpeedKmh,
     speedLabel: kind === "batting" ? "推定スイング速度" : "推定リリース速度",
-    metrics, tips, keyframeDataUrl, keyframes,
+    metrics, strengths, tips, keyframeDataUrl, keyframes,
     framesAnalyzed: frames.length, durationSec: duration,
     lowLight, brightness: Math.round(brightness), notes,
   };
-}
-
-function mkMetric(key: string, label: string, score: number, comment: string): Metric {
-  return { key, label, score: Math.round(clamp(score, 0, 100)), comment };
 }
 
 function drawSkeleton(video: HTMLVideoElement, lm: LM[], wr: number, gain = 1, contrast = 1): string {

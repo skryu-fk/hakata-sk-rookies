@@ -1093,8 +1093,8 @@ function FormCheckView() {
   }
   function reset() { setPhase("idle"); setResult(null); setProgress(0); setErrMsg(""); }
 
-  const scoreColor = (s: number) => (s >= 80 ? "#67e088" : s >= 60 ? "#d4a82a" : "#ff6982");
-  const grade = (s: number) => (s >= 90 ? "S" : s >= 80 ? "A" : s >= 70 ? "B" : s >= 60 ? "C" : "D");
+  const scoreColor = (s: number) => (s >= 74 ? "#67e088" : s >= 56 ? "#d4a82a" : "#ff6982");
+  const grade = (s: number) => (s >= 85 ? "S" : s >= 72 ? "A" : s >= 60 ? "B" : s >= 48 ? "C" : "D");
 
   const kindLabel = kind === "batting" ? "バッティング" : "ピッチング";
 
@@ -1255,20 +1255,34 @@ function FormCheckView() {
             </div>
           </section>
 
-          {/* 改善点 */}
+          {/* 良かった点 */}
+          {result.strengths.length > 0 && (
+            <section style={{ ...cardStyle, border: "1px solid rgba(103,224,136,0.3)" }}>
+              <H sub="GOOD">👍 良かった点</H>
+              <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                {result.strengths.map((t, i) => (
+                  <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.7 }}>
+                    <span style={{ color: "#67e088", flexShrink: 0 }}>◎</span><span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* 改善ポイント */}
           <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.3)" }}>
-            <H sub="ADVICE">改善ポイント</H>
-            <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
+            <H sub="ADVICE">🎯 もっと良くするには</H>
+            <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
               {result.tips.map((t, i) => (
-                <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.7 }}>
-                  <span style={{ color: "#d4a82a", flexShrink: 0 }}>▸</span><span>{t}</span>
+                <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.8 }}>
+                  <span style={{ color: "#d4a82a", flexShrink: 0, fontWeight: 800 }}>{i + 1}.</span><span>{t}</span>
                 </li>
               ))}
             </ul>
           </section>
 
           <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", textAlign: "center", marginBottom: 12, lineHeight: 1.6 }}>
-            SKドッパミンAI ・ {result.framesAnalyzed}フレーム解析 ・ 高精度モデル ・ 推定のため誤差があります
+            SKドッパミンAI ・ {result.framesAnalyzed}フレーム解析 ・ 推定のため誤差があります
           </div>
           <button onClick={() => inputRef.current?.click()} className="stx-sheen"
             style={{ width: "100%", padding: "14px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12 }}>
