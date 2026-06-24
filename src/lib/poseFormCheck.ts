@@ -439,10 +439,18 @@ export async function analyzeForm(
   for (let p = 0; p < phaseDefs.length; p++) {
     const ph = phaseDefs[p];
     const si = nearestShotIdx(ph.t);
-    const lm = detByIdx.get(si) ?? null; // 検出済みなら骨格を重ね、未検出（ブレ等）なら画像だけ
+    // そのコマを直接検出して骨格を出す（構え等ハッキリしたコマは必ず表示。ブレた瞬間だけ画像のみ）
+    let lm = detByIdx.get(si) ?? null;
+    if (!lm) {
+      const src = brightenSource(shots[si].cv, gain, contrast);
+      let res; try { res = landmarker.detectForVideo(src, ++_vts); } catch { res = null; }
+      const l = res?.landmarks?.[0] as LM[] | undefined;
+      if (l && l.length >= 20) lm = l;
+    }
     const dataUrl = drawSkeleton(shots[si].cv, lm, WR, gain, contrast);
     if (dataUrl) keyframes.push({ label: ph.label, phase: ph.phase, dataUrl });
     onProgress?.(0.97 + 0.03 * ((p + 1) / phaseDefs.length));
+    await yieldNow();
   }
   const keyframeDataUrl = (keyframes.find(k => k.phase === "IMPACT") ?? keyframes[0])?.dataUrl ?? "";
 
