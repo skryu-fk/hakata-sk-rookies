@@ -1126,7 +1126,7 @@ function FormCheckView() {
           <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 27, background: "linear-gradient(135deg,#f3d176,#d4a82a 55%,#ff8a5a)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", letterSpacing: "0.02em" }}>SKドッパミンAI</span>
         </div>
         <div style={{ display: "inline-flex", gap: 6, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
-          {["🎯最高精度AI", "🔒端末内解析", "📈フォーム診断"].map(t => (
+          {["🎯高精度AI", "🔒端末内解析", "📈フォーム診断"].map(t => (
             <span key={t} style={{ fontSize: 10, fontWeight: 700, color: "#d4a82a", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", borderRadius: 999, padding: "3px 9px" }}>{t}</span>
           ))}
         </div>

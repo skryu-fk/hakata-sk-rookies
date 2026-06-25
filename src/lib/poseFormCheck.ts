@@ -71,8 +71,8 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      // 最高精度モデル＋IMAGEモード（状態を持たない＝同じ画像なら必ず同じ結果＝再現性あり）。
-      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_heavy.task", delegate: "GPU" },
+      // fullモデル＋IMAGEモード（状態を持たない＝同じ画像なら必ず同じ結果＝再現性あり）。
+      baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_full.task", delegate: "GPU" },
       runningMode: "IMAGE",
       numPoses: 1,
       minPoseDetectionConfidence: 0.4,
@@ -127,6 +127,24 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   });
 }
 
+type RVFC = HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
+// シーク後、そのコマが実際に描画される（デコードされる）まで待つ。
+// これをしないと一部端末で“まだ真っ黒のコマ”を取得して検出に失敗する。
+function waitDecoded(video: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve) => {
+    const rv = video as RVFC;
+    let done = false;
+    const fin = () => { if (done) return; done = true; resolve(); };
+    if (typeof rv.requestVideoFrameCallback === "function") {
+      rv.requestVideoFrameCallback!(fin);          // 新しいコマが合成された瞬間に発火
+      setTimeout(fin, 220);
+    } else {
+      requestAnimationFrame(() => requestAnimationFrame(fin));
+      setTimeout(fin, 220);
+    }
+  });
+}
+
 /**
  * コマ取得：動画全体に“決まった時刻”でシークして静止コマを取る。
  * 毎回まったく同じ時刻のコマが得られる＝同じ動画なら結果が安定（再現性）。
@@ -137,6 +155,7 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
   for (let i = 0; i <= N; i++) {
     const t = (duration * i) / N;
     await seekTo(video, t);
+    await waitDecoded(video); // コマが実際にデコードされるまで待つ（真っ黒コマ対策）
     const vw = video.videoWidth || SHOT_W, vh = video.videoHeight || Math.round(SHOT_W * 1.6);
     const w = SHOT_W, h = Math.max(1, Math.round(vh * (SHOT_W / vw)));
     const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
