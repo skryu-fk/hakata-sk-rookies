@@ -84,9 +84,11 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
   return _loading;
 }
 
-// 取り込んだ静止コマ（決まった時刻にシークして取得 → 検出はあとでまとめて行う）
+// 取り込んだ静止コマ（再生しながら取得＝確実にデコード済み → 検出はあとで）
 type Shot = { t: number; cv: HTMLCanvasElement };
-const SHOT_W = 260;     // 取り込み解像度（省メモリ）
+const SHOT_W = 260;       // 取り込み解像度（省メモリ）
+const MAX_SHOTS = 120;    // メモリ保護
+const TARGET_SHOTS = 80;  // 動画全体に均等取り込みする目標コマ数
 
 // キャンバスの平均輝度（0〜255）。実フレームから測るので暗さ誤判定しない。
 function canvasBrightness(cv: HTMLCanvasElement): number | null {
@@ -146,22 +148,51 @@ function waitDecoded(video: HTMLVideoElement): Promise<void> {
 }
 
 /**
- * コマ取得：動画全体に“決まった時刻”でシークして静止コマを取る。
- * 毎回まったく同じ時刻のコマが得られる＝同じ動画なら結果が安定（再現性）。
+ * コマ取得：動画を“再生しながら”静止コマを取る（requestVideoFrameCallback）。
+ * 常にデコード済みフレームが得られる＝真っ黒コマにならず確実に検出できる。
+ * 動画全体に均等な間隔で取り込み（時間ベース）。再生不可ならシークで取得。
  */
 async function grabShots(video: HTMLVideoElement, duration: number, onProgress?: (p: number) => void): Promise<Shot[]> {
   const shots: Shot[] = [];
-  const N = clamp(Math.round(duration * 6.5), 24, 44); // 取り込みコマ数（重さと密度のバランス）
-  for (let i = 0; i <= N; i++) {
-    const t = (duration * i) / N;
-    await seekTo(video, t);
-    await waitDecoded(video); // コマが実際にデコードされるまで待つ（真っ黒コマ対策）
+  const draw = () => {
+    if (shots.length >= MAX_SHOTS) return;
     const vw = video.videoWidth || SHOT_W, vh = video.videoHeight || Math.round(SHOT_W * 1.6);
     const w = SHOT_W, h = Math.max(1, Math.round(vh * (SHOT_W / vw)));
     const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
     const ctx = cv.getContext("2d");
-    if (ctx) { try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t, cv }); } catch { /* noop */ } }
-    onProgress?.(0.06 + 0.30 * (i / N));
+    if (ctx) { try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t: video.currentTime, cv }); } catch { /* noop */ } }
+  };
+  const rv = video as RVFC;
+  const interval = Math.max(0.02, duration / TARGET_SHOTS);
+  if (typeof rv.requestVideoFrameCallback === "function") {
+    await new Promise<void>((resolve) => {
+      let done = false, prevT = -1, sameCt = 0, calls = 0, nextDrawT = 0;
+      const startMs = Date.now();
+      const finish = () => { if (done) return; done = true; try { video.pause(); } catch { /* noop */ } resolve(); };
+      const onFrame = () => {
+        if (done) return;
+        if (Date.now() - startMs > 11000) { finish(); return; }                 // 同期ウォールクロック
+        if (++calls > 1500 || shots.length >= MAX_SHOTS) { finish(); return; }
+        const ct = video.currentTime;
+        if (Math.abs(ct - prevT) < 1e-4) { if (++sameCt > 10) { finish(); return; } }
+        else { sameCt = 0; prevT = ct; }
+        if (ct >= nextDrawT) { draw(); nextDrawT = ct + interval; }             // 間隔ごとに取り込む
+        onProgress?.(0.06 + 0.30 * clamp(ct / duration, 0, 1));
+        if (video.ended || ct >= duration - 0.04) { finish(); return; }
+        rv.requestVideoFrameCallback!(onFrame);
+      };
+      video.addEventListener("ended", finish, { once: true });
+      try { video.currentTime = 0; video.playbackRate = clamp(duration / 6, 1, 2); } catch { /* noop */ }
+      Promise.resolve(video.play()).catch(() => { /* 再生不可なら下のシークへ */ });
+      rv.requestVideoFrameCallback!(onFrame);
+      setTimeout(finish, 11500);
+    });
+  }
+  // 再生で取れなかった時のみシーク取り込み（フレーム描画を待ってから）
+  if (shots.length < 8 && isFinite(video.duration) && video.duration > 0.3) {
+    shots.length = 0;
+    const N = clamp(Math.round(duration * 10), 18, 50);
+    for (let i = 0; i <= N; i++) { await seekTo(video, (duration * i) / N); await waitDecoded(video); draw(); onProgress?.(0.06 + 0.30 * (i / N)); }
   }
   return shots;
 }
@@ -220,7 +251,7 @@ export async function analyzeForm(
   const tooShort = duration < 1.0;
   duration = Math.min(duration, 10); // 規定：1〜10秒（10秒超は先頭10秒を解析）
 
-  // ── 1) コマ取得：決まった時刻にシークして取る（毎回同じ＝結果が安定） ──
+  // ── 1) コマ取得：再生しながら全体を均等に取り込む（確実にデコード済み） ──
   const shots = await grabShots(video, duration, onProgress);
   if (shots.length < 4) {
     URL.revokeObjectURL(url);
@@ -238,17 +269,23 @@ export async function analyzeForm(
   const contrast = gain > 1.6 ? 1.2 : gain > 1.02 ? 1.1 : 1;
   onProgress?.(0.40);
 
-  // ── 3) 全コマを検出（IMAGEモード＝状態を持たない＝同じ画像なら必ず同じ結果） ──
+  // ── 3) 検出（IMAGEモード＝状態を持たない＝同じ画像なら必ず同じ結果） ──
+  // 全体から均等に最大 DET_MAX コマを選んで検出（重さを一定に・結果も安定）。
   const det = new Map<number, { lm: LM[]; world: LM[] }>();
-  for (let idx = 0; idx < shots.length; idx++) {
+  const DET_MAX = 40;
+  const stepDet = shots.length > DET_MAX ? shots.length / DET_MAX : 1;
+  const detIdxs: number[] = [];
+  for (let k = 0; k < Math.min(shots.length, DET_MAX); k++) detIdxs.push(Math.min(shots.length - 1, Math.round(k * stepDet)));
+  for (let n = 0; n < detIdxs.length; n++) {
+    const idx = detIdxs[n];
     const src = brightenSource(shots[idx].cv, gain, contrast);
     let res;
     try { res = landmarker.detect(src); } catch { res = null; }
     const lm = res?.landmarks?.[0] as LM[] | undefined;
     const world = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? lm;
     if (lm && world && lm.length >= 20) det.set(idx, { lm, world });
-    onProgress?.(0.40 + 0.50 * (idx / shots.length));
-    if (idx % 2 === 1) await yieldNow(); // UIを固めない
+    onProgress?.(0.40 + 0.50 * (n / detIdxs.length));
+    if (n % 2 === 1) await yieldNow(); // UIを固めない
   }
   onProgress?.(0.92);
 
@@ -390,16 +427,24 @@ export async function analyzeForm(
     { label: "フィニッシュ", phase: "FINISH", t: sE },
   ];
   const nearestShotIdx = (t: number) => { let b = 0, bd = Infinity; for (let i = 0; i < shots.length; i++) { const d = Math.abs(shots[i].t - t); if (d < bd) { bd = d; b = i; } } return b; };
-  // 全コマ検出済みなので、ハッキリ写ったコマ（構え等）には自身の骨格がピッタリ重なる。
-  // ブレて未検出の瞬間（インパクト付近）は画像だけ表示する。
+  // 各キーフレームのコマをその場で検出して骨格を出す（構え等ハッキリしたコマは必ず表示。
+  // ブレて検出できない瞬間だけ画像のみ）。IMAGEモードなので結果は安定。
   const detByIdx = new Map(detList.map(f => [f.idx, f.lm] as const));
   const keyframes: KeyFrame[] = [];
   for (let p = 0; p < phaseDefs.length; p++) {
     const ph = phaseDefs[p];
     const si = nearestShotIdx(ph.t);
-    const dataUrl = drawSkeleton(shots[si].cv, detByIdx.get(si) ?? null, WR, gain, contrast);
+    let lm = detByIdx.get(si) ?? null;
+    if (!lm) {
+      const src = brightenSource(shots[si].cv, gain, contrast);
+      let res; try { res = landmarker.detect(src); } catch { res = null; }
+      const l = res?.landmarks?.[0] as LM[] | undefined;
+      if (l && l.length >= 20) lm = l;
+    }
+    const dataUrl = drawSkeleton(shots[si].cv, lm, WR, gain, contrast);
     if (dataUrl) keyframes.push({ label: ph.label, phase: ph.phase, dataUrl });
     onProgress?.(0.97 + 0.03 * ((p + 1) / phaseDefs.length));
+    await yieldNow();
   }
   const keyframeDataUrl = (keyframes.find(k => k.phase === "IMPACT") ?? keyframes[0])?.dataUrl ?? "";
 
