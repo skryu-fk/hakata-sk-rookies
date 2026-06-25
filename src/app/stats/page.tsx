@@ -1164,8 +1164,8 @@ function FormCheckView() {
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.9 }}>
               <li><strong style={{ color: "#fff" }}>横から</strong>・全身が画面に収まるように撮る</li>
               <li>明るい場所で、背景はシンプルだと精度UP</li>
-              <li>1〜数秒の短い動画でOK（長すぎると時間がかかります）</li>
-              <li>スイング/投球の全体が1回入っていれば十分</li>
+              <li><strong style={{ color: "#fff" }}>1〜10秒</strong>の動画でお願いします（10秒を超えると先頭10秒を解析）</li>
+              <li>スイング/投球の<strong style={{ color: "#fff" }}>全体が1回</strong>入っていればOK</li>
             </ul>
           </div>
         </section>

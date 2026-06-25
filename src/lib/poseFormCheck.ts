@@ -43,7 +43,6 @@ const CONNECTIONS: [number, number][] = [
 // ── 幾何ヘルパ ──
 const mid = (a: LM, b: LM): LM => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
 const dist2 = (a: LM, b: LM) => Math.hypot(a.x - b.x, a.y - b.y);
-const dist3 = (a: LM, b: LM) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const lineAngleDeg = (a: LM, b: LM) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
 const std = (xs: number[]) => {
   if (xs.length < 2) return 0;
@@ -65,10 +64,6 @@ type Frame = { t: number; lm: LM[]; world: LM[] };
 // ── PoseLandmarker（シングルトン） ──
 let _landmarker: PoseLandmarkerType | null = null;
 let _loading: Promise<PoseLandmarkerType> | null = null;
-// VIDEOモードは“常に増加するタイムスタンプ”が必須。解析をまたいでも増え続ける必要があるため
-// モジュール全体で1つのカウンタを共有する（解析ごとにリセットすると2回目以降が失敗する）。
-let _vts = 0;
-
 async function getLandmarker(): Promise<PoseLandmarkerType> {
   if (_landmarker) return _landmarker;
   if (_loading) return _loading;
@@ -76,13 +71,12 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
     const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
     const vision = await FilesetResolver.forVisionTasks("/mediapipe/wasm");
     const lm = await PoseLandmarker.createFromOptions(vision, {
-      // 最高精度モデル（関節の追従が正確）。固まり対策は別途ガード済み。
+      // 最高精度モデル＋IMAGEモード（状態を持たない＝同じ画像なら必ず同じ結果＝再現性あり）。
       baseOptions: { modelAssetPath: "/mediapipe/pose_landmarker_heavy.task", delegate: "GPU" },
-      runningMode: "VIDEO",
+      runningMode: "IMAGE",
       numPoses: 1,
       minPoseDetectionConfidence: 0.4,
       minPosePresenceConfidence: 0.4,
-      minTrackingConfidence: 0.4,
     });
     _landmarker = lm;
     return lm;
@@ -90,11 +84,9 @@ async function getLandmarker(): Promise<PoseLandmarkerType> {
   return _loading;
 }
 
-// 取り込んだ静止コマ（再生中に貯める。検出はあとでまとめて行う）
+// 取り込んだ静止コマ（決まった時刻にシークして取得 → 検出はあとでまとめて行う）
 type Shot = { t: number; cv: HTMLCanvasElement };
 const SHOT_W = 260;     // 取り込み解像度（省メモリ）
-const MAX_SHOTS = 130;  // メモリ保護のための上限
-const TARGET_SHOTS = 90; // 動画全体に均等取り込みする目標コマ数
 
 // キャンバスの平均輝度（0〜255）。実フレームから測るので暗さ誤判定しない。
 function canvasBrightness(cv: HTMLCanvasElement): number | null {
@@ -135,58 +127,22 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   });
 }
 
-type RVFC = HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number };
-
 /**
- * 再生しながら“静止コマ画像だけ”を高速に取り込む（検出はしない＝間引かれず密に取れる）。
- * 速い動き（スイング/投球）でも取りこぼさないのがポイント。検出はあとでまとめて行う。
+ * コマ取得：動画全体に“決まった時刻”でシークして静止コマを取る。
+ * 毎回まったく同じ時刻のコマが得られる＝同じ動画なら結果が安定（再現性）。
  */
 async function grabShots(video: HTMLVideoElement, duration: number, onProgress?: (p: number) => void): Promise<Shot[]> {
   const shots: Shot[] = [];
-  const draw = () => {
-    if (shots.length >= MAX_SHOTS) return;
+  const N = clamp(Math.round(duration * 6.5), 24, 44); // 取り込みコマ数（重さと密度のバランス）
+  for (let i = 0; i <= N; i++) {
+    const t = (duration * i) / N;
+    await seekTo(video, t);
     const vw = video.videoWidth || SHOT_W, vh = video.videoHeight || Math.round(SHOT_W * 1.6);
     const w = SHOT_W, h = Math.max(1, Math.round(vh * (SHOT_W / vw)));
     const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
     const ctx = cv.getContext("2d");
-    if (!ctx) return;
-    try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t: video.currentTime, cv }); } catch { /* noop */ }
-  };
-
-  const rv = video as RVFC;
-  // 動画全体を均等にカバーする取り込み間隔（秒）。最初だけ大量に取って終わるのを防ぐ。
-  const interval = Math.max(0.02, duration / TARGET_SHOTS);
-  if (typeof rv.requestVideoFrameCallback === "function") {
-    await new Promise<void>((resolve) => {
-      let done = false, prevT = -1, sameCt = 0, calls = 0, nextDrawT = 0;
-      const startMs = Date.now();
-      const finish = () => { if (done) return; done = true; try { video.pause(); } catch { /* noop */ } resolve(); };
-      const onFrame = () => {
-        if (done) return;
-        // 同期的な打ち切り（タイマーが詰まっても必ず効く）：経過時間・回数・固まり
-        if (Date.now() - startMs > 11000) { finish(); return; }
-        if (++calls > 1500 || shots.length >= MAX_SHOTS) { finish(); return; }
-        const ct = video.currentTime;
-        if (Math.abs(ct - prevT) < 1e-4) { if (++sameCt > 10) { finish(); return; } }
-        else { sameCt = 0; prevT = ct; }
-        if (ct >= nextDrawT) { draw(); nextDrawT = ct + interval; } // 間隔ごとに取り込む＝動画全体をカバー
-        onProgress?.(0.08 + 0.34 * clamp(ct / duration, 0, 1));
-        if (video.ended || ct >= duration - 0.04) { finish(); return; }
-        rv.requestVideoFrameCallback!(onFrame);
-      };
-      video.addEventListener("ended", finish, { once: true });
-      try { video.currentTime = 0; video.playbackRate = clamp(duration / 6, 1, 2); } catch { /* noop */ }
-      Promise.resolve(video.play()).catch(() => { /* 取り込めなければ下のシークへ */ });
-      rv.requestVideoFrameCallback!(onFrame);
-      setTimeout(finish, 11500);
-    });
-  }
-
-  // 再生で取り込めなかった時のみシーク取り込み（全体に均等・長さが分かる場合だけ）
-  if (shots.length < 8 && isFinite(video.duration) && video.duration > 0.3) {
-    shots.length = 0;
-    const N = clamp(Math.round(duration * 14), 18, TARGET_SHOTS);
-    for (let i = 0; i <= N; i++) { await seekTo(video, (duration * i) / N); draw(); onProgress?.(0.08 + 0.34 * (i / N)); }
+    if (ctx) { try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t, cv }); } catch { /* noop */ } }
+    onProgress?.(0.06 + 0.30 * (i / N));
   }
   return shots;
 }
@@ -242,13 +198,14 @@ export async function analyzeForm(
 
   let duration = video.duration;
   if (!isFinite(duration) || duration <= 0) duration = 5; // 一部スマホ動画対策
-  duration = Math.min(duration, 12);
+  const tooShort = duration < 1.0;
+  duration = Math.min(duration, 10); // 規定：1〜10秒（10秒超は先頭10秒を解析）
 
-  // ── 1) 静止コマを高速取り込み（検出はあと＝間引かれず密に取れる） ──
+  // ── 1) コマ取得：決まった時刻にシークして取る（毎回同じ＝結果が安定） ──
   const shots = await grabShots(video, duration, onProgress);
-  if (shots.length < 3) {
+  if (shots.length < 4) {
     URL.revokeObjectURL(url);
-    throw new Error("動画をうまく読み込めませんでした。短い別の動画でお試しください。");
+    throw new Error("動画をうまく読み込めませんでした。1〜10秒の別の動画でお試しください。");
   }
 
   // ── 2) 明るさ（実フレームから3点測定）→ 自動補正ゲイン ──
@@ -260,50 +217,29 @@ export async function analyzeForm(
   const brightness = briSamples.length ? briSamples.reduce((s, v) => s + v, 0) / briSamples.length : 128;
   const gain = brightness < 105 ? clamp(105 / Math.max(6, brightness), 1, 7) : 1;
   const contrast = gain > 1.6 ? 1.2 : gain > 1.02 ? 1.1 : 1;
-  onProgress?.(0.44);
+  onProgress?.(0.40);
 
-  // ── 3) 検出：まず全体を粗く（メトリクス用）→ ピーク周辺を密に（速度用） ──
+  // ── 3) 全コマを検出（IMAGEモード＝状態を持たない＝同じ画像なら必ず同じ結果） ──
   const det = new Map<number, { lm: LM[]; world: LM[] }>();
-  const detectIdx = (idx: number) => {
-    if (det.has(idx)) return;
+  for (let idx = 0; idx < shots.length; idx++) {
     const src = brightenSource(shots[idx].cv, gain, contrast);
     let res;
-    try { res = landmarker.detectForVideo(src, ++_vts); } catch { res = null; }
+    try { res = landmarker.detect(src); } catch { res = null; }
     const lm = res?.landmarks?.[0] as LM[] | undefined;
     const world = (res?.worldLandmarks?.[0] as LM[] | undefined) ?? lm;
     if (lm && world && lm.length >= 20) det.set(idx, { lm, world });
-  };
-
-  const nShots = shots.length;
-  const COARSE = Math.min(nShots, 18);
-  for (let k = 0; k < COARSE; k++) {
-    detectIdx(Math.round((nShots - 1) * (COARSE <= 1 ? 0 : k / (COARSE - 1))));
-    onProgress?.(0.44 + 0.22 * (k / COARSE));
-    await yieldNow(); // UIを固めない
-  }
-
-  // 利き手と粗ピーク時刻（検出済みの粗フレームから）
-  const cf = [...det.entries()].map(([idx, d]) => ({ t: shots[idx].t, lm: d.lm, world: d.world })).sort((a, b) => a.t - b.t);
-  const wrPath = (w: number) => { let s = 0; for (let i = 1; i < cf.length; i++) s += dist2(cf[i].lm[w], cf[i - 1].lm[w]); return s; };
-  const WR = wrPath(R_WR) >= wrPath(L_WR) ? R_WR : L_WR;
-  let peakT = cf.length ? cf[Math.floor(cf.length / 2)].t : duration / 2;
-  { let pv = 0; for (let i = 1; i < cf.length; i++) { const dt = cf[i].t - cf[i - 1].t || 0.05; const v = dist3(cf[i].world[WR], cf[i - 1].world[WR]) / dt; if (v > pv) { pv = v; peakT = cf[i].t; } } }
-
-  // ピーク ±0.4秒のコマを密に検出（最大 DMAX 個にサンプリング＝検出回数を必ず上限内に）
-  const denseCand: number[] = [];
-  for (let idx = 0; idx < nShots; idx++) if (Math.abs(shots[idx].t - peakT) <= 0.4) denseCand.push(idx);
-  const DMAX = 16;
-  const stepD = denseCand.length > DMAX ? Math.ceil(denseCand.length / DMAX) : 1;
-  for (let j = 0; j < denseCand.length; j += stepD) {
-    detectIdx(denseCand[j]);
-    onProgress?.(0.66 + 0.24 * (j / Math.max(1, denseCand.length)));
-    await yieldNow(); // UIを固めない
+    onProgress?.(0.40 + 0.50 * (idx / shots.length));
+    if (idx % 2 === 1) await yieldNow(); // UIを固めない
   }
   onProgress?.(0.92);
 
   // ── 検出済みを時刻順に → frames（写真用に shot index も保持） ──
   const detList = [...det.entries()].map(([idx, d]) => ({ idx, t: shots[idx].t, lm: d.lm, world: d.world })).sort((a, b) => a.t - b.t);
   const frames: Frame[] = detList.map(f => ({ t: f.t, lm: f.lm, world: f.world }));
+
+  // 利き手（よく動く手首）
+  const wrPath = (w: number) => { let s = 0; for (let i = 1; i < frames.length; i++) s += dist2(frames[i].lm[w], frames[i - 1].lm[w]); return s; };
+  const WR = wrPath(R_WR) >= wrPath(L_WR) ? R_WR : L_WR;
 
   const lowLight = brightness < 34;
   const veryDark = brightness < 15;
@@ -317,6 +253,7 @@ export async function analyzeForm(
   }
 
   const notes: string[] = [];
+  if (tooShort) notes.push("⏱ 動画が短めです。1〜10秒（スイング全体が入る長さ）で撮ると精度が上がります。");
   if (lowLight) notes.push(veryDark
     ? "🌙 かなり暗い映像です。明るさを自動補正して解析しました。明るい場所で撮るほど精度が上がります。"
     : "🌙 やや暗い映像です。明るさを自動補正して解析しています。明るい場所ほど精度が高くなります。");
@@ -434,23 +371,16 @@ export async function analyzeForm(
     { label: "フィニッシュ", phase: "FINISH", t: sE },
   ];
   const nearestShotIdx = (t: number) => { let b = 0, bd = Infinity; for (let i = 0; i < shots.length; i++) { const d = Math.abs(shots[i].t - t); if (d < bd) { bd = d; b = i; } } return b; };
+  // 全コマ検出済みなので、ハッキリ写ったコマ（構え等）には自身の骨格がピッタリ重なる。
+  // ブレて未検出の瞬間（インパクト付近）は画像だけ表示する。
   const detByIdx = new Map(detList.map(f => [f.idx, f.lm] as const));
   const keyframes: KeyFrame[] = [];
   for (let p = 0; p < phaseDefs.length; p++) {
     const ph = phaseDefs[p];
     const si = nearestShotIdx(ph.t);
-    // そのコマを直接検出して骨格を出す（構え等ハッキリしたコマは必ず表示。ブレた瞬間だけ画像のみ）
-    let lm = detByIdx.get(si) ?? null;
-    if (!lm) {
-      const src = brightenSource(shots[si].cv, gain, contrast);
-      let res; try { res = landmarker.detectForVideo(src, ++_vts); } catch { res = null; }
-      const l = res?.landmarks?.[0] as LM[] | undefined;
-      if (l && l.length >= 20) lm = l;
-    }
-    const dataUrl = drawSkeleton(shots[si].cv, lm, WR, gain, contrast);
+    const dataUrl = drawSkeleton(shots[si].cv, detByIdx.get(si) ?? null, WR, gain, contrast);
     if (dataUrl) keyframes.push({ label: ph.label, phase: ph.phase, dataUrl });
     onProgress?.(0.97 + 0.03 * ((p + 1) / phaseDefs.length));
-    await yieldNow();
   }
   const keyframeDataUrl = (keyframes.find(k => k.phase === "IMPACT") ?? keyframes[0])?.dataUrl ?? "";
 
