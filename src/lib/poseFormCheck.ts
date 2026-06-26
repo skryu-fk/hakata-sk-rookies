@@ -199,17 +199,20 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
 
 // 隣接コマの画像差分が最大の位置 ＝ いちばん動いた瞬間（スイング/リリース）。
 // 速い動きはモーションブラーで骨格検出が外れがちなので、画像の動きで瞬間を当てる。
-function motionPeakIndex(shots: Shot[]): number {
-  if (shots.length < 3) return Math.floor(shots.length / 2);
+// 戻り値: idx=最も動いたコマ（スイング/リリース）, intensity=動きの強さ0〜1（ブレた瞬間も拾える）
+function motionPeakIndex(shots: Shot[]): { idx: number; intensity: number } {
+  const fallback = { idx: Math.floor(shots.length / 2), intensity: 0 };
+  if (shots.length < 3) return fallback;
+  const W = 40, H = 30;
   const c = typeof document !== "undefined" ? document.createElement("canvas") : null;
-  if (!c) return Math.floor(shots.length / 2);
-  c.width = 40; c.height = 30;
+  if (!c) return fallback;
+  c.width = W; c.height = H;
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return Math.floor(shots.length / 2);
+  if (!ctx) return fallback;
   const sigs: Uint8ClampedArray[] = [];
   for (const s of shots) {
-    try { ctx.drawImage(s.cv, 0, 0, 40, 30); sigs.push(ctx.getImageData(0, 0, 40, 30).data); }
-    catch { sigs.push(new Uint8ClampedArray(40 * 30 * 4)); }
+    try { ctx.drawImage(s.cv, 0, 0, W, H); sigs.push(ctx.getImageData(0, 0, W, H).data); }
+    catch { sigs.push(new Uint8ClampedArray(W * H * 4)); }
   }
   const diffs = [0];
   for (let i = 1; i < sigs.length; i++) {
@@ -217,13 +220,15 @@ function motionPeakIndex(shots: Shot[]): number {
     for (let j = 0; j < a.length; j += 4) d += Math.abs(a[j] - b[j]) + Math.abs(a[j + 1] - b[j + 1]) + Math.abs(a[j + 2] - b[j + 2]);
     diffs.push(d);
   }
-  // 3点平滑して単発ノイズを除き、最大の所を採用
   let peak = Math.floor(shots.length / 2), pd = -1;
   for (let i = 1; i < diffs.length; i++) {
     const v = (diffs[i - 1] + diffs[i] + (diffs[i + 1] || diffs[i])) / 3;
     if (v > pd) { pd = v; peak = i; }
   }
-  return peak;
+  // 強さ＝最大の平滑差分を、全画素の最大値で正規化（0〜1付近）
+  const maxPossible = W * H * 3 * 255;
+  const intensity = clamp(pd / (maxPossible * 0.5), 0, 1);
+  return { idx: peak, intensity };
 }
 
 /** 動画ファイルを解析して結果を返す。onProgress(0..1) で進捗を通知。 */
@@ -315,8 +320,8 @@ export async function analyzeForm(
     : "🌙 やや暗い映像です。明るさを自動補正して解析しています。明るい場所ほど精度が高くなります。");
   if (fewFrames) notes.push("⚠ 解析できたコマが少なめのため、数値は参考値です（横から・全身・なるべくブレずに撮ると精度UP）。");
 
-  // ── スイング/リリースの瞬間を「画像の動きが最大の所」から検出（ブラーでも効く） ──
-  const impactShotIdx = motionPeakIndex(shots);
+  // ── スイング/リリースの瞬間＋動きの強さを「画像の動き」から検出（ブラーでも効く） ──
+  const { idx: impactShotIdx, intensity: motionIntensity } = motionPeakIndex(shots);
   const impactT = shots[impactShotIdx].t;
   let peakIdx = 0; { let bd = Infinity; for (let i = 0; i < frames.length; i++) { const d = Math.abs(frames[i].t - impactT); if (d < bd) { bd = d; peakIdx = i; } } }
   onProgress?.(0.95);
@@ -335,9 +340,15 @@ export async function analyzeForm(
   const hipXs = sma(frames.map(f => mid(f.lm[L_HIP], f.lm[R_HIP]).x));
   const hipTravel = (Math.max(...hipXs) - Math.min(...hipXs)) / bodyH;
 
-  // 肩の回転量（セットアップ→区間内の最大変化、度）
+  // 肩の回転量（セットアップ→区間内の最大変化、度）— 横向き映像で有効
   let shoulderRot = 0;
   for (const f of frames) shoulderRot = Math.max(shoulderRot, Math.abs(shAngle(f) - shAngle(start)));
+  // 肩幅の変化（正面向き→横向きで肩幅が変化＝奥行き回転を捉える）
+  const shW = frames.map(f => dist2(f.lm[L_SH], f.lm[R_SH]));
+  const widthRange = shW.length ? (Math.max(...shW) - Math.min(...shW)) / bodyH : 0;
+  // 回転の総合指標：肩角度変化 / 肩幅変化 / スイングの激しさ の最大。
+  // ブレてAIが骨格を取れない最速の瞬間も「画像の動きの強さ」で補完する。
+  const rotComposite = Math.max(shoulderRot, widthRange * 230, motionIntensity * 200);
 
   // ステップ幅（足首間隔の最大、体長比）
   let strideMax = 0;
@@ -364,14 +375,13 @@ export async function analyzeForm(
   type Def = { key: string; label: string; score: number; good: string; tip: string };
   let defs: Def[];
   if (kind === "batting") {
-    const rotTip = shoulderRot < 40
-      ? "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。"
-      : "体の開きが早めです。前の肩（左打ちなら右肩）を内に入れて“タメ”を作り、ボールを引きつけてから回ると差し込まれにくくなります。";
+    const rotTip = "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。";
     defs = [
       { key: "axis", label: "軸の安定（頭のブレ）", score: sc(104 - headSway * 320),
         good: "頭の位置が安定していて、ブレない良い軸です。",
         tip: "スイング中に頭が動いています。アゴを軽く引き、目線をインパクト位置に最後まで残す意識を。鏡の前でゆっくり素振りし、頭が左右に流れないか確認すると効果的です。" },
-      { key: "rotation", label: "体の回転", score: sc(100 - Math.abs(shoulderRot - 52) * 0.85),
+      // 回転は「大きいほど良い」。角度・肩幅・スイングの激しさ（ブレた瞬間も）から総合評価。
+      { key: "rotation", label: "体の回転", score: sc(42 + clamp(rotComposite, 0, 70) * 0.85),
         good: "骨盤からしっかり回転できていて、力が伝わるスイングです。", tip: rotTip },
       { key: "stride", label: "踏み込み（ステップ）", score: sc(100 - Math.abs(strideMax - 0.5) * 115),
         good: "前足へしっかり踏み込めていて、下半身主導のスイングです。",
