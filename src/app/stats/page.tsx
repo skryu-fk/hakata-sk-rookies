@@ -1227,6 +1227,20 @@ function FormCheckView() {
             </div>
           </section>
 
+          {/* 打者タイプ判定 */}
+          {result.hitterType && (
+            <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.35)", background: "linear-gradient(135deg, rgba(212,168,42,0.1), rgba(255,255,255,0.012))" }}>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", marginBottom: 8 }}>HITTER TYPE</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <span style={{ fontSize: 38, lineHeight: 1, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.5))" }}>{result.hitterType.emoji}</span>
+                <div>
+                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 20, color: "#fff" }}>{result.hitterType.label}</div>
+                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.75, marginTop: 4 }}>{result.hitterType.desc}</div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* キーフレーム連続写真（構え〜フォロースルー） */}
           {result.keyframes.length > 0 && (() => {
             const sel = result.keyframes[Math.min(kfIndex, result.keyframes.length - 1)];

@@ -15,9 +15,11 @@ export type Kind = "batting" | "pitching";
 export type LM = { x: number; y: number; z: number; visibility?: number };
 export type Metric = { key: string; label: string; score: number; comment: string };
 export type KeyFrame = { label: string; phase: string; dataUrl: string };
+export type HitterType = { emoji: string; label: string; desc: string };
 export type FormResult = {
   kind: Kind;
   overall: number;
+  hitterType: HitterType | null;  // 打者タイプ判定（打撃のみ）
   metrics: Metric[];
   strengths: string[];         // 良かった点
   tips: string[];              // 改善アドバイス（具体的）
@@ -383,10 +385,12 @@ export async function analyzeForm(
       // 回転は「大きいほど良い」。角度・肩幅・スイングの激しさ（ブレた瞬間も）から総合評価。
       { key: "rotation", label: "体の回転", score: sc(42 + clamp(rotComposite, 0, 70) * 0.85),
         good: "骨盤からしっかり回転できていて、力が伝わるスイングです。", tip: rotTip },
-      { key: "stride", label: "踏み込み（ステップ）", score: sc(100 - Math.abs(strideMax - 0.5) * 115),
+      // 踏み込みは「しっかり踏み出すほど良い」（広い・大きいほど高評価）
+      { key: "stride", label: "踏み込み（ステップ）", score: sc(52 + clamp(strideMax, 0, 0.6) * 80),
         good: "前足へしっかり踏み込めていて、下半身主導のスイングです。",
-        tip: "ステップ幅にムラがあります。軸足に体重を乗せてから、ピッチャー方向へ同じ幅で大きく一歩踏み込むと力が安定して伝わります。" },
-      { key: "weight", label: "重心の安定", score: sc(102 - hipTravel * 150),
+        tip: "踏み込みが小さめです。軸足に体重を乗せてから、ピッチャー方向へ大きく一歩踏み込むと力が伝わります。同じ幅で踏める素振りを繰り返しましょう。" },
+      // 重心は「突っ込みすぎだけ減点」（適度な体重移動はOK）
+      { key: "weight", label: "重心の安定", score: sc(96 - clamp(hipTravel - 0.22, 0, 0.5) * 120),
         good: "重心が安定し、突っ込みもなく良いバランスです。",
         tip: "上体が前に突っ込み気味です。軸足で粘り、頭をボールの後ろに残したまま回転すると安定します。“我慢して引きつける”意識を持ちましょう。" },
       { key: "follow", label: "フォロースルー", score: sc(56 + follow * 60),
@@ -416,12 +420,29 @@ export async function analyzeForm(
   }
 
   const metrics: Metric[] = defs.map(d => ({ key: d.key, label: d.label, score: d.score, comment: d.score >= 68 ? d.good : firstLine(d.tip) }));
+  const scoreOf = (k: string) => defs.find(d => d.key === k)?.score ?? 0;
   // 総合点（各指標の平均）
   const overall = Math.round(defs.reduce((s, d) => s + d.score, 0) / defs.length);
 
+  // ── 打者タイプ判定（打撃のみ）：回転・振り切り・スイングの激しさから ──
+  let hitterType: HitterType | null = null;
+  if (kind === "batting") {
+    const rotS = scoreOf("rotation"), followS = scoreOf("follow"), axisS = scoreOf("axis");
+    const power = (rotS + followS) / 2 + motionIntensity * 70; // パワー指標
+    if (overall < 52) {
+      hitterType = { emoji: "🌱", label: "発展途上タイプ", desc: "まずは基礎フォームを固める段階。下のポイントを1つずつ試そう。続ければ必ず伸びます！" };
+    } else if (rotS >= 75 && followS >= 70 && power >= 88) {
+      hitterType = { emoji: "💣", label: "長距離（パワー）タイプ", desc: "大きな回転と振り切りでボールを遠くへ飛ばすスラッガータイプ。長打が武器です！" };
+    } else if (axisS >= 70 && rotS >= 55) {
+      hitterType = { emoji: "🎯", label: "中距離（ミート）タイプ", desc: "軸が安定したコンパクトなスイング。確実にミートして広角に打ち分けるタイプ。" };
+    } else {
+      hitterType = { emoji: "⚙️", label: "バランス改善タイプ", desc: "持ち味はこれから。軸と回転を整えると一気に伸びます。下のポイントを重点的に。" };
+    }
+  }
+
   // 良かった点（高スコア）と 改善アドバイス（低スコア・具体的）
   const strengths = defs.filter(d => d.score >= 76).sort((a, b) => b.score - a.score).slice(0, 3).map(d => d.good);
-  const tips = defs.filter(d => d.score < 72).sort((a, b) => a.score - b.score).slice(0, 4).map(d => d.tip);
+  const tips = defs.filter(d => d.score < 70).sort((a, b) => a.score - b.score).slice(0, 4).map(d => d.tip);
   if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを維持しつつ、さらにスイング/球のキレを磨いていきましょう！");
   if (strengths.length === 0) strengths.push("まずは反復で“同じ動き”を固めることから。続けるほど数値は必ず伸びます。");
 
@@ -462,7 +483,7 @@ export async function analyzeForm(
   onProgress?.(1);
 
   return {
-    kind, overall,
+    kind, overall, hitterType,
     metrics, strengths, tips, keyframeDataUrl, keyframes,
     framesAnalyzed: frames.length, durationSec: duration,
     lowLight, brightness: Math.round(brightness), notes,
