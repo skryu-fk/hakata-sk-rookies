@@ -55,8 +55,10 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, sheets: (many.data as { sheets?: unknown }).sheets ?? {} });
     }
 
-    // 2) 旧デプロイ（listMany 未対応）の場合のみ、従来どおり並列取得にフォールバック
-    if (many.error === "unknown op") {
+    // 2) 旧デプロイ（listMany 未対応）の場合は従来どおり並列取得にフォールバック。
+    //    旧 Apps Script は sheet 名チェックが先に走るため "unknown sheet" を、
+    //    新しめでも未対応なら "unknown op" を返す。どちらでもフォールバックする。
+    if (/unknown/i.test(many.error)) {
       const results = await Promise.all(
         allowed.map(async sheet => {
           const r = await callAppsScript({ op: "list", sheet });

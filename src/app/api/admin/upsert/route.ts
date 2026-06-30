@@ -53,8 +53,8 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
-  // 2) 旧デプロイ（upsert 未対応）の場合のみ list → update/append にフォールバック
-  if (result.error === "unknown op") {
+  // 2) 旧デプロイ（upsert 未対応）の場合は list → update/append にフォールバック
+  if (/unknown/i.test(result.error)) {
     const list = await callAppsScript({ op: "list", sheet: body.sheet });
     if (!list.ok) return Response.json({ ok: false, error: list.error }, { status: list.status });
     const rows = (list.data as { rows?: { rowIndex: number; data: string[] }[] }).rows ?? [];
