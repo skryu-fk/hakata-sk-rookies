@@ -11,6 +11,7 @@ import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const ALLOWED_STATUS = new Set(["出席", "欠席"]);
 

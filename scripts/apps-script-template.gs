@@ -135,6 +135,31 @@ function doPost(e) {
       return jsonResponse({ ok: true });
     }
 
+    // キー列の値で「あれば更新・なければ追加」する冪等な書き込み。
+    // 何度実行しても結果が同じなので、タイムアウト時にサーバ側で安全に再試行できる
+    // （重複行を作らない）。メンテナンス切替など設定の上書きに使う。
+    if (op === "upsert") {
+      var keyCol = Number(body.keyCol || 1);   // 1始まりの列番号
+      var keyVal = String(body.keyVal == null ? "" : body.keyVal);
+      var row = body.row;
+      if (!Array.isArray(row)) return jsonResponse({ ok: false, error: "row required" });
+      var values = sh.getDataRange().getValues();
+      var foundRow = -1;
+      for (var i = 1; i < values.length; i++) { // 1行目はヘッダなので飛ばす
+        if (String(values[i][keyCol - 1]) === keyVal) { foundRow = i + 1; break; } // 1始まりの表行
+      }
+      var numCols = Math.max(row.length, sh.getLastColumn());
+      var padded = row.slice();
+      while (padded.length < numCols) padded.push("");
+      if (foundRow === -1) {
+        sh.insertRowsBefore(2, 1);
+        sh.getRange(2, 1, 1, numCols).setValues([padded]);
+      } else {
+        sh.getRange(foundRow, 1, 1, numCols).setValues([padded]);
+      }
+      return jsonResponse({ ok: true });
+    }
+
     return jsonResponse({ ok: false, error: "unknown op" });
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err) });

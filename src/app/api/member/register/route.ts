@@ -15,6 +15,7 @@ import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function genId(): string {
   return `acc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

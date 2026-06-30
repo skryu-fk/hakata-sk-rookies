@@ -3785,9 +3785,8 @@ function MaintenanceTab({
 
   async function setMaintenance(on: boolean) {
     const row = ["maintenance", on ? "on" : "off", on ? message.trim() : (current?.note ?? "")];
-    const ok = current
-      ? await api("/api/admin/update", { sheet: "settings", rowIndex: current._row, row })
-      : await api("/api/admin/append", { sheet: "settings", row });
+    // 冪等な upsert（キー="maintenance"）。タイムアウトしても自動リトライで安全に反映される。
+    const ok = await api("/api/admin/upsert", { sheet: "settings", keyCol: 1, keyVal: "maintenance", row });
     if (ok) {
       showToast(true, on ? "メンテナンス中にしました。" : "通常公開に戻しました。");
       reload();

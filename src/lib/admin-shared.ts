@@ -78,24 +78,31 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
     return { ok: false, status: 500, error: "APPS_SCRIPT_URL が未設定です。" };
   }
 
-  // 読み取り(list)は冪等なので、コールドスタートや同時アクセスによる一時的失敗を
-  // 自動リトライで吸収する。書き込み(append/update/delete)は二重実行を避けるため
-  // 1回だけ（リトライしない）。
-  const canRetry = payload.op === "list";
-  const maxAttempts = canRetry ? 3 : 1;
+  // 冪等な操作（list=読み取り / upsert=キー指定の上書き）は、コールドスタートや
+  // 一時的失敗・タイムアウトを自動リトライで吸収する（重複や副作用が出ない）。
+  // 非冪等な書き込み(append/update/delete)は二重実行を避けるため1回だけ。
+  const canRetry = payload.op === "list" || payload.op === "upsert";
+
+  // 全体の制限時間。maxDuration(60s) の手前で必ず打ち切り、Vercel に強制終了される前に
+  // 自前のわかりやすいエラーを返せるようにする。
+  const startedAt = Date.now();
+  const DEADLINE_MS = 50_000;
+  const PER_ATTEMPT_MS = 20_000;
 
   let lastStatus = 502;
   let lastError = "Apps Script への接続に失敗しました。";
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; ; attempt++) {
+    const remaining = DEADLINE_MS - (Date.now() - startedAt);
+    // 1回目は必ず実行。2回目以降は残り時間がある時だけ。
+    const attemptTimeout = Math.max(4_000, Math.min(PER_ATTEMPT_MS, remaining));
     try {
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, ...payload }),
         redirect: "follow",
-        // Apps Script はコールドスタート時に時間がかかるため余裕を持たせる
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(attemptTimeout),
       });
       const text = await r.text().catch(() => "");
 
@@ -104,7 +111,7 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
 
       if (data && typeof data === "object") {
         if (data.ok === true) return { ok: true, data };
-        // 業務エラー（unknown sheet など）はリトライしても無駄なので即返す
+        // 業務エラー（unknown sheet / unknown op など）はリトライしても無駄なので即返す
         console.error("[admin] Apps Script returned non-ok:", data);
         return { ok: false, status: 502, error: data.error ?? "Apps Script の処理に失敗しました。" };
       }
@@ -129,11 +136,13 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
       console.error("[admin] Apps Script attempt", attempt, "error:", e);
     }
 
-    // 次の試行まで少し待つ（指数バックオフ）
-    if (attempt < maxAttempts) await new Promise(res => setTimeout(res, 400 * attempt));
+    // リトライ判定：冪等な操作で、かつ残り時間がある場合のみ次の試行へ。
+    if (!canRetry) break;
+    if (DEADLINE_MS - (Date.now() - startedAt) < 5_000) break;
+    await new Promise(res => setTimeout(res, 400));
   }
 
-  console.error("[admin] Apps Script failed after", maxAttempts, "attempt(s):", lastError);
+  console.error("[admin] Apps Script failed:", lastError);
   return { ok: false, status: lastStatus, error: lastError };
 }
 

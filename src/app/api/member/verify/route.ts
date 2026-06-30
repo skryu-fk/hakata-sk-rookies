@@ -13,6 +13,7 @@ import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const TTL = 60 * 60 * 24 * 30; // 30日
 const GENERIC = "本名またはパスワードが違います。";
