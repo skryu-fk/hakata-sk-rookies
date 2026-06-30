@@ -78,16 +78,16 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
     return { ok: false, status: 500, error: "APPS_SCRIPT_URL が未設定です。" };
   }
 
-  // 冪等な操作（list=読み取り / upsert=キー指定の上書き）は、コールドスタートや
-  // 一時的失敗・タイムアウトを自動リトライで吸収する（重複や副作用が出ない）。
+  // 冪等な操作（list / listMany = 読み取り / upsert = キー指定の上書き）は、
+  // コールドスタートや一時的失敗・タイムアウトを自動リトライで吸収する（重複や副作用が出ない）。
   // 非冪等な書き込み(append/update/delete)は二重実行を避けるため1回だけ。
-  const canRetry = payload.op === "list" || payload.op === "upsert";
+  const canRetry = payload.op === "list" || payload.op === "listMany" || payload.op === "upsert";
 
-  // 全体の制限時間。maxDuration(60s) の手前で必ず打ち切り、Vercel に強制終了される前に
-  // 自前のわかりやすいエラーを返せるようにする。
+  // 全体の制限時間。健全なら1回で即返るので影響なし。バックエンドが不調な時に
+  // 50秒も待たせず、早めに分かりやすいエラーを返すための上限。
   const startedAt = Date.now();
-  const DEADLINE_MS = 50_000;
-  const PER_ATTEMPT_MS = 20_000;
+  const DEADLINE_MS = 34_000;
+  const PER_ATTEMPT_MS = 18_000;
 
   let lastStatus = 502;
   let lastError = "Apps Script への接続に失敗しました。";

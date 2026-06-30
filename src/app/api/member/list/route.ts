@@ -35,13 +35,43 @@ export async function POST(request: Request) {
   const authErr = ensureMemberAuth(request.headers);
   if (authErr) return authErr;
 
-  let body: { sheet?: string };
+  let body: { sheet?: string; sheets?: string[] };
   try {
     body = await request.json();
   } catch {
     return Response.json({ ok: false, error: "リクエスト形式が不正です。" }, { status: 400 });
   }
 
+  // ── 複数シートをまとめて取得（読み込み高速化。1往復で全部取る）──
+  if (Array.isArray(body.sheets)) {
+    const allowed = body.sheets.filter(s => MEMBER_ALLOWED_SHEETS.has(s));
+    if (allowed.length === 0) {
+      return Response.json({ ok: false, error: "閲覧できないシートです。" }, { status: 400 });
+    }
+
+    // 1) Apps Script の listMany（1回でまとめて取得）を試す
+    const many = await callAppsScript({ op: "listMany", sheets: allowed });
+    if (many.ok) {
+      return Response.json({ ok: true, sheets: (many.data as { sheets?: unknown }).sheets ?? {} });
+    }
+
+    // 2) 旧デプロイ（listMany 未対応）の場合のみ、従来どおり並列取得にフォールバック
+    if (many.error === "unknown op") {
+      const results = await Promise.all(
+        allowed.map(async sheet => {
+          const r = await callAppsScript({ op: "list", sheet });
+          return [sheet, r.ok ? (r.data as { rows?: unknown }).rows ?? [] : []] as const;
+        })
+      );
+      const sheets: Record<string, unknown> = {};
+      for (const [name, rows] of results) sheets[name] = rows;
+      return Response.json({ ok: true, sheets });
+    }
+
+    return Response.json({ ok: false, error: many.error }, { status: many.status });
+  }
+
+  // ── 単一シート（従来互換。vote/score の確認等で使用）──
   if (!body.sheet || !MEMBER_ALLOWED_SHEETS.has(body.sheet)) {
     return Response.json({ ok: false, error: "閲覧できないシートです。" }, { status: 400 });
   }

@@ -538,25 +538,6 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-/**
- * 並列実行の同時数を制限して順番どおりに結果を返す。
- * Apps Script は同時アクセスに弱い（コールドスタート＋実行のシリアライズ）ため、
- * 全シートを一気に取りに行くと一部がタイムアウトして「読み込めない」状態になる。
- * 同時数を絞ることで取りこぼしを防ぐ。
- */
-async function runPool(thunks: (() => Promise<unknown>)[], limit: number): Promise<unknown[]> {
-  const results = new Array<unknown>(thunks.length);
-  let next = 0;
-  async function worker() {
-    while (next < thunks.length) {
-      const i = next++;
-      results[i] = await thunks[i]();
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, thunks.length) }, worker));
-  return results;
-}
-
 /* ── 集計ヘルパ ───────────────────────────────────────── */
 // wOBA 係数（FanGraphs 近年の値に準拠）
 const WOBA = { bb: 0.69, hbp: 0.72, b1: 0.89, b2: 1.27, b3: 1.62, hr: 2.10 };
@@ -676,135 +657,127 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("news");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
-  const fetchList = useCallback(async <T,>(sheet: string, mapFn: (r: ListRow) => T): Promise<T[]> => {
-    // 認証は Cookie（同一オリジンの fetch で自動送信）。パスワードは送らない。
+  // 全シートを1回のリクエストでまとめて取得（読み込み高速化）。
+  // 認証は Cookie（同一オリジンの fetch で自動送信）。パスワードは送らない。
+  const fetchSheets = useCallback(async (sheets: string[]): Promise<Record<string, ListRow[]>> => {
     const res = await fetch("/api/member/list", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sheet }),
+      body: JSON.stringify({ sheets }),
       cache: "no-store",
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok || !data?.ok) return [];
-    return (data.rows ?? []).map(mapFn);
+    if (!res.ok || !data?.ok || !data.sheets) return {};
+    return data.sheets as Record<string, ListRow[]>;
   }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts, atts] = await runPool([
-        () => fetchList<Member>("members", r => ({
-          id: r.data[0] ?? "",
-          name: r.data[1] ?? "",
-          nickname: r.data[2] ?? "",
-          jerseyNumber: r.data[3] ?? "",
-          position: r.data[4] ?? "",
-          active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
-        })),
-        () => fetchList<BattingRow>("batting", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          opponent: r.data[3] ?? "",
-          atBats: num(r.data[4]),
-          hits: num(r.data[5]),
-          doubles: num(r.data[6]),
-          triples: num(r.data[7]),
-          hr: num(r.data[8]),
-          rbi: num(r.data[9]),
-          bb: num(r.data[10]),
-          so: num(r.data[11]),
-          hbp: num(r.data[12]),
-          sh: num(r.data[13]),
-          sb: num(r.data[14]),
-          cs: num(r.data[15]),
-        })),
-        () => fetchList<PitchingRow>("pitching", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          opponent: r.data[3] ?? "",
-          ipOuts: num(r.data[4]),
-          hits: num(r.data[5]),
-          runs: num(r.data[6]),
-          er: num(r.data[7]),
-          so: num(r.data[8]),
-          bb: num(r.data[9]),
-          hbp: num(r.data[10]),
-        })),
-        () => fetchList<CatchingRow>("catching", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          opponent: r.data[3] ?? "",
-          sba: num(r.data[4]),
-          cs: num(r.data[5]),
-        })),
-        () => fetchList<FieldingRow>("fielding", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          opponent: r.data[3] ?? "",
-          po: num(r.data[4]),
-          a: num(r.data[5]),
-          e: num(r.data[6]),
-        })),
-        () => fetchList<PracticeRow>("practices", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          type: r.data[1] ?? "",
-          place: r.data[2] ?? "",
-          status: r.data[3] ?? "",
-          time: r.data[4] ?? "",
-          note: r.data[5] ?? "",
-        })),
-        () => fetchList<ProbableRow>("probables", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          opponent: r.data[1] ?? "",
-          memberId: r.data[2] ?? "",
-          memberName: r.data[3] ?? "",
-          note: r.data[4] ?? "",
-        })),
-        () => fetchList<AnnouncementRow>("announcements", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          category: r.data[1] ?? "お知らせ",
-          title: r.data[2] ?? "",
-          body: r.data[3] ?? "",
-        })),
-        () => fetchList<ParticipantRow>("participants", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          memberName: r.data[2] ?? "",
-          note: r.data[3] ?? "",
-        })),
-        () => fetchList<SettingRow>("settings", r => ({
-          key: r.data[0] ?? "",
-          value: r.data[1] ?? "",
-          note: r.data[2] ?? "",
-        })),
-        () => fetchList<AttendanceRow>("attendance", r => ({
-          date: normalizeDate(r.data[0] ?? ""),
-          memberId: r.data[1] ?? "",
-          memberName: r.data[2] ?? "",
-          status: r.data[3] ?? "",
-          note: r.data[4] ?? "",
-        })),
-      ], 4) as [
-        Member[], BattingRow[], PitchingRow[], CatchingRow[], FieldingRow[],
-        PracticeRow[], ProbableRow[], AnnouncementRow[], ParticipantRow[], SettingRow[], AttendanceRow[],
-      ];
-      setMembers(ms);
-      setBatting(bs);
-      setPitching(ps);
-      setCatching(cs);
-      setFielding(fs);
-      setPractices(prs);
-      setProbables(pbs);
-      setAnnouncements(ans);
-      setParticipants(parts);
-      setAttendance(atts);
+      const map = await fetchSheets([
+        "members", "batting", "pitching", "catching", "fielding",
+        "practices", "probables", "announcements", "participants", "settings", "attendance",
+      ]);
+      const rowsOf = (name: string): ListRow[] => map[name] ?? [];
+
+      setMembers(rowsOf("members").map(r => ({
+        id: r.data[0] ?? "",
+        name: r.data[1] ?? "",
+        nickname: r.data[2] ?? "",
+        jerseyNumber: r.data[3] ?? "",
+        position: r.data[4] ?? "",
+        active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
+      })));
+      setBatting(rowsOf("batting").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        opponent: r.data[3] ?? "",
+        atBats: num(r.data[4]),
+        hits: num(r.data[5]),
+        doubles: num(r.data[6]),
+        triples: num(r.data[7]),
+        hr: num(r.data[8]),
+        rbi: num(r.data[9]),
+        bb: num(r.data[10]),
+        so: num(r.data[11]),
+        hbp: num(r.data[12]),
+        sh: num(r.data[13]),
+        sb: num(r.data[14]),
+        cs: num(r.data[15]),
+      })));
+      setPitching(rowsOf("pitching").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        opponent: r.data[3] ?? "",
+        ipOuts: num(r.data[4]),
+        hits: num(r.data[5]),
+        runs: num(r.data[6]),
+        er: num(r.data[7]),
+        so: num(r.data[8]),
+        bb: num(r.data[9]),
+        hbp: num(r.data[10]),
+      })));
+      setCatching(rowsOf("catching").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        opponent: r.data[3] ?? "",
+        sba: num(r.data[4]),
+        cs: num(r.data[5]),
+      })));
+      setFielding(rowsOf("fielding").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        opponent: r.data[3] ?? "",
+        po: num(r.data[4]),
+        a: num(r.data[5]),
+        e: num(r.data[6]),
+      })));
+      setPractices(rowsOf("practices").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        type: r.data[1] ?? "",
+        place: r.data[2] ?? "",
+        status: r.data[3] ?? "",
+        time: r.data[4] ?? "",
+        note: r.data[5] ?? "",
+      })));
+      setProbables(rowsOf("probables").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        opponent: r.data[1] ?? "",
+        memberId: r.data[2] ?? "",
+        memberName: r.data[3] ?? "",
+        note: r.data[4] ?? "",
+      })));
+      setAnnouncements(rowsOf("announcements").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        category: r.data[1] ?? "お知らせ",
+        title: r.data[2] ?? "",
+        body: r.data[3] ?? "",
+      })));
+      setParticipants(rowsOf("participants").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        memberName: r.data[2] ?? "",
+        note: r.data[3] ?? "",
+      })));
+      setAttendance(rowsOf("attendance").map(r => ({
+        date: normalizeDate(r.data[0] ?? ""),
+        memberId: r.data[1] ?? "",
+        memberName: r.data[2] ?? "",
+        status: r.data[3] ?? "",
+        note: r.data[4] ?? "",
+      })));
+      const setts = rowsOf("settings").map(r => ({
+        key: r.data[0] ?? "",
+        value: r.data[1] ?? "",
+        note: r.data[2] ?? "",
+      }));
       const mt = setts.find(s => s.key === "maintenance");
       setMaintenance({ on: mt?.value === "on", message: mt?.note ?? "" });
       setUpdatedAt(new Date());
     } finally {
       setLoading(false);
     }
-  }, [fetchList]);
+  }, [fetchSheets]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 

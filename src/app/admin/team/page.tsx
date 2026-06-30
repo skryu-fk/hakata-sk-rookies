@@ -465,7 +465,14 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   // 連続して呼ばれる可能性があるので Symbol で参照カウントせず、各呼び出しの try/finally で確実に下げる。
   const writingCount = useRef(0);
   const api = useCallback(async <T,>(path: string, body: Record<string, unknown>): Promise<T | null> => {
-    const isWrite = path !== "/api/admin/list" && path !== "/api/admin/verify";
+    // 読み取り（list / verify / アカウント一覧）は saving 扱いにしない。
+    // ※ ここを書き込み扱いにすると、ページを開くたびに保存ローダーが回り
+    //   全ボタンが無効化されて「重い」と感じる原因になる。
+    const isRead =
+      path === "/api/admin/list" ||
+      path === "/api/admin/verify" ||
+      (path === "/api/admin/accounts" && body.op === "list");
+    const isWrite = !isRead;
     if (isWrite) {
       writingCount.current += 1;
       setSaving(true);

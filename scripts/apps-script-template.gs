@@ -83,6 +83,25 @@ function doPost(e) {
     if (body.password !== PASSWORD) {
       return jsonResponse({ ok: false, error: "auth" });
     }
+
+    // 複数シートを1回のリクエストでまとめて取得（読み込み高速化）。
+    // 単一シート検証より前に処理する。
+    if (String(body.op) === "listMany") {
+      var names = body.sheets;
+      if (!Array.isArray(names)) return jsonResponse({ ok: false, error: "sheets required" });
+      var out = {};
+      for (var k = 0; k < names.length; k++) {
+        var nm = String(names[k]);
+        if (ALLOWED_SHEETS.indexOf(nm) === -1) continue;
+        var s = getOrCreateSheet(nm);
+        var d = s.getDataRange().getValues();
+        out[nm] = d.slice(1).map(function (row, i) {
+          return { rowIndex: i + 2, data: row.map(cellToString) };
+        });
+      }
+      return jsonResponse({ ok: true, sheets: out });
+    }
+
     const sheetName = String(body.sheet || "");
     if (ALLOWED_SHEETS.indexOf(sheetName) === -1) {
       return jsonResponse({ ok: false, error: "unknown sheet" });
