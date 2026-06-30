@@ -18,9 +18,20 @@ import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "1.3";
+const APP_VERSION = "1.4";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "1.4",
+    date: "2026-06-30",
+    items: [
+      "👤 メンバー個人アカウント制を導入（本名＋自分のパスワードでログイン）",
+      "📝 新規登録ページを追加（パスワードは2回入力で確認）",
+      "🛡 共通パスワードでのログインは廃止し、なりすましを防止",
+      "✅ 登録は管理者の承認制（承認された人だけログインできます）",
+      "🔐 パスワードは暗号化（ハッシュ化）して保存・誰にも見えません",
+    ],
+  },
   {
     version: "1.3",
     date: "2026-06-24",
@@ -272,28 +283,68 @@ const pageBgStyle: React.CSSProperties = {
 
 /* ── ログイン画面 ─────────────────────────────────────── */
 function LoginGate({ onSuccess }: { onSuccess: () => void }) {
-  const [input, setInput] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState(""); // 承認待ち等の案内（成功系）
   const [busy, setBusy] = useState(false);
+  const isLogin = mode === "login";
+
+  function switchMode(m: "login" | "register") {
+    setMode(m);
+    setError("");
+    setNotice("");
+    setPw("");
+    setPw2("");
+  }
 
   async function submit() {
-    if (!input) return;
+    if (busy) return;
+    const nm = name.trim();
+    if (!nm || !pw) { setError("本名とパスワードを入力してください。"); return; }
+    if (!isLogin) {
+      if (pw.length < 8) { setError("パスワードは8文字以上にしてください。"); return; }
+      if (pw !== pw2) { setError("確認用パスワードが一致しません。"); return; }
+    }
     setBusy(true);
     setError("");
+    setNotice("");
     try {
-      // 成功すると HttpOnly セッション Cookie が発行される（パスワードは保存しない）
-      const res = await fetch("/api/member/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: input }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.ok) {
-        onSuccess();
-      } else if (res.status === 429) {
-        setError("試行回数が多すぎます。しばらく待ってからお試しください。");
+      if (isLogin) {
+        // 成功すると HttpOnly セッション Cookie が発行される（パスワードは保存しない）
+        const res = await fetch("/api/member/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: nm, password: pw }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.ok) {
+          try { localStorage.setItem("skr_login_name", data.name || nm); } catch {}
+          onSuccess();
+        } else if (res.status === 429) {
+          setError("試行回数が多すぎます。しばらく待ってからお試しください。");
+        } else {
+          setError(data?.error || "ログインに失敗しました。");
+        }
       } else {
-        setError(data?.error || "認証に失敗しました。");
+        const res = await fetch("/api/member/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: nm, password: pw, password2: pw2 }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.ok) {
+          setMode("login");
+          setPw("");
+          setPw2("");
+          setNotice(data.message || "登録申請を受け付けました。管理者の承認後にログインできます。");
+        } else if (res.status === 429) {
+          setError("試行回数が多すぎます。しばらく待ってからお試しください。");
+        } else {
+          setError(data?.error || "登録に失敗しました。");
+        }
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
@@ -301,6 +352,17 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
       setBusy(false);
     }
   }
+
+  const fieldStyle = {
+    width: "100%",
+    padding: 14,
+    marginTop: 10,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#fff",
+    fontSize: 15,
+    letterSpacing: "0.06em",
+  } as const;
 
   return (
     <div style={pageBgStyle}>
@@ -321,50 +383,93 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17, marginTop: 6, lineHeight: 1.4 }}>
             博多SKルーキーズ<br />メンバー成績アプリ
           </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 10, letterSpacing: "0.05em" }}>
-            チーム共有のパスワードを入力してください
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 10, letterSpacing: "0.05em", lineHeight: 1.6 }}>
+            {isLogin
+              ? "本名と個人パスワードでログイン"
+              : "本名で新規登録（管理者の承認後にログインできます）"}
           </div>
         </div>
 
+        {/* ログイン / 新規登録 切替 */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          {([["login", "ログイン"], ["register", "新規登録"]] as const).map(([m, label]) => {
+            const on = mode === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                style={{
+                  flex: 1,
+                  padding: "11px 0",
+                  background: on ? "rgba(212,168,42,0.16)" : "rgba(255,255,255,0.04)",
+                  border: on ? "1px solid rgba(212,168,42,0.6)" : "1px solid rgba(255,255,255,0.1)",
+                  color: on ? "#f0c75e" : "rgba(255,255,255,0.6)",
+                  fontFamily: "var(--font-zen),sans-serif",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  letterSpacing: "0.1em",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {notice && (
+          <div style={{
+            marginBottom: 14, padding: "11px 12px", fontSize: 12, lineHeight: 1.6,
+            color: "#9fe6b0", background: "rgba(40,180,99,0.1)", border: "1px solid rgba(40,180,99,0.35)",
+          }}>
+            ✅ {notice}
+          </div>
+        )}
+
         <form onSubmit={e => { e.preventDefault(); submit(); }}>
-          {/* パスワードマネージャ（iPhoneのキーチェーン/Face ID・Androidの自動入力）に
-              認証情報を保存・関連付けさせるためのユーザー名フィールド。
-              画面には出さないが display:none にすると無視されるため画面外に固定配置する。 */}
           <input
             type="text"
             name="username"
             autoComplete="username"
-            value="博多SKルーキーズ メンバー"
-            readOnly
-            tabIndex={-1}
-            aria-hidden="true"
-            style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, border: 0, overflow: "hidden", opacity: 0, pointerEvents: "none" }}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="本名（フルネーム）"
+            autoFocus
+            style={{ ...fieldStyle, marginTop: 0 }}
           />
           <input
             type="password"
             name="password"
             id="member-password"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            placeholder="メンバー用パスワード"
-            autoFocus
-            autoComplete="current-password"
-            style={{
-              width: "100%",
-              padding: 14,
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "#fff",
-              fontSize: 15,
-              letterSpacing: "0.1em",
-            }}
+            value={pw}
+            onChange={e => setPw(e.target.value)}
+            placeholder={isLogin ? "パスワード" : "パスワード（8文字以上）"}
+            autoComplete={isLogin ? "current-password" : "new-password"}
+            style={fieldStyle}
           />
+          {!isLogin && (
+            <input
+              type="password"
+              name="password2"
+              value={pw2}
+              onChange={e => setPw2(e.target.value)}
+              placeholder="パスワード（確認・もう一度）"
+              autoComplete="new-password"
+              style={fieldStyle}
+            />
+          )}
+          {!isLogin && (
+            <div style={{ marginTop: 9, fontSize: 10.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
+              ※ 本名は必ず正確に入力してください（チーム名簿・成績の照合に使います）。
+            </div>
+          )}
           {error && (
-            <div style={{ marginTop: 10, color: "#ff6982", fontSize: 12 }}>{error}</div>
+            <div style={{ marginTop: 10, color: "#ff6982", fontSize: 12, lineHeight: 1.6 }}>{error}</div>
           )}
           <button
             type="submit"
-            disabled={busy || !input}
+            disabled={busy}
             className="btn-sheen"
             style={{
               marginTop: 18,
@@ -380,7 +485,7 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
               cursor: busy ? "not-allowed" : "pointer",
             }}
           >
-            {busy ? "認証中..." : "成績を見る →"}
+            {busy ? "処理中..." : isLogin ? "ログイン →" : "登録を申請する →"}
           </button>
         </form>
 
@@ -431,6 +536,25 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
       </div>
     </div>
   );
+}
+
+/**
+ * 並列実行の同時数を制限して順番どおりに結果を返す。
+ * Apps Script は同時アクセスに弱い（コールドスタート＋実行のシリアライズ）ため、
+ * 全シートを一気に取りに行くと一部がタイムアウトして「読み込めない」状態になる。
+ * 同時数を絞ることで取りこぼしを防ぐ。
+ */
+async function runPool(thunks: (() => Promise<unknown>)[], limit: number): Promise<unknown[]> {
+  const results = new Array<unknown>(thunks.length);
+  let next = 0;
+  async function worker() {
+    while (next < thunks.length) {
+      const i = next++;
+      results[i] = await thunks[i]();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, thunks.length) }, worker));
+  return results;
 }
 
 /* ── 集計ヘルパ ───────────────────────────────────────── */
@@ -568,8 +692,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts, atts] = await Promise.all([
-        fetchList<Member>("members", r => ({
+      const [ms, bs, ps, cs, fs, prs, pbs, ans, parts, setts, atts] = await runPool([
+        () => fetchList<Member>("members", r => ({
           id: r.data[0] ?? "",
           name: r.data[1] ?? "",
           nickname: r.data[2] ?? "",
@@ -577,7 +701,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           position: r.data[4] ?? "",
           active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
         })),
-        fetchList<BattingRow>("batting", r => ({
+        () => fetchList<BattingRow>("batting", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           opponent: r.data[3] ?? "",
@@ -594,7 +718,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           sb: num(r.data[14]),
           cs: num(r.data[15]),
         })),
-        fetchList<PitchingRow>("pitching", r => ({
+        () => fetchList<PitchingRow>("pitching", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           opponent: r.data[3] ?? "",
@@ -606,14 +730,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           bb: num(r.data[9]),
           hbp: num(r.data[10]),
         })),
-        fetchList<CatchingRow>("catching", r => ({
+        () => fetchList<CatchingRow>("catching", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           opponent: r.data[3] ?? "",
           sba: num(r.data[4]),
           cs: num(r.data[5]),
         })),
-        fetchList<FieldingRow>("fielding", r => ({
+        () => fetchList<FieldingRow>("fielding", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           opponent: r.data[3] ?? "",
@@ -621,7 +745,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           a: num(r.data[5]),
           e: num(r.data[6]),
         })),
-        fetchList<PracticeRow>("practices", r => ({
+        () => fetchList<PracticeRow>("practices", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           type: r.data[1] ?? "",
           place: r.data[2] ?? "",
@@ -629,38 +753,41 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           time: r.data[4] ?? "",
           note: r.data[5] ?? "",
         })),
-        fetchList<ProbableRow>("probables", r => ({
+        () => fetchList<ProbableRow>("probables", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           opponent: r.data[1] ?? "",
           memberId: r.data[2] ?? "",
           memberName: r.data[3] ?? "",
           note: r.data[4] ?? "",
         })),
-        fetchList<AnnouncementRow>("announcements", r => ({
+        () => fetchList<AnnouncementRow>("announcements", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           category: r.data[1] ?? "お知らせ",
           title: r.data[2] ?? "",
           body: r.data[3] ?? "",
         })),
-        fetchList<ParticipantRow>("participants", r => ({
+        () => fetchList<ParticipantRow>("participants", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           memberName: r.data[2] ?? "",
           note: r.data[3] ?? "",
         })),
-        fetchList<SettingRow>("settings", r => ({
+        () => fetchList<SettingRow>("settings", r => ({
           key: r.data[0] ?? "",
           value: r.data[1] ?? "",
           note: r.data[2] ?? "",
         })),
-        fetchList<AttendanceRow>("attendance", r => ({
+        () => fetchList<AttendanceRow>("attendance", r => ({
           date: normalizeDate(r.data[0] ?? ""),
           memberId: r.data[1] ?? "",
           memberName: r.data[2] ?? "",
           status: r.data[3] ?? "",
           note: r.data[4] ?? "",
         })),
-      ]);
+      ], 4) as [
+        Member[], BattingRow[], PitchingRow[], CatchingRow[], FieldingRow[],
+        PracticeRow[], ProbableRow[], AnnouncementRow[], ParticipantRow[], SettingRow[], AttendanceRow[],
+      ];
       setMembers(ms);
       setBatting(bs);
       setPitching(ps);

@@ -1,7 +1,35 @@
 /**
  * セキュリティ関連の共通ユーティリティ。
  */
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual, randomBytes, scryptSync } from "crypto";
+
+/* ── パスワードのハッシュ化（scrypt + salt）─────────────────────── */
+// 個人アカウントのパスワードは平文で保存せず、ソルト付き scrypt ハッシュで保存する。
+
+/** パスワードから { salt, hash }（どちらも hex）を生成する。 */
+export function hashPassword(password: string): { salt: string; hash: string } {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return { salt, hash };
+}
+
+/** 入力パスワードが保存済みハッシュと一致するか（定数時間比較）。 */
+export function verifyPassword(password: string, salt: string, hash: string): boolean {
+  if (!salt || !hash) return false;
+  try {
+    const computed = scryptSync(password, salt, 64);
+    const stored = Buffer.from(hash, "hex");
+    if (computed.length !== stored.length) return false;
+    return timingSafeEqual(computed, stored);
+  } catch {
+    return false;
+  }
+}
+
+/** 本名のゆれを吸収した照合キー（前後空白除去・全空白除去・小文字化）。 */
+export function nameKey(name: string): string {
+  return String(name).trim().toLowerCase().replace(/\s+/g, "");
+}
 
 /**
  * 定数時間でのパスワード比較。`===` は早期リターンで長さ・内容の差が

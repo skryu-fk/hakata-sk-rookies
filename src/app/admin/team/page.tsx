@@ -19,9 +19,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
+
+// メンバー個人アカウント（パスワードハッシュはサーバ側のみ。ここには持たない）
+type AccountRow = { id: string; name: string; status: string; createdAt: string; _row: number };
 
 type Member = {
   id: string;
@@ -439,6 +442,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [pending, setPending] = useState<PendingRow[]>([]);
+  const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
@@ -756,9 +760,20 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     }));
   }, [api]);
 
+  const loadAccounts = useCallback(async () => {
+    setLoadingFor("accounts", true);
+    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
+    setLoadingFor("accounts", false);
+    if (!data) return;
+    setAccounts((data.accounts ?? []).map(a => ({
+      id: a.id, name: a.name, status: a.status, createdAt: a.createdAt, _row: a.rowIndex,
+    })));
+  }, [api]);
+
   // 初回ロード
   useEffect(() => { loadMembers(); }, [loadMembers]);
   useEffect(() => { loadPending(); }, [loadPending]);  // 承認待ちバッジ用に常に取得
+  useEffect(() => { loadAccounts(); }, [loadAccounts]);  // アカウント承認バッジ用に常に取得
   useEffect(() => {
     if (tab === "attendance") {
       if (attendance.length === 0) loadAttendance();
@@ -773,6 +788,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "notify" && announcements.length === 0) loadAnnouncements(); }, [tab, announcements.length, loadAnnouncements]);
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
   useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
+  useEffect(() => { if (tab === "accounts") loadAccounts(); }, [tab, loadAccounts]);
   useEffect(() => {
     if (tab === "probables") {
       if (probables.length === 0) loadProbables();
@@ -834,6 +850,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["stats", "統計", undefined],
             ["notify", "🔔通知", undefined],
             ["approvals", pending.length > 0 ? "🔴承認待ち" : "承認", pending.length],
+            ["accounts", accounts.filter(a => a.status === "pending").length > 0 ? "🔴アカウント承認" : "👤アカウント", accounts.filter(a => a.status === "pending").length],
             ["maintenance", "🛠メンテ", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
             <button
@@ -986,6 +1003,16 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             reload={loadPending}
             reloadBatting={loadBatting}
             reloadPitching={loadPitching}
+            showToast={showToast}
+          />
+        )}
+        {tab === "accounts" && (
+          <AccountsApprovalTab
+            accounts={accounts}
+            loading={!!loading.accounts}
+            saving={saving}
+            api={api}
+            reload={loadAccounts}
             showToast={showToast}
           />
         )}
@@ -3481,6 +3508,114 @@ const presetBtnStyle: React.CSSProperties = {
 // ────────────────────────────────────────────────────────
 // 承認待ちタブ（スコアラーがアプリから送った記録を編集・承認・却下）
 // ────────────────────────────────────────────────────────
+function AccountsApprovalTab({
+  accounts, loading, saving, api, reload, showToast,
+}: {
+  accounts: AccountRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const pendingList = useMemo(
+    () => accounts.filter(a => a.status === "pending").sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    [accounts],
+  );
+  const approvedList = useMemo(
+    () => accounts.filter(a => a.status === "approved").sort((a, b) => (a.name < b.name ? -1 : 1)),
+    [accounts],
+  );
+
+  async function act(a: AccountRow, op: "approve" | "reject") {
+    if (op === "reject" && typeof window !== "undefined" && !window.confirm(`「${a.name}」さんの登録を却下しますか？ログインできなくなります。`)) return;
+    const ok = await api("/api/admin/accounts", { op, rowIndex: a._row });
+    if (ok) {
+      showToast(true, op === "approve" ? `${a.name} さんを承認しました。ログインできます。` : `${a.name} さんの登録を却下しました。`);
+      reload();
+    }
+  }
+
+  async function revoke(a: AccountRow) {
+    if (typeof window !== "undefined" && !window.confirm(`「${a.name}」さんのログインを無効化しますか？（再度承認すれば戻せます）`)) return;
+    const ok = await api("/api/admin/accounts", { op: "reject", rowIndex: a._row });
+    if (ok) { showToast(true, `${a.name} さんを無効化しました。`); reload(); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <H3>メンバーアカウント承認</H3>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: 0 }}>
+            成績アプリに「本名＋パスワード」で新規登録した人の一覧です。本人確認のうえ<strong style={{ color: "#67e088" }}>承認</strong>すると、その人はログインできるようになります。<strong style={{ color: "#ff6982" }}>却下</strong>するとログインできません。
+          </p>
+        </div>
+        <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>
+      </div>
+
+      {/* 承認待ち */}
+      <div style={{ marginBottom: 26 }}>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#d4a82a", marginBottom: 10, letterSpacing: "0.06em" }}>
+          承認待ち（{pendingList.length}）
+        </div>
+        {pendingList.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: "center", padding: "32px 20px", color: "rgba(255,255,255,0.5)" }}>
+            {loading ? "確認中…" : "承認待ちの新規登録はありません。"}
+          </div>
+        ) : (
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+            {pendingList.map(a => (
+              <section key={a.id || a._row} style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.4)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17 }}>{a.name || "（無名）"}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>申請：{a.createdAt ? a.createdAt.slice(0, 16) : "—"}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => act(a, "approve")} disabled={saving}
+                    style={{ padding: "11px 18px", background: "#1a9f3a", color: "#fff", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                    ✅ 承認
+                  </button>
+                  <button onClick={() => act(a, "reject")} disabled={saving}
+                    style={{ padding: "11px 16px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.5)", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                    却下
+                  </button>
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 承認済み */}
+      <div>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 10, letterSpacing: "0.06em" }}>
+          承認済み（{approvedList.length}）
+        </div>
+        {approvedList.length === 0 ? (
+          <div style={{ ...cardStyle, textAlign: "center", padding: "24px 20px", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
+            まだ承認済みのアカウントはありません。
+          </div>
+        ) : (
+          <div style={{ ...cardStyle, padding: "6px 4px" }}>
+            {approvedList.map((a, i) => (
+              <div key={a.id || a._row} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)", flexWrap: "wrap" }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1a9f3a", flexShrink: 0 }} />
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, flex: 1, minWidth: 120 }}>{a.name}</span>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
+                <button onClick={() => revoke(a)} disabled={saving}
+                  style={{ padding: "6px 12px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                  無効化
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PendingApprovalTab({
   pending, loading, saving, api, reload, reloadBatting, reloadPitching, showToast,
 }: {

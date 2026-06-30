@@ -30,6 +30,8 @@ export const ALLOWED_SHEETS = new Set([
   "settings",
   // 承認待ち（スコアラーがアプリから記録した暫定結果）
   "pending",
+  // メンバー個人アカウント（本名+パスワードハッシュ・承認制）
+  "accounts",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";
@@ -51,24 +53,13 @@ export function ensureAuth(headers: Headers): Response | null {
 }
 
 /**
- * メンバー閲覧用のパスワード検証。/stats など read-only ページで使う。
- * 管理者パスとは別の `MEMBER_PASSWORD` 環境変数を見る（権限分離）。
- * 管理者パスでも通すフォールバックは敢えて入れない — 二者を必ず別運用にするため。
+ * メンバー閲覧用の認証。/stats など read-only ページで使う。
+ * 個人アカウント制に一本化したため、ログイン時に発行される署名付きメンバー
+ * セッション Cookie のみで認可する（共通パスワード／ヘッダの後方互換は廃止）。
  */
 export function ensureMemberAuth(headers: Headers): Response | null {
-  const expected = process.env.MEMBER_PASSWORD;
-  if (!expected) {
-    console.error("[member] MEMBER_PASSWORD is not set");
-    return Response.json(
-      { ok: false, error: "サーバー設定エラー（MEMBER_PASSWORD 未設定）" },
-      { status: 500 }
-    );
-  }
-  // 署名付きメンバーセッション Cookie か、ヘッダのパスワード（定数時間比較）
   if (verifySession(readCookie(headers, MEMBER_COOKIE), "member")) return null;
-  const pw = headers.get("x-member-password") ?? "";
-  if (pw && safeEqual(pw, expected)) return null;
-  return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
+  return Response.json({ ok: false, error: "ログインが必要です。" }, { status: 401 });
 }
 
 export function ensureSheet(sheet: string | undefined): Response | null {
@@ -86,28 +77,64 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
     console.error("[admin] APPS_SCRIPT_URL is not set");
     return { ok: false, status: 500, error: "APPS_SCRIPT_URL が未設定です。" };
   }
-  try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, ...payload }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!r.ok) {
+
+  // 読み取り(list)は冪等なので、コールドスタートや同時アクセスによる一時的失敗を
+  // 自動リトライで吸収する。書き込み(append/update/delete)は二重実行を避けるため
+  // 1回だけ（リトライしない）。
+  const canRetry = payload.op === "list";
+  const maxAttempts = canRetry ? 3 : 1;
+
+  let lastStatus = 502;
+  let lastError = "Apps Script への接続に失敗しました。";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: process.env.ADMIN_PASSWORD, ...payload }),
+        redirect: "follow",
+        // Apps Script はコールドスタート時に時間がかかるため余裕を持たせる
+        signal: AbortSignal.timeout(25_000),
+      });
       const text = await r.text().catch(() => "");
-      console.error("[admin] Apps Script HTTP error:", r.status, text);
-      return { ok: false, status: 502, error: `Apps Script でエラー (HTTP ${r.status})` };
+
+      let data: { ok?: boolean; error?: string } | null = null;
+      try { data = JSON.parse(text); } catch { /* JSON以外（HTML 等）は下で扱う */ }
+
+      if (data && typeof data === "object") {
+        if (data.ok === true) return { ok: true, data };
+        // 業務エラー（unknown sheet など）はリトライしても無駄なので即返す
+        console.error("[admin] Apps Script returned non-ok:", data);
+        return { ok: false, status: 502, error: data.error ?? "Apps Script の処理に失敗しました。" };
+      }
+
+      // JSON でない応答 = ほぼ「未デプロイ」か「アクセス権が“全員”でない」状態。
+      // この場合 Google のログイン/承認 HTML が返ってくる。
+      const looksLikeGoogleLogin = /accounts\.google\.com|ServiceLogin|signin|<html/i.test(text);
+      lastStatus = 502;
+      lastError = looksLikeGoogleLogin
+        ? "Apps Script に接続できません。デプロイの「アクセスできるユーザー」を『全員』にして、新しいバージョンで再デプロイしてください。"
+        : `Apps Script の応答が不正です（HTTP ${r.status}）。URL とデプロイ設定をご確認ください。`;
+      console.error("[admin] Apps Script non-JSON response (attempt " + attempt + "):", r.status, text.slice(0, 200));
+    } catch (e) {
+      const name = (e as { name?: string })?.name;
+      if (name === "TimeoutError" || name === "AbortError") {
+        lastStatus = 504;
+        lastError = "Apps Script の応答が遅く、タイムアウトしました。少し時間をおいて再度お試しください。";
+      } else {
+        lastStatus = 502;
+        lastError = "Apps Script への接続に失敗しました。";
+      }
+      console.error("[admin] Apps Script attempt", attempt, "error:", e);
     }
-    const data = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-    if (!data || data.ok !== true) {
-      console.error("[admin] Apps Script returned non-ok:", data);
-      return { ok: false, status: 502, error: data?.error ?? "Apps Script の処理に失敗しました。" };
-    }
-    return { ok: true, data };
-  } catch (e) {
-    console.error("[admin] Network error:", e);
-    return { ok: false, status: 502, error: "Apps Script への接続に失敗しました。" };
+
+    // 次の試行まで少し待つ（指数バックオフ）
+    if (attempt < maxAttempts) await new Promise(res => setTimeout(res, 400 * attempt));
   }
+
+  console.error("[admin] Apps Script failed after", maxAttempts, "attempt(s):", lastError);
+  return { ok: false, status: lastStatus, error: lastError };
 }
 
 /** 書き込み系の操作後に呼ぶキャッシュ無効化。 */
