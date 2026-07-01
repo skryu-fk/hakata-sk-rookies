@@ -1,11 +1,12 @@
 /**
- * /api/admin/accounts — メンバー個人アカウントの承認管理（管理者専用）。
- *   POST { op: "list" }                  → アカウント一覧（ハッシュ/ソルトは返さない）
- *   POST { op: "approve", rowIndex }     → status を approved に（ログイン許可）
- *   POST { op: "reject",  rowIndex }     → status を rejected に（ログイン不可）
+ * /api/admin/accounts — メンバー個人アカウントの承認・連携管理（管理者専用）。
+ *   POST { op: "list" }                     → アカウント一覧（ハッシュ/ソルトは返さない）
+ *   POST { op: "approve", rowIndex }        → status を approved に（ログイン許可）
+ *   POST { op: "reject",  rowIndex }        → status を rejected に（ログイン不可）
+ *   POST { op: "link", rowIndex, memberId } → 名簿メンバー(memberId)に連携（成績と紐付け）
  *
- * パスワードハッシュはブラウザへ一切返さない（list は本名・状態・申請日時のみ）。
- * 承認/却下は status 列のみ書き換え、hash/salt はサーバ側で保持したまま更新する。
+ * パスワードハッシュはブラウザへ一切返さない（list は本名・状態・申請日時・連携先のみ）。
+ * どの操作も hash/salt はサーバ側で保持したまま該当列だけ書き換える。
  */
 import { ensureAuth, callAppsScript } from "@/lib/admin-shared";
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const auth = ensureAuth(request.headers);
   if (auth) return auth;
 
-  let body: { op?: string; rowIndex?: number };
+  let body: { op?: string; rowIndex?: number; memberId?: string };
   try {
     body = await request.json();
   } catch {
@@ -30,25 +31,30 @@ export async function POST(request: Request) {
   const rows = (list.data as { rows?: { rowIndex: number; data: string[] }[] }).rows ?? [];
 
   if (op === "list") {
-    // accounts 列: [id, name, nameKey, hash, salt, status, createdAt]
+    // accounts 列: [id, name, nameKey, hash, salt, status, createdAt, memberId]
     // hash / salt はクライアントに渡さない。
     const accounts = rows.map(r => ({
       id: r.data[0] ?? "",
       name: r.data[1] ?? "",
       status: r.data[5] ?? "",
       createdAt: r.data[6] ?? "",
+      memberId: r.data[7] ?? "",
       rowIndex: r.rowIndex,
     }));
     return Response.json({ ok: true, accounts });
   }
 
-  if (op === "approve" || op === "reject") {
+  if (op === "approve" || op === "reject" || op === "link") {
     const rowIndex = Number(body.rowIndex);
     const target = rows.find(r => r.rowIndex === rowIndex);
     if (!target) return Response.json({ ok: false, error: "対象アカウントが見つかりません。" }, { status: 404 });
     const next = target.data.slice();
-    while (next.length < 7) next.push("");
-    next[5] = op === "approve" ? "approved" : "rejected";
+    while (next.length < 8) next.push("");
+    if (op === "link") {
+      next[7] = String(body.memberId ?? ""); // 空文字なら連携解除
+    } else {
+      next[5] = op === "approve" ? "approved" : "rejected";
+    }
     const res = await callAppsScript({ op: "update", sheet: "accounts", rowIndex, row: next });
     if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: res.status });
     return Response.json({ ok: true });

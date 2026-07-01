@@ -59,7 +59,9 @@ export async function POST(request: Request) {
   }
 
   const { salt, hash } = hashPassword(password);
-  const row = [genId(), name, key, hash, salt, "pending", new Date().toISOString().slice(0, 19).replace("T", " ")];
+  // accounts 列: [id, name, nameKey, hash, salt, status, createdAt, memberId]
+  // memberId は管理者が「連携」タブで名簿メンバーに紐付けるまで空。
+  const row = [genId(), name, key, hash, salt, "pending", new Date().toISOString().slice(0, 19).replace("T", " "), ""];
 
   const res = await callAppsScript({ op: "append", sheet: "accounts", row });
   if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: res.status });

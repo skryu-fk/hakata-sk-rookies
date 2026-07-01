@@ -18,9 +18,19 @@ import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.5";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "1.5",
+    date: "2026-07-01",
+    items: [
+      "👤 マイページを追加（自分の表示名・ニックネームを編集できます）",
+      "🔗 管理者がアカウントと名簿を「連携」→ あなたの成績が自動表示",
+      "⚡ 読み込みを高速化（全データを1回でまとめて取得）",
+      "🔒 パスワードはマイページからは変更できません（安全のため）",
+    ],
+  },
   {
     version: "1.4",
     date: "2026-06-30",
@@ -636,7 +646,8 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule" | "form";
+type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule" | "form" | "mypage";
+type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string };
 const TOTAL_SCOPE = "__total__";
 
 function StatsDashboard({ onLogout }: { onLogout: () => void }) {
@@ -867,6 +878,22 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     try { setMe(window.localStorage.getItem("skr_me") || ""); } catch {}
   }, []);
+  // マイページ情報（ログイン本人）。連携済みなら自分の成績を自動で表示する。
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const loadProfile = useCallback(async () => {
+    try {
+      const res = await fetch("/api/member/profile", { cache: "no-store" });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d?.ok) {
+        setProfile({ name: d.name ?? "", linked: !!d.linked, memberId: d.memberId ?? "", memberName: d.memberName ?? "", nickname: d.nickname ?? "" });
+        if (d.linked && d.memberId) {
+          setMe(d.memberId);
+          try { window.localStorage.setItem("skr_me", d.memberId); } catch {}
+        }
+      }
+    } catch { /* 未ログイン等は無視 */ }
+  }, []);
+  useEffect(() => { loadProfile(); }, [loadProfile]);
   const pickMe = useCallback((id: string) => {
     setMe(id);
     try { window.localStorage.setItem("skr_me", id); } catch {}
@@ -1092,6 +1119,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
             ["fielding", "🧱 守備", fieldingStats.length],
             ["schedule", "📅 日程", scheduleCount],
             ["form", "🧠 SKドッパミンAI", -1],
+            ["mypage", "👤 マイページ", -1],
           ] as [Tab, string, number][]).map(([key, label, count]) => {
             const active = tab === key;
             return (
@@ -1124,7 +1152,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {/* ── スコープ切り替え（通算 / 試合別）— 成績タブのみ表示 ── */}
-        {tab !== "schedule" && tab !== "news" && tab !== "form" && (
+        {tab !== "schedule" && tab !== "news" && tab !== "form" && tab !== "mypage" && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
             <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
               通算
@@ -1160,6 +1188,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
         ) : tab === "form" ? (
           <FormCheckView />
+        ) : tab === "mypage" ? (
+          <MyPageView profile={profile} onReload={loadProfile} />
         ) : (
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         )}
@@ -1553,6 +1583,92 @@ function fmtAnnDate(d: string): string {
 }
 
 /* ── お知らせビュー ───────────────────────────────────── */
+function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: () => void }) {
+  const [name, setName] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (profile) { setName(profile.memberName || ""); setNickname(profile.nickname || ""); }
+  }, [profile?.memberName, profile?.nickname]);
+
+  async function save() {
+    if (busy) return;
+    const nm = name.trim();
+    if (!nm) { setMsg({ ok: false, text: "名前を入力してください。" }); return; }
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch("/api/member/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nm, nickname: nickname.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok) { setMsg({ ok: true, text: "保存しました。" }); onReload(); }
+      else setMsg({ ok: false, text: d?.error || "保存に失敗しました。" });
+    } catch { setMsg({ ok: false, text: "ネットワークエラーが発生しました。" }); }
+    finally { setBusy(false); }
+  }
+
+  const box: React.CSSProperties = {
+    background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+    border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20,
+    backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)",
+  };
+  const label: React.CSSProperties = { display: "block", fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.05em", marginBottom: 6 };
+  const input: React.CSSProperties = { width: "100%", padding: 13, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff", fontSize: 15, borderRadius: 8 };
+
+  return (
+    <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={box}>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 18, marginBottom: 4 }}>👤 マイページ</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 16 }}>
+          ログイン名：<span style={{ color: "#fff", fontWeight: 700 }}>{profile ? (profile.name || "—") : "読み込み中…"}</span>
+        </div>
+
+        {!profile ? (
+          <div style={{ textAlign: "center", padding: "20px 0", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>読み込み中…</div>
+        ) : profile.linked ? (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <label style={label}>表示名（成績・ランキングに出る名前）</label>
+              <input value={name} onChange={e => setName(e.target.value)} maxLength={40} style={input} placeholder="山田 太郎" />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={label}>ニックネーム（任意）</label>
+              <input value={nickname} onChange={e => setNickname(e.target.value)} maxLength={20} style={input} placeholder="たろー" />
+            </div>
+            {msg && (
+              <div style={{ marginBottom: 12, fontSize: 12.5, color: msg.ok ? "#9fe6b0" : "#ff6982" }}>{msg.ok ? "✅ " : ""}{msg.text}</div>
+            )}
+            <button
+              onClick={save}
+              disabled={busy || name.trim() === ""}
+              className="btn-sheen"
+              style={{ width: "100%", padding: 14, background: busy ? "#666" : "linear-gradient(135deg, #d4a82a, #f0c75e)", color: "#0a0e1a", border: "none", borderRadius: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.08em", cursor: busy ? "not-allowed" : "pointer" }}
+            >
+              {busy ? "保存中…" : "名前を保存する"}
+            </button>
+          </>
+        ) : (
+          <div style={{ padding: "18px 14px", background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.35)", borderRadius: 10, fontSize: 13, lineHeight: 1.8, color: "rgba(255,255,255,0.75)" }}>
+            まだ名簿と<strong style={{ color: "#f0c75e" }}>連携されていません</strong>。<br />
+            管理者が連携すると、あなたの<strong style={{ color: "#fff" }}>成績が表示され、名前を編集</strong>できるようになります。管理者に連携を依頼してください。
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...box, padding: "14px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <span style={{ fontSize: 16 }}>🔒</span>
+        <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>
+          パスワードはここでは変更できません（安全のため）。忘れた場合はチーム管理者にご連絡ください。
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);

@@ -62,10 +62,12 @@ function sign(payload: string): string {
   return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
 }
 
-/** role と有効期限を埋め込んだトークンを発行する。 */
-export function issueSession(role: SessionRole, ttlSeconds: number): string {
+/** role と有効期限を埋め込んだトークンを発行する。sub は任意の識別子（アカウントID等）。 */
+export function issueSession(role: SessionRole, ttlSeconds: number, sub?: string): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-  const payload = Buffer.from(JSON.stringify({ r: role, exp })).toString("base64url");
+  const body: { r: SessionRole; exp: number; s?: string } = { r: role, exp };
+  if (sub) body.s = sub;
+  const payload = Buffer.from(JSON.stringify(body)).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -87,6 +89,30 @@ export function verifySession(token: string | undefined | null, role: SessionRol
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * verifySession と同じ検証を行い、成功時は埋め込まれた sub（アカウントID等）を返す。
+ * 「自分自身のデータだけ編集させる」ために、Cookie から本人を特定するのに使う。
+ */
+export function readSession(token: string | undefined | null, role: SessionRole): { sub: string | null } | null {
+  if (!token) return null;
+  const dot = token.indexOf(".");
+  if (dot < 1) return null;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expected = sign(payload);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (data.r !== role) return null;
+    if (typeof data.exp !== "number" || data.exp < Math.floor(Date.now() / 1000)) return null;
+    return { sub: typeof data.s === "string" ? data.s : null };
+  } catch {
+    return null;
   }
 }
 

@@ -73,7 +73,7 @@ function getOrCreateSheet(name) {
   else if (name === "announcements") sh.appendRow(["date", "category", "title", "body"]);
   else if (name === "settings")   sh.appendRow(["key", "value", "note"]);
   else if (name === "pending")    sh.appendRow(["id", "kind", "date", "opponent", "memberId", "memberName", "data", "createdAt"]);
-  else if (name === "accounts")   sh.appendRow(["id", "name", "nameKey", "hash", "salt", "status", "createdAt"]);
+  else if (name === "accounts")   sh.appendRow(["id", "name", "nameKey", "hash", "salt", "status", "createdAt", "memberId"]);
   return sh;
 }
 

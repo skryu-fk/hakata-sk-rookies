@@ -19,12 +19,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
 // メンバー個人アカウント（パスワードハッシュはサーバ側のみ。ここには持たない）
-type AccountRow = { id: string; name: string; status: string; createdAt: string; _row: number };
+type AccountRow = { id: string; name: string; status: string; createdAt: string; memberId: string; _row: number };
 
 type Member = {
   id: string;
@@ -769,11 +769,11 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 
   const loadAccounts = useCallback(async () => {
     setLoadingFor("accounts", true);
-    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
+    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; memberId?: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
     setLoadingFor("accounts", false);
     if (!data) return;
     setAccounts((data.accounts ?? []).map(a => ({
-      id: a.id, name: a.name, status: a.status, createdAt: a.createdAt, _row: a.rowIndex,
+      id: a.id, name: a.name, status: a.status, createdAt: a.createdAt, memberId: a.memberId ?? "", _row: a.rowIndex,
     })));
   }, [api]);
 
@@ -796,6 +796,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
   useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
   useEffect(() => { if (tab === "accounts") loadAccounts(); }, [tab, loadAccounts]);
+  useEffect(() => {
+    if (tab === "link") {
+      loadAccounts();
+      if (members.length === 0) loadMembers();
+    }
+  }, [tab, loadAccounts, loadMembers, members.length]);
   useEffect(() => {
     if (tab === "probables") {
       if (probables.length === 0) loadProbables();
@@ -858,6 +864,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["notify", "🔔通知", undefined],
             ["approvals", pending.length > 0 ? "🔴承認待ち" : "承認", pending.length],
             ["accounts", accounts.filter(a => a.status === "pending").length > 0 ? "🔴アカウント承認" : "👤アカウント", accounts.filter(a => a.status === "pending").length],
+            ["link", "🔗連携", undefined],
             ["maintenance", "🛠メンテ", undefined],
           ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
             <button
@@ -1020,6 +1027,17 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             saving={saving}
             api={api}
             reload={loadAccounts}
+            showToast={showToast}
+          />
+        )}
+        {tab === "link" && (
+          <LinkTab
+            accounts={accounts}
+            members={members}
+            saving={saving}
+            api={api}
+            reloadAccounts={loadAccounts}
+            reloadMembers={loadMembers}
             showToast={showToast}
           />
         )}
@@ -3515,6 +3533,160 @@ const presetBtnStyle: React.CSSProperties = {
 // ────────────────────────────────────────────────────────
 // 承認待ちタブ（スコアラーがアプリから送った記録を編集・承認・却下）
 // ────────────────────────────────────────────────────────
+function LinkTab({
+  accounts, members, saving, api, reloadAccounts, reloadMembers, showToast,
+}: {
+  accounts: AccountRow[];
+  members: Member[];
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reloadAccounts: () => void;
+  reloadMembers: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const approved = useMemo(
+    () => accounts.filter(a => a.status === "approved").sort((a, b) => (a.name < b.name ? -1 : 1)),
+    [accounts],
+  );
+  const memberById = useMemo(() => {
+    const m = new Map<string, Member>();
+    members.forEach(x => m.set(x.id, x));
+    return m;
+  }, [members]);
+  // 同じ名簿メンバーに複数アカウントが紐付いていないかの検知（警告表示用）
+  const linkCount = useMemo(() => {
+    const c = new Map<string, number>();
+    approved.forEach(a => { if (a.memberId) c.set(a.memberId, (c.get(a.memberId) ?? 0) + 1); });
+    return c;
+  }, [approved]);
+
+  async function link(acc: AccountRow, memberId: string) {
+    const ok = await api("/api/admin/accounts", { op: "link", rowIndex: acc._row, memberId });
+    if (ok) {
+      showToast(true, memberId ? `${acc.name} を名簿に連携しました。` : `${acc.name} の連携を解除しました。`);
+      reloadAccounts();
+    }
+  }
+
+  async function rename(m: Member, newName: string) {
+    const nm = newName.trim();
+    if (!nm) { showToast(false, "名前を入力してください。"); return; }
+    const row = [m.id, nm, m.nickname, m.jerseyNumber, m.position, m.joinedDate, m.active ? "TRUE" : "FALSE"];
+    const ok = await api("/api/admin/update", { sheet: "members", rowIndex: m._row, row });
+    if (ok) { showToast(true, `名前を「${nm}」に変更しました。`); reloadMembers(); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <H3>アカウントと名簿の連携</H3>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: 0 }}>
+            ログインアカウント（本名）を、あなたが事前に登録した<strong style={{ color: "#fff" }}>名簿メンバー</strong>に紐付けます。連携すると、そのメンバーの<strong style={{ color: "#67e088" }}>打撃・投球などの成績がマイページに表示</strong>され、本人が表示名を編集できるようになります。ここから<strong style={{ color: "#fff" }}>名前の変更</strong>も可能です（パスワードは扱いません）。
+          </p>
+        </div>
+        <button onClick={() => { reloadAccounts(); reloadMembers(); }} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>🔄 再読み込み</button>
+      </div>
+
+      {approved.length === 0 ? (
+        <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.5)" }}>
+          承認済みのアカウントがありません。「アカウント」タブで承認すると、ここで連携できます。
+        </div>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {approved.map(a => (
+            <LinkRow
+              key={a.id || a._row}
+              acc={a}
+              members={members}
+              linkedMember={a.memberId ? memberById.get(a.memberId) : undefined}
+              dup={a.memberId ? (linkCount.get(a.memberId) ?? 0) > 1 : false}
+              saving={saving}
+              onLink={link}
+              onRename={rename}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinkRow({
+  acc, members, linkedMember, dup, saving, onLink, onRename,
+}: {
+  acc: AccountRow;
+  members: Member[];
+  linkedMember: Member | undefined;
+  dup: boolean;
+  saving: boolean;
+  onLink: (acc: AccountRow, memberId: string) => void;
+  onRename: (m: Member, newName: string) => void;
+}) {
+  const [nameEdit, setNameEdit] = useState(linkedMember?.name ?? "");
+  useEffect(() => { setNameEdit(linkedMember?.name ?? ""); }, [linkedMember?.name]);
+  const sorted = useMemo(() => [...members].sort((a, b) => (a.name < b.name ? -1 : 1)), [members]);
+
+  const selStyle: React.CSSProperties = {
+    width: "100%", padding: "9px 10px", marginTop: 6,
+    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff", fontSize: 14,
+  };
+
+  return (
+    <section style={{ ...cardStyle, border: linkedMember ? "1px solid rgba(26,159,58,0.4)" : "1px solid rgba(255,255,255,0.1)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{acc.name || "（無名）"}</span>
+        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.15)", padding: "1px 7px" }}>ログイン名</span>
+        {linkedMember
+          ? <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#67e088" }}>連携済み</span>
+          : <span style={{ marginLeft: "auto", fontSize: 11.5, color: "rgba(255,255,255,0.4)" }}>未連携</span>}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.55)" }}>連携先の名簿メンバー</label>
+        <select
+          value={acc.memberId}
+          disabled={saving}
+          onChange={e => onLink(acc, e.target.value)}
+          style={selStyle}
+        >
+          <option value="">未連携</option>
+          {sorted.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.name}{m.jerseyNumber ? ` (#${m.jerseyNumber})` : ""}{!m.active ? "（引退）" : ""}
+            </option>
+          ))}
+        </select>
+        {dup && (
+          <div style={{ marginTop: 6, fontSize: 11, color: "#ffcf6b" }}>⚠️ 同じメンバーに複数のアカウントが連携されています。</div>
+        )}
+      </div>
+
+      {linkedMember && (
+        <div style={{ marginTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+          <label style={{ display: "block", fontSize: 11, color: "rgba(255,255,255,0.55)" }}>名簿の表示名（成績に表示される名前）</label>
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <input
+              value={nameEdit}
+              onChange={e => setNameEdit(e.target.value)}
+              maxLength={40}
+              style={{ flex: 1, padding: "9px 10px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", fontSize: 14 }}
+            />
+            <button
+              onClick={() => onRename(linkedMember, nameEdit)}
+              disabled={saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name}
+              style={{ padding: "9px 14px", background: "#d4a82a", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? "not-allowed" : "pointer", opacity: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? 0.5 : 1, whiteSpace: "nowrap" }}
+            >
+              名前を変更
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AccountsApprovalTab({
   accounts, loading, saving, api, reload, showToast,
 }: {

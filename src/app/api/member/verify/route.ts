@@ -67,7 +67,8 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: GENERIC }, { status: 401 });
   }
 
-  const token = issueSession("member", TTL);
+  // セッションにアカウントID(sub)を埋め込む → マイページで本人だけを特定できる。
+  const token = issueSession("member", TTL, acc.data[0] ?? "");
   return Response.json(
     { ok: true, name: realName },
     { headers: { "Set-Cookie": buildSetCookie(MEMBER_COOKIE, token, TTL) } }
