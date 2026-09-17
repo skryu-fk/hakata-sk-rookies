@@ -20,6 +20,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 
+/** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
+function isKatakanaName(name: string): boolean {
+  const t = String(name).normalize("NFKC").trim();
+  if (!t) return false;
+  if (!/^[゠-ヿ 　]+$/.test(t)) return false;
+  return /[ァ-ヺ]/.test(t);
+}
+
 const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 
 type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
@@ -1312,7 +1320,7 @@ function MembersTab({
 }) {
   const [editing, setEditing] = useState<Member | null>(null);
   const [form, setForm] = useState({
-    id: "", name: "", kana: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true,
+    id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true,
   });
 
   function startEdit(m: Member) {
@@ -1320,7 +1328,6 @@ function MembersTab({
     setForm({
       id: m.id,
       name: m.name,
-      kana: m.kana,
       nickname: m.nickname,
       jerseyNumber: m.jerseyNumber,
       position: m.position || "未定",
@@ -1330,7 +1337,7 @@ function MembersTab({
   }
   function cancelEdit() {
     setEditing(null);
-    setForm({ id: "", name: "", kana: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true });
+    setForm({ id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true });
   }
 
   async function submit() {
@@ -1342,7 +1349,7 @@ function MembersTab({
     const row = [
       id, form.name.trim(), form.nickname.trim(), form.jerseyNumber.trim(),
       form.position, form.joinedDate, form.active ? "TRUE" : "FALSE",
-      form.kana.trim(),
+      editing?.kana ?? "",
     ];
     let ok;
     if (editing) {
@@ -1375,15 +1382,11 @@ function MembersTab({
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <label style={labelStyle}>名前 <span style={{ color: "#d10024" }}>*</span></label>
-            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="例: 柏木 海斗" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>
-              カナ <span style={{ color: "#E5B84B", fontSize: 10 }}>※本人が新規登録するのに必須</span>
-            </label>
-            <input value={form.kana} onChange={e => setForm({ ...form, kana: e.target.value })} placeholder="例: カシワギ　カイト" style={inputStyle} />
-            <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 4, lineHeight: 1.6 }}>
-              メンバーはこのカナと一致した場合だけアカウントを作れます。空欄だと本人が登録できません。
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="例: カシワギ　カイト" style={inputStyle} />
+            <div style={{ fontSize: 10.5, color: isKatakanaName(form.name) || !form.name.trim() ? "rgba(235,235,245,0.30)" : "#ffb84a", marginTop: 4, lineHeight: 1.6 }}>
+              {form.name.trim() && !isKatakanaName(form.name)
+                ? "⚠️ カタカナ以外が含まれています。このままだと本人が新規登録できません。"
+                : "全角カタカナで入力してください。本人が新規登録する際、この名前と一致するかで照合します。"}
             </div>
           </div>
           <div>
@@ -1442,7 +1445,6 @@ function MembersTab({
                 <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>#</Th>
                   <Th>名前</Th>
-                  <Th>カナ</Th>
                   <Th>背番号</Th>
                   <Th>ポジション</Th>
                   <Th>加入日</Th>
@@ -1457,6 +1459,9 @@ function MembersTab({
                     <Td>
                       <div style={{ fontWeight: 700 }}>{m.name}</div>
                       {m.nickname && <div style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{m.nickname}</div>}
+                      {!isKatakanaName(m.name) && (
+                        <div style={{ fontSize: 10, color: "#ffb84a", marginTop: 3, whiteSpace: "nowrap" }}>⚠️ カタカナでないため登録不可</div>
+                      )}
                     </Td>
                     <Td>
                       {m.kana
@@ -3870,7 +3875,7 @@ function AccountsApprovalTab({
         <div>
           <H3>メンバーアカウント</H3>
           <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: 0 }}>
-            成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿にカナが登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#E5B84B" }}>ユーザーID＋パスワード</strong>で行います。
+            成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿に登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#E5B84B" }}>ユーザーID＋パスワード</strong>で行います。
           </p>
         </div>
         <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>

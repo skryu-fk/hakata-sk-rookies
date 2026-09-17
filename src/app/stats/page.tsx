@@ -947,7 +947,8 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "news" | "batting" | "pitching" | "catching" | "fielding" | "schedule" | "form" | "mypage";
+type Tab = "news" | "stats" | "schedule" | "mypage";
+type StatKind = "batting" | "pitching" | "catching" | "fielding";
 type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string };
 const TOTAL_SCOPE = "__total__";
 
@@ -967,6 +968,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("news");
+  const [statKind, setStatKind] = useState<StatKind>("batting");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
   // 全シートを1回のリクエストでまとめて取得（読み込み高速化）。
@@ -1391,90 +1393,104 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         <NotifyBar />
       </div>
 
-      {/* ── 種別タブ ── */}
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12, position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", background: "#2C2C2E", borderRadius: 14, padding: 4, gap: 3, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      {/* ── 画面タイトル（iOSのLarge Title）＋ 絞り込み ── */}
+      <div className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 6, position: "relative", zIndex: 1 }}>
+        <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", margin: "8px 0 16px", lineHeight: 1.15 }}>
+          {tab === "news" ? "お知らせ" : tab === "stats" ? "成績" : tab === "schedule" ? "日程" : "マイページ"}
+        </h1>
+
+        {tab === "stats" && (
+          <>
+            <SegControl
+              items={[["batting", "打撃"], ["pitching", "投手"], ["catching", "捕手"], ["fielding", "守備"]]}
+              value={statKind}
+              onChange={setStatKind}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+              <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>通算</ScopeChip>
+              {games.map(g => (
+                <ScopeChip key={g.key} active={scope === g.key} onClick={() => setScope(g.key)}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", marginRight: 5 }}>{mdLabel(g.date)}</span>
+                  {g.opponent || "試合"}
+                </ScopeChip>
+              ))}
+              {games.length === 0 && !loading && (
+                <span style={{ fontSize: 12, color: "rgba(235,235,245,0.30)", alignSelf: "center", whiteSpace: "nowrap" }}>
+                  試合記録が増えると試合別も見られます
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── 本文 ── */}
+      <main className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 16, paddingBottom: 120, position: "relative" }}>
+        {loading ? (
+          <p style={{ textAlign: "center", color: "rgba(235,235,245,0.60)", padding: 48, fontSize: 14 }}>読み込み中…</p>
+        ) : tab === "news" ? (
+          <NewsView announcements={announcements} />
+        ) : tab === "schedule" ? (
+          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
+        ) : tab === "mypage" ? (
+          <>
+            <MyPageView profile={profile} onReload={loadProfile} />
+            <div style={{ marginTop: 22 }}><FormCheckView /></div>
+          </>
+        ) : statKind === "batting" ? (
+          <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
+        ) : statKind === "pitching" ? (
+          <PitchingStatsView key={`p-${scope}`} stats={pitchingStats} scopeLabel={scopeLabel} />
+        ) : statKind === "catching" ? (
+          <CatchingStatsView key={`c-${scope}`} stats={catchingStats} scopeLabel={scopeLabel} />
+        ) : (
+          <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
+        )}
+      </main>
+
+      {/* ── 下部タブバー（iOSのタブバー：半透明＋すりガラス） ── */}
+      <nav style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30,
+        background: "rgba(0,0,0,0.80)",
+        backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)",
+        borderTop: "0.5px solid #38383A",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}>
+        <div style={{ display: "flex", maxWidth: 560, margin: "0 auto" }}>
           {([
-            ["news", "📢 お知らせ", announcements.length],
-            ["batting", "⚾ 打撃", battingStats.filter(s => s.ab > 0).length],
-            ["pitching", "🔥 投手", pitchingStats.length],
-            ["catching", "🧤 捕手", catchingStats.length],
-            ["fielding", "🧱 守備", fieldingStats.length],
-            ["schedule", "📅 日程", scheduleCount],
-            ["form", "🚧 AI（準備中）", -1],
-            ["mypage", "👤 マイページ", -1],
-          ] as [Tab, string, number][]).map(([key, label, count]) => {
-            const active = tab === key;
+            ["news", "📣", "お知らせ", announcements.length],
+            ["stats", "⚾", "成績", -1],
+            ["schedule", "📅", "日程", scheduleCount],
+            ["mypage", "👤", "マイページ", -1],
+          ] as [Tab, string, string, number][]).map(([key, icon, label, badge]) => {
+            const on = tab === key;
             return (
               <button
                 key={key}
                 onClick={() => setTab(key)}
                 style={{
-                  flex: "1 0 auto",
-                  minWidth: 78,
-                  padding: "11px 12px",
-                  borderRadius: 11,
-                  background: active ? "#E5B84B" : "transparent",
-                  color: active ? "#10131C" : "rgba(235,235,245,0.60)",
-                  border: "none",
-                  fontFamily: "var(--font-zen),sans-serif",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  letterSpacing: "0.02em",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "background .18s, color .18s",
+                  flex: 1, background: "transparent", border: "none", cursor: "pointer",
+                  padding: "8px 0 7px", display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 3, position: "relative",
+                  color: on ? "#E5B84B" : "rgba(235,235,245,0.45)",
                 }}
               >
-                {label}{count >= 0 && <span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>}
+                <span style={{ fontSize: 22, lineHeight: 1, filter: on ? "none" : "grayscale(1)", opacity: on ? 1 : 0.75 }}>{icon}</span>
+                <span style={{ fontSize: 10.5, fontWeight: on ? 600 : 500, letterSpacing: "0.01em" }}>{label}</span>
+                {badge > 0 && (
+                  <span style={{
+                    position: "absolute", top: 4, left: "calc(50% + 8px)",
+                    minWidth: 17, height: 17, padding: "0 4px", borderRadius: 999,
+                    background: "#FF453A", color: "#fff", fontSize: 10.5, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "var(--font-oswald),sans-serif",
+                  }}>{badge > 99 ? "99+" : badge}</span>
+                )}
               </button>
             );
           })}
         </div>
-
-        {/* ── スコープ切り替え（通算 / 試合別）— 成績タブのみ表示 ── */}
-        {tab !== "schedule" && tab !== "news" && tab !== "form" && tab !== "mypage" && (
-          <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
-            <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>
-              通算
-            </ScopeChip>
-            {games.map(g => (
-              <ScopeChip key={g.key} active={scope === g.key} onClick={() => setScope(g.key)}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", marginRight: 5 }}>{mdLabel(g.date)}</span>
-                {g.opponent || "試合"}
-              </ScopeChip>
-            ))}
-            {games.length === 0 && !loading && (
-              <span style={{ fontSize: 11, color: "rgba(235,235,245,0.30)", alignSelf: "center", whiteSpace: "nowrap" }}>
-                試合記録が増えるとここから試合別成績を見られます
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── 本文 ── */}
-      <main className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14, paddingBottom: 90, position: "relative" }}>
-        {loading ? (
-          <p style={{ textAlign: "center", color: "rgba(235,235,245,0.60)", padding: 48, fontSize: 13, letterSpacing: "0.15em" }}>LOADING…</p>
-        ) : tab === "news" ? (
-          <NewsView announcements={announcements} />
-        ) : tab === "batting" ? (
-          <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
-        ) : tab === "pitching" ? (
-          <PitchingStatsView key={`p-${scope}`} stats={pitchingStats} scopeLabel={scopeLabel} />
-        ) : tab === "catching" ? (
-          <CatchingStatsView key={`c-${scope}`} stats={catchingStats} scopeLabel={scopeLabel} />
-        ) : tab === "fielding" ? (
-          <FieldingStatsView key={`f-${scope}`} stats={fieldingStats} scopeLabel={scopeLabel} />
-        ) : tab === "form" ? (
-          <FormCheckView />
-        ) : tab === "mypage" ? (
-          <MyPageView profile={profile} onReload={loadProfile} />
-        ) : (
-          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
-        )}
-      </main>
+      </nav>
     </div>
   );
 }
@@ -1933,11 +1949,154 @@ function SummaryCell({ label, value, fmt, accent }: { label: string; value: numb
 }
 
 /* ── 打撃ビュー ───────────────────────────────────────── */
+/* ── iOS風の共通パーツ ─────────────────────────────────
+ * iOSの「グループ化リスト」を再現する。
+ *   - 角丸カードに行を積み、区切り線は左側をインセット
+ *   - 数値は囲んだタイルで大きく見せる
+ *   - 行をタップすると詳細が開く（iOSのディスクロージャ）
+ */
+function IosLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 13, color: "rgba(235,235,245,0.60)", fontWeight: 400,
+      padding: "0 4px 7px", letterSpacing: "0.01em",
+    }}>{children}</div>
+  );
+}
+
+function IosGroup({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{ background: "#1C1C1E", borderRadius: 12, overflow: "hidden", marginBottom: 22, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+/** 囲み数値タイル。数字を大きく、ラベルを小さく。 */
+function StatTile({ label, value, accent, tone }: { label: string; value: React.ReactNode; accent?: boolean; tone?: string }) {
+  return (
+    <div style={{ background: "#2C2C2E", borderRadius: 10, padding: "11px 8px", textAlign: "center", minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: "rgba(235,235,245,0.60)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      <div style={{
+        fontFamily: "var(--font-oswald),sans-serif", fontSize: 21, fontWeight: 700, lineHeight: 1,
+        color: tone ?? (accent ? "#E5B84B" : "#FFFFFF"),
+      }}>{value}</div>
+    </div>
+  );
+}
+
+function TileGrid({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(74px, 1fr))", gap: 8 }}>
+      {children}
+    </div>
+  );
+}
+
+/** iOSのセグメンテッドコントロール */
+function SegControl<T extends string>({ items, value, onChange }: {
+  items: [T, string][]; value: T; onChange: (v: T) => void;
+}) {
+  return (
+    <div style={{ display: "flex", background: "#2C2C2E", borderRadius: 9, padding: 2, gap: 2 }}>
+      {items.map(([k, label]) => {
+        const on = k === value;
+        return (
+          <button
+            key={k}
+            onClick={() => onChange(k)}
+            style={{
+              flex: 1, padding: "7px 4px", borderRadius: 7, border: "none",
+              background: on ? "#E5B84B" : "transparent",
+              color: on ? "#10131C" : "#FFFFFF",
+              fontSize: 13.5, fontWeight: on ? 700 : 500, cursor: "pointer",
+              whiteSpace: "nowrap", transition: "background .15s, color .15s",
+            }}
+          >{label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 順位の丸バッジ（1〜3位は色付き） */
+function RankDot({ rank }: { rank: number }) {
+  const c = rank === 1 ? "#E5B84B" : rank === 2 ? "#C7CCD4" : rank === 3 ? "#CD8B5C" : "#3A3A3C";
+  const fg = rank <= 3 ? "#10131C" : "rgba(235,235,245,0.60)";
+  return (
+    <span style={{
+      width: 24, height: 24, borderRadius: "50%", background: c, color: fg,
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+      fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, fontWeight: 700, flexShrink: 0,
+    }}>{rank}</span>
+  );
+}
+
+/**
+ * 選手1人ぶんの行。
+ * 折りたたみ時は「順位・背番号・名前・主要数値」だけを大きく見せ、
+ * タップで詳細（囲み数値タイル）を開く。
+ */
+function PlayerRow({
+  rank, name, jersey, main, mainLabel, sub, first, open, onToggle, children,
+}: {
+  rank: number; name: string; jersey: string;
+  main: string; mainLabel: string; sub: string;
+  first: boolean; open: boolean; onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ borderTop: first ? "none" : "0.5px solid #38383A" }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 11,
+          padding: "13px 14px", background: open ? "#2C2C2E" : "transparent",
+          border: "none", cursor: "pointer", textAlign: "left", color: "#fff",
+        }}
+      >
+        <RankDot rank={rank} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+            <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#E5B84B", flexShrink: 0 }}>
+              #{jersey || "—"}
+            </span>
+            <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {name}
+            </span>
+          </div>
+          <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {sub}
+          </div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 25, fontWeight: 700, lineHeight: 1, color: "#E5B84B" }}>
+            {main}
+          </div>
+          <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 3 }}>{mainLabel}</div>
+        </div>
+        <span style={{
+          color: "rgba(235,235,245,0.30)", fontSize: 17, flexShrink: 0,
+          transform: open ? "rotate(90deg)" : "none", transition: "transform .2s",
+        }}>›</span>
+      </button>
+      {open && <div style={{ padding: "4px 14px 16px", background: "#2C2C2E" }}>{children}</div>}
+    </div>
+  );
+}
+
+/** 開いた行を1つだけに保つための小さなフック */
+function useOpenRow() {
+  const [openId, setOpenId] = useState<string | null>(null);
+  return { openId, toggle: (id: string) => setOpenId(p => (p === id ? null : id)) };
+}
+
+/* ── 打撃 ─────────────────────────────────────────────── */
 function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[]; scopeLabel: string; isGame: boolean }) {
   const active = stats.filter(s => s.ab > 0 || s.bb > 0 || s.hbp > 0);
-  const ranked = [...active].sort((a, b) => b.ops - a.ops);
+  const ranked = [...active].sort((a, b) => b.avg - a.avg);
+  const { openId, toggle } = useOpenRow();
 
-  // チーム合計（サマリ用）
   const teamAb = active.reduce((s, x) => s + x.ab, 0);
   const teamH = active.reduce((s, x) => s + x.h, 0);
   const teamHr = active.reduce((s, x) => s + x.hr, 0);
@@ -1947,341 +2106,231 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
 
   return (
     <div>
-      {/* サマリ */}
-      <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
-        <H sub="TEAM SUMMARY">{scopeLabel}成績 — 打撃</H>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
-          <SummaryCell label="チーム打率" value={teamAvg} fmt={fmtAvg} accent />
-          <SummaryCell label="安打" value={teamH} fmt={n => String(Math.round(n))} />
-          <SummaryCell label="本塁打" value={teamHr} fmt={n => String(Math.round(n))} />
-          <SummaryCell label="打点" value={teamRbi} fmt={n => String(Math.round(n))} />
-          <SummaryCell label="盗塁" value={teamSb} fmt={n => String(Math.round(n))} />
-        </div>
-      </section>
+      <IosLabel>{scopeLabel}のチーム成績</IosLabel>
+      <IosGroup style={{ padding: 14 }}>
+        <TileGrid>
+          <StatTile label="チーム打率" value={fmtAvg(teamAvg)} accent />
+          <StatTile label="安打" value={teamH} />
+          <StatTile label="本塁打" value={teamHr} />
+          <StatTile label="打点" value={teamRbi} />
+          <StatTile label="盗塁" value={teamSb} />
+        </TileGrid>
+      </IosGroup>
 
-      {/* ランキングテーブル */}
-      <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
-        <H sub="OPS RANKING">打撃成績（OPS順）</H>
-        {ranked.length === 0 ? (
-          <p style={emptyMsg}>{isGame ? "この試合の打席記録はありません。" : "まだ打席記録がありません。"}</p>
-        ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <Th>#</Th>
-                  <Th>選手</Th>
-                  <Th>試合</Th>
-                  <Th>打席</Th>
-                  <Th>安打</Th>
-                  <Th>HR</Th>
-                  <Th>打点</Th>
-                  <Th>盗塁</Th>
-                  <Th>打率</Th>
-                  <Th>出塁率</Th>
-                  <Th>長打率</Th>
-                  <Th>OPS</Th>
-                  <Th>wOBA</Th>
-                  <Th>wRC+</Th>
-                  <Th>WAR</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranked.map((s, i) => (
-                  <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid #38383A", animationDelay: `${120 + i * 60}ms`, background: i === 0 ? "#1C1C1E" : "transparent" }}>
-                    <Td><RankBadge rank={i + 1} /></Td>
-                    <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
-                      <strong>{s.m.name}</strong>
-                      {s.m.nickname && <span style={{ marginLeft: 6, color: "rgba(235,235,245,0.30)", fontSize: 11 }}>({s.m.nickname})</span>}
-                    </Td>
-                    <Td>{s.games}</Td>
-                    <Td>{s.ab}</Td>
-                    <Td><span style={{ color: "#E5B84B", fontWeight: 700 }}>{s.h}</span></Td>
-                    <Td><span style={{ color: s.hr > 0 ? "#ff6982" : undefined, fontWeight: s.hr > 0 ? 700 : 400 }}>{s.hr}</span></Td>
-                    <Td>{s.rbi}</Td>
-                    <Td>{s.sb}{s.sbAttempts > 0 && <span style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginLeft: 4 }}>({fmtPct(s.sbPct)})</span>}</Td>
-                    <Td>
-                      <BigNum>{fmtAvg(s.avg)}</BigNum>
-                      <StatBar ratio={s.avg / 0.5} color="#67e088" delay={200 + i * 60} />
-                    </Td>
-                    <Td>{fmtAvg(s.obp)}</Td>
-                    <Td>{fmtAvg(s.slg)}</Td>
-                    <Td>
-                      <BigNum hl>{fmtAvg(s.ops)}</BigNum>
-                      <StatBar ratio={s.ops / 1.5} color="#E5B84B" delay={260 + i * 60} />
-                    </Td>
-                    <Td>{s.pa > 0 ? fmtAvg(s.woba) : "—"}</Td>
-                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.wrcPlus >= 100 ? "#67e088" : "#fff" }}>{s.pa > 0 ? s.wrcPlus : "—"}</span></Td>
-                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.war >= 0 ? "#E5B84B" : "#ff6982" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</span></Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 10, lineHeight: 1.7 }}>
-          <strong style={{ color: "rgba(235,235,245,0.60)" }}>wOBA</strong>＝出塁の質を打率の物差しで表した総合打撃指標。
-          <strong style={{ color: "rgba(235,235,245,0.60)" }}> wRC+</strong>＝チーム平均を100とした得点創出力（100超で平均以上）。
-          <strong style={{ color: "rgba(235,235,245,0.60)" }}> WAR</strong>＝チームにどれだけ勝利を上積みしたかの目安（打撃のみの簡易版）。
-          ※ いずれも本チーム内での相対評価・参考値です。打席数が少ないと数値が大きく振れます。
-        </p>
-      </section>
+      <IosLabel>打率ランキング（タップで詳細）</IosLabel>
+      {ranked.length === 0 ? (
+        <IosGroup><p style={emptyMsg}>{isGame ? "この試合の打席記録はありません。" : "まだ打席記録がありません。"}</p></IosGroup>
+      ) : (
+        <IosGroup>
+          {ranked.map((s, i) => (
+            <PlayerRow
+              key={s.m.id}
+              rank={i + 1}
+              name={s.m.name}
+              jersey={s.m.jerseyNumber}
+              main={fmtAvg(s.avg)}
+              mainLabel="打率"
+              sub={`${s.h}安打 / ${s.ab}打数 · OPS ${fmtAvg(s.ops)}`}
+              first={i === 0}
+              open={openId === s.m.id}
+              onToggle={() => toggle(s.m.id)}
+            >
+              <TileGrid>
+                <StatTile label="試合" value={s.games} />
+                <StatTile label="打数" value={s.ab} />
+                <StatTile label="安打" value={s.h} accent />
+                <StatTile label="本塁打" value={s.hr} tone={s.hr > 0 ? "#FF453A" : undefined} />
+                <StatTile label="打点" value={s.rbi} />
+                <StatTile label="盗塁" value={s.sb} />
+                <StatTile label="四球" value={s.bb} />
+                <StatTile label="三振" value={s.so} />
+                <StatTile label="出塁率" value={fmtAvg(s.obp)} />
+                <StatTile label="長打率" value={fmtAvg(s.slg)} />
+                <StatTile label="OPS" value={fmtAvg(s.ops)} accent />
+                <StatTile label="wOBA" value={s.pa > 0 ? fmtAvg(s.woba) : "—"} />
+                <StatTile label="wRC+" value={s.pa > 0 ? s.wrcPlus : "—"} tone={s.wrcPlus >= 100 ? "#30D158" : undefined} />
+                <StatTile label="WAR" value={s.pa > 0 ? s.war.toFixed(1) : "—"} accent />
+              </TileGrid>
+            </PlayerRow>
+          ))}
+        </IosGroup>
+      )}
+      <p style={{ fontSize: 12, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, padding: "0 4px", margin: "-12px 0 22px" }}>
+        wOBA＝出塁の質を打率の物差しで表した総合指標。wRC+＝チーム平均を100とした得点創出力。WAR＝勝利への貢献度の目安。いずれもチーム内の相対評価で、打席数が少ないと大きく振れます。
+      </p>
+    </div>
+  );
+}
 
-      {/* 個人カード */}
-      {ranked.length > 0 && (
-        <section className="stx-row" style={{ ...cardStyle, animationDelay: "180ms" }}>
-          <H sub="PLAYER CARDS">個人カード</H>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))" }}>
-            {ranked.map((s, i) => (
-              <div key={s.m.id} className="stx-card stx-row" style={{ background: "#1C1C1E", padding: 16, border: "1px solid #38383A", animationDelay: `${240 + i * 70}ms`, position: "relative", overflow: "hidden" }}>
-                {i < 3 && (
-                  <span style={{ position: "absolute", top: 10, right: 12 }}><RankBadge rank={i + 1} /></span>
-                )}
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", fontSize: 22 }}>#{s.m.jerseyNumber || "—"}</span>
-                  <span style={{ fontWeight: 800, fontSize: 16 }}>{s.m.name}</span>
-                  <span style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", letterSpacing: "0.1em" }}>{s.m.position || "—"}</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 12 }}>
-                  <Meter label="打率" text={fmtAvg(s.avg)} ratio={s.avg / 0.5} color="#67e088" delay={i * 70} />
-                  <Meter label="出塁率" text={fmtAvg(s.obp)} ratio={s.obp / 0.6} color="#8fc4ff" delay={i * 70 + 60} />
-                  <Meter label="長打率" text={fmtAvg(s.slg)} ratio={s.slg / 0.9} color="#f28899" delay={i * 70 + 120} />
-                  <Meter label="OPS" text={fmtAvg(s.ops)} ratio={s.ops / 1.5} color="#E5B84B" delay={i * 70 + 180} bold />
-                </div>
-                {/* セイバー指標 */}
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <div style={{ flex: 1, textAlign: "center", background: "#1a1a19", border: "1px solid #322d1c", padding: "6px 4px" }}>
-                    <div style={{ fontSize: 9, color: "rgba(235,235,245,0.60)", letterSpacing: "0.1em" }}>wRC+</div>
-                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: s.wrcPlus >= 100 ? "#67e088" : "#fff" }}>{s.pa > 0 ? s.wrcPlus : "—"}</div>
-                  </div>
-                  <div style={{ flex: 1, textAlign: "center", background: "#1a1a19", border: "1px solid #322d1c", padding: "6px 4px" }}>
-                    <div style={{ fontSize: 9, color: "rgba(235,235,245,0.60)", letterSpacing: "0.1em" }}>WAR</div>
-                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</div>
-                  </div>
-                  <div style={{ flex: 1, textAlign: "center", background: "#1C1C1E", border: "1px solid #38383A", padding: "6px 4px" }}>
-                    <div style={{ fontSize: 9, color: "rgba(235,235,245,0.60)", letterSpacing: "0.1em" }}>wOBA</div>
-                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#fff" }}>{s.pa > 0 ? fmtAvg(s.woba) : "—"}</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 12, marginTop: 12, fontSize: 11, color: "rgba(235,235,245,0.60)", flexWrap: "wrap" }}>
-                  <span>HR <strong style={{ color: "#fff" }}>{s.hr}</strong></span>
-                  <span>打点 <strong style={{ color: "#fff" }}>{s.rbi}</strong></span>
-                  <span>盗塁 <strong style={{ color: "#fff" }}>{s.sb}</strong>{s.sbAttempts > 0 && `（${fmtPct(s.sbPct)}）`}</span>
-                  <span>四球 <strong style={{ color: "#fff" }}>{s.bb}</strong></span>
-                  <span>三振 <strong style={{ color: "#fff" }}>{s.so}</strong></span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+/* ── 投手 ─────────────────────────────────────────────── */
+function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scopeLabel: string }) {
+  const active = stats.filter(s => s.ipOuts > 0);
+  const ranked = [...active].sort((a, b) => a.era - b.era);
+  const { openId, toggle } = useOpenRow();
+
+  const teamOuts = active.reduce((s, x) => s + x.ipOuts, 0);
+  const teamEr = active.reduce((s, x) => s + x.er, 0);
+  const teamSo = active.reduce((s, x) => s + x.so, 0);
+  const teamBb = active.reduce((s, x) => s + x.bb, 0);
+  const teamEra = teamOuts > 0 ? (teamEr * 27) / teamOuts : 0;
+
+  return (
+    <div>
+      <IosLabel>{scopeLabel}のチーム成績</IosLabel>
+      <IosGroup style={{ padding: 14 }}>
+        <TileGrid>
+          <StatTile label="チーム防御率" value={fmtEra(teamEra)} accent />
+          <StatTile label="投球回" value={fmtIp(teamOuts)} />
+          <StatTile label="奪三振" value={teamSo} />
+          <StatTile label="与四球" value={teamBb} />
+        </TileGrid>
+      </IosGroup>
+
+      <IosLabel>防御率ランキング（タップで詳細）</IosLabel>
+      {ranked.length === 0 ? (
+        <IosGroup><p style={emptyMsg}>まだ投球記録がありません。</p></IosGroup>
+      ) : (
+        <IosGroup>
+          {ranked.map((s, i) => (
+            <PlayerRow
+              key={s.m.id}
+              rank={i + 1}
+              name={s.m.name}
+              jersey={s.m.jerseyNumber}
+              main={fmtEra(s.era)}
+              mainLabel="防御率"
+              sub={`${fmtIp(s.ipOuts)}回 · ${s.so}奪三振 · WHIP ${s.whip.toFixed(2)}`}
+              first={i === 0}
+              open={openId === s.m.id}
+              onToggle={() => toggle(s.m.id)}
+            >
+              <TileGrid>
+                <StatTile label="登板" value={s.appearances} />
+                <StatTile label="投球回" value={fmtIp(s.ipOuts)} accent />
+                <StatTile label="被安打" value={s.hits} />
+                <StatTile label="失点" value={s.runs} />
+                <StatTile label="自責点" value={s.er} />
+                <StatTile label="奪三振" value={s.so} accent />
+                <StatTile label="与四球" value={s.bb} />
+                <StatTile label="死球" value={s.hbp} />
+                <StatTile label="K/9" value={s.k9.toFixed(1)} />
+                <StatTile label="WHIP" value={s.whip.toFixed(2)} />
+              </TileGrid>
+            </PlayerRow>
+          ))}
+        </IosGroup>
       )}
     </div>
   );
 }
 
-function Meter({ label, text, ratio, color, delay = 0, bold }: { label: string; text: string; ratio: number; color: string; delay?: number; bold?: boolean }) {
-  const w = Math.max(0.02, Math.min(1, ratio));
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "52px 1fr 52px", alignItems: "center", gap: 10 }}>
-      <span style={{ fontSize: 10, color: "rgba(235,235,245,0.60)", letterSpacing: "0.1em" }}>{label}</span>
-      <span className="stx-bar" style={{ maxWidth: "none", height: 5 }}>
-        <span style={{ background: `linear-gradient(90deg, ${color}, ${color}cc)`, transform: `scaleX(${w})`, animationDelay: `${delay + 250}ms` }} />
-      </span>
-      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: bold ? 15 : 13, fontWeight: 700, color: bold ? "#E5B84B" : "#fff", textAlign: "right" }}>{text}</span>
-    </div>
-  );
-}
-
-/* ── 投手ビュー ───────────────────────────────────────── */
-function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scopeLabel: string }) {
-  const ranked = [...stats].sort((a, b) => (Number.isFinite(a.era) ? a.era : 999) - (Number.isFinite(b.era) ? b.era : 999));
-  const teamOuts = stats.reduce((s, x) => s + x.ipOuts, 0);
-  const teamEr = stats.reduce((s, x) => s + x.er, 0);
-  const teamSo = stats.reduce((s, x) => s + x.so, 0);
-  const teamEra = teamOuts > 0 ? (teamEr * 27) / teamOuts : 0;
-
-  return (
-    <div>
-      <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
-        <H sub="TEAM SUMMARY">{scopeLabel}成績 — 投手</H>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
-          <SummaryCell label="チーム防御率" value={teamEra} fmt={fmtEra} accent />
-          <SummaryCell label="投球回" value={teamOuts} fmt={n => fmtIp(Math.round(n))} />
-          <SummaryCell label="奪三振" value={teamSo} fmt={n => String(Math.round(n))} />
-        </div>
-      </section>
-
-      <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
-        <H sub="ERA RANKING">投手成績（防御率順）</H>
-        {ranked.length === 0 ? (
-          <p style={emptyMsg}>投手記録がありません。</p>
-        ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <Th>#</Th>
-                  <Th>投手</Th>
-                  <Th>登板</Th>
-                  <Th>投球回</Th>
-                  <Th>奪三振</Th>
-                  <Th>与四球</Th>
-                  <Th>被安打</Th>
-                  <Th>失点</Th>
-                  <Th>自責</Th>
-                  <Th>K/9</Th>
-                  <Th>WHIP</Th>
-                  <Th>防御率</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranked.map((s, i) => (
-                  <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid #38383A", animationDelay: `${120 + i * 60}ms`, background: i === 0 ? "#1C1C1E" : "transparent" }}>
-                    <Td><RankBadge rank={i + 1} /></Td>
-                    <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
-                      <strong>{s.m.name}</strong>
-                    </Td>
-                    <Td>{s.appearances}</Td>
-                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif" }}>{fmtIp(s.ipOuts)}</span></Td>
-                    <Td>
-                      <span style={{ color: "#67e088", fontWeight: 700 }}>{s.so}</span>
-                      <StatBar ratio={Number.isFinite(s.k9) ? s.k9 / 15 : 0} color="#67e088" delay={200 + i * 60} />
-                    </Td>
-                    <Td>{s.bb}</Td>
-                    <Td>{s.hits}</Td>
-                    <Td>{s.runs}</Td>
-                    <Td>{s.er}</Td>
-                    <Td>{Number.isFinite(s.k9) ? s.k9.toFixed(2) : "—"}</Td>
-                    <Td>{Number.isFinite(s.whip) ? s.whip.toFixed(2) : "—"}</Td>
-                    <Td><BigNum hl>{fmtEra(s.era)}</BigNum></Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/* ── 捕手ビュー ───────────────────────────────────────── */
+/* ── 捕手 ─────────────────────────────────────────────── */
 function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scopeLabel: string }) {
-  const ranked = [...stats].sort((a, b) => b.rate - a.rate);
+  const active = stats.filter(s => s.sba > 0);
+  const ranked = [...active].sort((a, b) => b.rate - a.rate);
+  const { openId, toggle } = useOpenRow();
+
+  const teamSba = active.reduce((s, x) => s + x.sba, 0);
+  const teamCs = active.reduce((s, x) => s + x.cs, 0);
+  const teamRate = teamSba > 0 ? teamCs / teamSba : 0;
+
   return (
     <div>
-      <section className="stx-row" style={cardStyle}>
-        <H sub="CS% RANKING">{scopeLabel}成績 — 捕手（盗塁阻止率順）</H>
-        {ranked.length === 0 ? (
-          <p style={emptyMsg}>捕手記録がありません。</p>
-        ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <Th>#</Th>
-                  <Th>捕手</Th>
-                  <Th>試合</Th>
-                  <Th>盗塁試行</Th>
-                  <Th>阻止</Th>
-                  <Th>盗塁阻止率</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranked.map((s, i) => (
-                  <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid #38383A", animationDelay: `${100 + i * 60}ms`, background: i === 0 ? "#1C1C1E" : "transparent" }}>
-                    <Td><RankBadge rank={i + 1} /></Td>
-                    <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
-                      <strong>{s.m.name}</strong>
-                    </Td>
-                    <Td>{s.games}</Td>
-                    <Td>{s.sba}</Td>
-                    <Td><span style={{ color: "#67e088", fontWeight: 700 }}>{s.cs}</span></Td>
-                    <Td>
-                      <BigNum hl>{fmtPct(s.rate)}</BigNum>
-                      <StatBar ratio={s.rate} color="#E5B84B" delay={200 + i * 60} />
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <IosLabel>{scopeLabel}のチーム成績</IosLabel>
+      <IosGroup style={{ padding: 14 }}>
+        <TileGrid>
+          <StatTile label="盗塁阻止率" value={fmtPct(teamRate)} accent />
+          <StatTile label="盗塁企図" value={teamSba} />
+          <StatTile label="盗塁刺" value={teamCs} />
+        </TileGrid>
+      </IosGroup>
+
+      <IosLabel>阻止率ランキング（タップで詳細）</IosLabel>
+      {ranked.length === 0 ? (
+        <IosGroup><p style={emptyMsg}>まだ捕手記録がありません。</p></IosGroup>
+      ) : (
+        <IosGroup>
+          {ranked.map((s, i) => (
+            <PlayerRow
+              key={s.m.id}
+              rank={i + 1}
+              name={s.m.name}
+              jersey={s.m.jerseyNumber}
+              main={fmtPct(s.rate)}
+              mainLabel="阻止率"
+              sub={`${s.cs}/${s.sba} 盗塁刺 · ${s.games}試合`}
+              first={i === 0}
+              open={openId === s.m.id}
+              onToggle={() => toggle(s.m.id)}
+            >
+              <TileGrid>
+                <StatTile label="試合" value={s.games} />
+                <StatTile label="盗塁企図" value={s.sba} />
+                <StatTile label="盗塁刺" value={s.cs} accent />
+                <StatTile label="阻止率" value={fmtPct(s.rate)} accent />
+              </TileGrid>
+            </PlayerRow>
+          ))}
+        </IosGroup>
+      )}
     </div>
   );
 }
 
-/* ── 守備ビュー ───────────────────────────────────────── */
+/* ── 守備 ─────────────────────────────────────────────── */
 function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scopeLabel: string }) {
-  const ranked = [...stats].sort((a, b) => b.rate - a.rate || b.chances - a.chances);
-  const teamPo = stats.reduce((s, x) => s + x.po, 0);
-  const teamA = stats.reduce((s, x) => s + x.a, 0);
-  const teamE = stats.reduce((s, x) => s + x.e, 0);
-  const teamCh = teamPo + teamA + teamE;
+  const active = stats.filter(s => s.chances > 0);
+  const ranked = [...active].sort((a, b) => b.rate - a.rate);
+  const { openId, toggle } = useOpenRow();
+
+  const teamPo = active.reduce((s, x) => s + x.po, 0);
+  const teamA = active.reduce((s, x) => s + x.a, 0);
+  const teamE = active.reduce((s, x) => s + x.e, 0);
+  const teamCh = active.reduce((s, x) => s + x.chances, 0);
   const teamRate = teamCh > 0 ? (teamPo + teamA) / teamCh : 0;
 
   return (
     <div>
-      <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
-        <H sub="TEAM SUMMARY">{scopeLabel}成績 — 守備</H>
-        <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
-          <SummaryCell label="チーム守備率" value={teamRate} fmt={fmtAvg} accent />
-          <SummaryCell label="刺殺" value={teamPo} fmt={n => String(Math.round(n))} />
-          <SummaryCell label="捕殺" value={teamA} fmt={n => String(Math.round(n))} />
-          <SummaryCell label="失策" value={teamE} fmt={n => String(Math.round(n))} />
-        </div>
-      </section>
+      <IosLabel>{scopeLabel}のチーム成績</IosLabel>
+      <IosGroup style={{ padding: 14 }}>
+        <TileGrid>
+          <StatTile label="チーム守備率" value={fmtAvg(teamRate)} accent />
+          <StatTile label="刺殺" value={teamPo} />
+          <StatTile label="捕殺" value={teamA} />
+          <StatTile label="失策" value={teamE} tone={teamE > 0 ? "#FF453A" : undefined} />
+        </TileGrid>
+      </IosGroup>
 
-      <section className="stx-row" style={{ ...cardStyle, animationDelay: "80ms" }}>
-        <H sub="FIELDING %">守備成績（守備率順）</H>
-        {ranked.length === 0 ? (
-          <p style={emptyMsg}>守備記録がありません。</p>
-        ) : (
-          <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <Th>#</Th>
-                  <Th>選手</Th>
-                  <Th>試合</Th>
-                  <Th>刺殺</Th>
-                  <Th>捕殺</Th>
-                  <Th>失策</Th>
-                  <Th>守備機会</Th>
-                  <Th>守備率</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {ranked.map((s, i) => (
-                  <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid #38383A", animationDelay: `${100 + i * 60}ms`, background: i === 0 ? "#1C1C1E" : "transparent" }}>
-                    <Td><RankBadge rank={i + 1} /></Td>
-                    <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
-                      <strong>{s.m.name}</strong>
-                    </Td>
-                    <Td>{s.games}</Td>
-                    <Td><span style={{ color: "#67e088", fontWeight: 700 }}>{s.po}</span></Td>
-                    <Td><span style={{ color: "#8fc4ff", fontWeight: 700 }}>{s.a}</span></Td>
-                    <Td><span style={{ color: s.e > 0 ? "#ff6982" : undefined, fontWeight: s.e > 0 ? 700 : 400 }}>{s.e}</span></Td>
-                    <Td>{s.chances}</Td>
-                    <Td>
-                      <BigNum hl>{fmtAvg(s.rate)}</BigNum>
-                      <StatBar ratio={s.rate} color="#E5B84B" delay={200 + i * 60} />
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 10, lineHeight: 1.6 }}>
-          守備率 =（刺殺＋捕殺）÷（刺殺＋捕殺＋失策）。刺殺(PO)はアウトを直接取った数、捕殺(A)は送球などで補助した数です。
-        </p>
-      </section>
+      <IosLabel>守備率ランキング（タップで詳細）</IosLabel>
+      {ranked.length === 0 ? (
+        <IosGroup><p style={emptyMsg}>まだ守備記録がありません。</p></IosGroup>
+      ) : (
+        <IosGroup>
+          {ranked.map((s, i) => (
+            <PlayerRow
+              key={s.m.id}
+              rank={i + 1}
+              name={s.m.name}
+              jersey={s.m.jerseyNumber}
+              main={fmtAvg(s.rate)}
+              mainLabel="守備率"
+              sub={`刺殺${s.po} · 捕殺${s.a} · 失策${s.e}`}
+              first={i === 0}
+              open={openId === s.m.id}
+              onToggle={() => toggle(s.m.id)}
+            >
+              <TileGrid>
+                <StatTile label="試合" value={s.games} />
+                <StatTile label="刺殺" value={s.po} accent />
+                <StatTile label="捕殺" value={s.a} accent />
+                <StatTile label="失策" value={s.e} tone={s.e > 0 ? "#FF453A" : undefined} />
+                <StatTile label="守備機会" value={s.chances} />
+                <StatTile label="守備率" value={fmtAvg(s.rate)} accent />
+              </TileGrid>
+            </PlayerRow>
+          ))}
+        </IosGroup>
+      )}
     </div>
   );
 }
