@@ -18,7 +18,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { readCache, writeCache } from "@/lib/clientCache";
+import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 
 type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
 
@@ -360,7 +360,7 @@ function LoginGate({
       <div style={{ width: "100%", maxWidth: 420 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <Image src="/sk_logo_crop.png" alt="logo" width={96} height={79} className="object-contain mx-auto" />
-          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginTop: 12 }}>
+          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#E5B84B", letterSpacing: "0.4em", marginTop: 12 }}>
             ADMIN — TEAM CONSOLE
           </p>
           <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#fff", marginTop: 6 }}>
@@ -467,7 +467,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   // list 系（読み取り）は loading flag のみ、append/update/delete（書き込み）は saving を立てる。
   // 連続して呼ばれる可能性があるので Symbol で参照カウントせず、各呼び出しの try/finally で確実に下げる。
   const writingCount = useRef(0);
-  const api = useCallback(async <T,>(path: string, body: Record<string, unknown>): Promise<T | null> => {
+  const api = useCallback(async <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }): Promise<T | null> => {
     // 読み取り（list / verify / アカウント一覧）は saving 扱いにしない。
     // ※ ここを書き込み扱いにすると、ページを開くたびに保存ローダーが回り
     //   全ボタンが無効化されて「重い」と感じる原因になる。
@@ -488,12 +488,13 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
-        showToast(false, data?.error ?? "リクエストに失敗しました。");
+        // silent: 裏での再取得など、失敗しても既存表示で困らない時はエラーを出さない
+        if (!opts?.silent) showToast(false, data?.error ?? "リクエストに失敗しました。");
         return null;
       }
       return data as T;
     } catch {
-      showToast(false, "ネットワークエラーが発生しました。");
+      if (!opts?.silent) showToast(false, "ネットワークエラーが発生しました。");
       return null;
     } finally {
       if (isWrite) {
@@ -504,23 +505,62 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   }, [pw]);
 
   /**
+   * 同じタイミングで要求されたシートを1リクエストにまとめて取得する。
+   *
+   * Apps Script は1往復が重く、同時に何本も叩くと順番待ちで
+   * 「応答が遅くタイムアウトしました」になりやすい。起動時やタブ切替で
+   * 複数の一覧を読む場面をまとめることで、呼び出し回数を大幅に減らす。
+   */
+  const batchRef = useRef<{
+    sheets: Set<string>;
+    waiters: { sheet: string; resolve: (v: ListRow[] | null) => void }[];
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+
+  const fetchSheetBatched = useCallback((sheet: string): Promise<ListRow[] | null> => {
+    return new Promise<ListRow[] | null>(resolve => {
+      if (!batchRef.current) batchRef.current = { sheets: new Set(), waiters: [], timer: null };
+      const b = batchRef.current;
+      b.sheets.add(sheet);
+      b.waiters.push({ sheet, resolve });
+      if (b.timer) clearTimeout(b.timer);
+      // 30ms の集約ウィンドウ。この間に来た要求はまとめて1回で取りに行く。
+      b.timer = setTimeout(async () => {
+        batchRef.current = null;
+        const sheets = [...b.sheets];
+        const data = await api<{ ok: true; sheets: Record<string, ListRow[]> }>(
+          "/api/admin/list", { sheets }, { silent: true },
+        );
+        if (!data) {
+          // 失敗時のエラー表示はこの1回だけ（シートごとに出すと通知が溢れるため）
+          showToast(false, "最新データの取得に失敗しました。表示は前回の内容です。「再読込」でやり直せます。");
+          b.waiters.forEach(w => w.resolve(null));
+          return;
+        }
+        const map = data.sheets ?? {};
+        b.waiters.forEach(w => w.resolve(map[w.sheet] ?? []));
+      }, 30);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
+
+  /**
    * 一覧取得（キャッシュ優先）。
    * 前回の内容があれば即座に描画してから、裏で最新を取り直して上書きする。
-   * Apps Script は1往復が重いので、これだけで体感速度が大きく変わる。
    */
   const listCached = useCallback(async (sheet: string, apply: (rows: ListRow[]) => void) => {
     const ck = `admin_rows_${sheet}`;
-    const cached = readCache<ListRow[]>(ck);
-    if (cached) apply(cached);
-    setLoadingFor(sheet, !cached);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet });
+    const hit = readCacheWithAge<ListRow[]>(ck);
+    if (hit) apply(hit.v);
+    // 直近30秒以内に取得済みなら通信しない（タブを行き来しても待たされない）
+    if (hit && hit.age < 30_000) { setLoadingFor(sheet, false); return; }
+    setLoadingFor(sheet, !hit);
+    const rows = await fetchSheetBatched(sheet);
     setLoadingFor(sheet, false);
-    if (!data) return;
-    const rows = data.rows ?? [];
+    if (!rows) return;
     writeCache(ck, rows);
     apply(rows);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api]);
+  }, [fetchSheetBatched]);
 
   const setLoadingFor = (key: string, v: boolean) =>
     setLoading(prev => ({ ...prev, [key]: v }));
@@ -779,7 +819,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     const cachedAcc = readCache<AccountRow[]>("admin_accounts");
     if (cachedAcc) setAccounts(cachedAcc);
     setLoadingFor("accounts", !cachedAcc);
-    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; memberId?: string; userId?: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
+    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; memberId?: string; userId?: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" }, { silent: !!cachedAcc });
     setLoadingFor("accounts", false);
     if (!data) return;
     const parsedAcc = (data.accounts ?? []).map(a => ({
@@ -843,7 +883,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             <Image src="/sk_logo_crop.png" alt="logo" width={44} height={36} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 14 }}>博多SKルーキーズ</div>
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>TEAM CONSOLE</div>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#E5B84B", letterSpacing: "0.3em", marginTop: 2 }}>TEAM CONSOLE</div>
             </div>
           </Link>
           <span style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: "0.1em" }}>
@@ -858,50 +898,95 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div style={{ background: "#131a2c", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-        <div className="max-w-[1280px] mx-auto px-2 md:px-8 flex" style={{ overflowX: "auto" }}>
-          {([
-            ["members", "名簿", members.length],
-            ["attendance", "練習出欠", attendance.length],
-            ["lineup", "スタメン", lineups.length],
-            ["scoreboard", "スコアボード", games.length],
-            ["batting", "打席記録", batting.length],
-            ["pitching", "投手記録", pitching.length],
-            ["catching", "捕手記録", catching.length],
-            ["fielding", "守備記録", fielding.length],
-            ["probables", "予告先発", probables.length],
-            ["payments", "集金", payments.length],
-            ["receipt", "領収書", undefined],
-            ["stats", "統計", undefined],
-            ["notify", "🔔通知", undefined],
-            ["approvals", pending.length > 0 ? "🔴承認待ち" : "承認", pending.length],
-            ["accounts", accounts.filter(a => a.status === "pending").length > 0 ? "🔴アカウント承認" : "👤アカウント", accounts.filter(a => a.status === "pending").length],
-            ["link", "🔗連携", undefined],
-            ["maintenance", "🛠メンテ", undefined],
-          ] as [Tab, string, number | undefined][]).map(([key, label, count]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              style={{
-                padding: "14px 18px",
-                background: tab === key ? "rgba(255,204,74,0.04)" : "transparent",
-                color: tab === key ? "#d4a82a" : "rgba(255,255,255,0.55)",
-                border: "none",
-                borderBottom: tab === key ? "2px solid #d10024" : "2px solid transparent",
-                fontFamily: "var(--font-zen),sans-serif",
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {label}{count !== undefined && <span style={{ marginLeft: 6, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>({count})</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Tabs — 18個を横並びにすると探しにくいので「カテゴリ → タブ」の2段にする */}
+      {(() => {
+        const acctAlerts = accounts.filter(a => a.status === "pending").length;
+        const groups: { key: string; label: string; items: [Tab, string, number | undefined, boolean][] }[] = [
+          { key: "team", label: "チーム", items: [
+            ["members", "名簿", members.length, false],
+            ["attendance", "練習出欠", attendance.length, false],
+            ["payments", "集金", payments.length, false],
+            ["receipt", "領収書", undefined, false],
+          ] },
+          { key: "game", label: "試合", items: [
+            ["lineup", "スタメン", lineups.length, false],
+            ["scoreboard", "スコアボード", games.length, false],
+            ["batting", "打席記録", batting.length, false],
+            ["pitching", "投手記録", pitching.length, false],
+            ["catching", "捕手記録", catching.length, false],
+            ["fielding", "守備記録", fielding.length, false],
+            ["probables", "予告先発", probables.length, false],
+          ] },
+          { key: "ops", label: "運営", items: [
+            ["stats", "統計", undefined, false],
+            ["notify", "通知", undefined, false],
+            ["approvals", "記録の承認", pending.length, pending.length > 0],
+            ["accounts", "アカウント", accounts.length, acctAlerts > 0],
+            ["link", "連携", undefined, false],
+            ["maintenance", "メンテナンス", undefined, false],
+          ] },
+        ];
+        const activeGroup = groups.find(g => g.items.some(([k]) => k === tab)) ?? groups[0];
+        const Dot = () => (
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF4D6A", display: "inline-block", marginRight: 6, flexShrink: 0 }} />
+        );
+        return (
+          <div style={{ background: "#0F1626", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+            <div className="max-w-[1280px] mx-auto px-4 md:px-8" style={{ paddingTop: 12, paddingBottom: 12 }}>
+              {/* カテゴリ */}
+              <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 4, width: "fit-content", maxWidth: "100%", overflowX: "auto" }}>
+                {groups.map(g => {
+                  const on = g.key === activeGroup.key;
+                  const alerts = g.items.some(it => it[3]);
+                  return (
+                    <button
+                      key={g.key}
+                      onClick={() => setTab(g.items[0][0])}
+                      style={{
+                        display: "flex", alignItems: "center",
+                        padding: "9px 20px", borderRadius: 9, border: "none",
+                        background: on ? "#E5B84B" : "transparent",
+                        color: on ? "#10131C" : "rgba(255,255,255,0.65)",
+                        fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14,
+                        cursor: "pointer", whiteSpace: "nowrap", transition: "background .18s, color .18s",
+                      }}
+                    >
+                      {alerts && !on ? <Dot /> : null}{g.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* カテゴリ内のタブ */}
+              <div style={{ display: "flex", gap: 6, marginTop: 10, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 2 }}>
+                {activeGroup.items.map(([key, label, count, alert]) => {
+                  const on = tab === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setTab(key)}
+                      style={{
+                        display: "flex", alignItems: "center", flexShrink: 0,
+                        padding: "9px 16px", borderRadius: 999,
+                        background: on ? "rgba(229,184,75,0.16)" : "rgba(255,255,255,0.05)",
+                        color: on ? "#E5B84B" : "rgba(255,255,255,0.62)",
+                        border: on ? "1px solid rgba(229,184,75,0.55)" : "1px solid transparent",
+                        fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700,
+                        cursor: "pointer", whiteSpace: "nowrap", transition: "background .18s, color .18s",
+                      }}
+                    >
+                      {alert ? <Dot /> : null}
+                      {label}
+                      {count !== undefined && (
+                        <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.65, fontFamily: "var(--font-oswald),sans-serif" }}>{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Body */}
       <main className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 24, paddingBottom: 80 }}>
@@ -1113,13 +1198,13 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             fontFamily: "var(--font-zen),sans-serif",
             fontWeight: 700,
             letterSpacing: "0.08em",
-            color: "#d4a82a",
+            color: "#E5B84B",
             fontSize: 13,
           }}>
             <span style={{
               width: 18, height: 18,
               border: "2px solid rgba(212,168,42,0.25)",
-              borderTopColor: "#d4a82a",
+              borderTopColor: "#E5B84B",
               borderRadius: "50%",
               animation: "skr-spin 0.8s linear infinite",
             }} />
@@ -1156,18 +1241,19 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 // 共通スタイル
 // ────────────────────────────────────────────────────────
 const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.04)",
+  background: "rgba(255,255,255,0.05)",
   border: "1px solid rgba(255,255,255,0.08)",
-  padding: 20,
+  borderRadius: 14,
+  padding: 22,
 };
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "9px 11px",
-  background: "rgba(255,255,255,0.04)",
+  padding: "12px 13px",
+  background: "rgba(255,255,255,0.07)",
   border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 10,
   color: "#fff",
-  fontSize: 13,
-  fontFamily: "var(--font-zen),sans-serif",
+  fontSize: 16,
   outline: "none",
 };
 const labelStyle: React.CSSProperties = {
@@ -1204,7 +1290,7 @@ const btnSubStyle: React.CSSProperties = {
 
 function H3({ children }: { children: React.ReactNode }) {
   return (
-    <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#d4a82a", marginBottom: 12, letterSpacing: "0.06em" }}>
+    <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#E5B84B", marginBottom: 12, letterSpacing: "0.06em" }}>
       {children}
     </h3>
   );
@@ -1291,7 +1377,7 @@ function MembersTab({
           </div>
           <div>
             <label style={labelStyle}>
-              カナ <span style={{ color: "#d4a82a", fontSize: 10 }}>※本人が新規登録するのに必須</span>
+              カナ <span style={{ color: "#E5B84B", fontSize: 10 }}>※本人が新規登録するのに必須</span>
             </label>
             <input value={form.kana} onChange={e => setForm({ ...form, kana: e.target.value })} placeholder="例: カシワギ　カイト" style={inputStyle} />
             <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 4, lineHeight: 1.6 }}>
@@ -1376,7 +1462,7 @@ function MembersTab({
                         : <span style={{ fontSize: 10, padding: "3px 8px", background: "rgba(209,0,36,0.15)", color: "#ff6982", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>未設定→登録不可</span>}
                     </Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
                         {m.jerseyNumber || "—"}
                       </span>
                     </Td>
@@ -1391,7 +1477,7 @@ function MembersTab({
                     </Td>
                     <Td>
                       <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                        <button onClick={() => startEdit(m)} style={{ padding: "4px 10px", background: "rgba(212,168,42,0.15)", color: "#d4a82a", border: "1px solid rgba(212,168,42,0.35)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>編集</button>
+                        <button onClick={() => startEdit(m)} style={{ padding: "4px 10px", background: "rgba(212,168,42,0.15)", color: "#E5B84B", border: "1px solid rgba(212,168,42,0.35)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>編集</button>
                         <button onClick={() => remove(m)} style={{ padding: "4px 10px", background: "rgba(209,0,36,0.15)", color: "#ff6982", border: "1px solid rgba(209,0,36,0.35)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>削除</button>
                       </div>
                     </Td>
@@ -1543,7 +1629,7 @@ function AttendanceTab({
   }
 
   const colors: Record<string, string> = {
-    "出席": "#1a9f3a", "欠席": "#d10024", "遅刻": "#d4a82a", "未定": "#5b6373",
+    "出席": "#1a9f3a", "欠席": "#d10024", "遅刻": "#E5B84B", "未定": "#5b6373",
   };
   const countBy = (s: string) => checkinMembers.filter(m => statusFor(m) === s).length;
 
@@ -1636,8 +1722,8 @@ function AttendanceTab({
 
         {/* 事前登録モードの案内 */}
         {mode === "register" && (
-          <div style={{ marginTop: 14, padding: "12px 14px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>
-            この日の<strong style={{ color: "#d4a82a" }}>参加予定者</strong>を選んでください。保存後、当日に「✅ 当日出欠」モードへ切り替えると、ここで登録した人だけがリストアップされ、出席／欠席／遅刻を素早く確認できます。
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #E5B84B", fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.7 }}>
+            この日の<strong style={{ color: "#E5B84B" }}>参加予定者</strong>を選んでください。保存後、当日に「✅ 当日出欠」モードへ切り替えると、ここで登録した人だけがリストアップされ、出席／欠席／遅刻を素早く確認できます。
           </div>
         )}
       </section>
@@ -1673,10 +1759,10 @@ function AttendanceTab({
                         checked={checked}
                         onChange={() => togglePreReg(m.id)}
                         onClick={e => e.stopPropagation()}
-                        style={{ width: 18, height: 18, accentColor: "#d4a82a", cursor: "pointer" }}
+                        style={{ width: 18, height: 18, accentColor: "#E5B84B", cursor: "pointer" }}
                       />
                       <div>
-                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                         <span style={{ fontWeight: 700 }}>{m.name}</span>
                         {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
                       </div>
@@ -1709,11 +1795,11 @@ function AttendanceTab({
                   return (
                     <li key={m.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
                       <div>
-                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                         <span style={{ fontWeight: 700 }}>{m.name}</span>
                         {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
                         {isPreReg ? (
-                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "rgba(212,168,42,0.15)", color: "#d4a82a", letterSpacing: "0.06em" }}>予定</span>
+                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "rgba(212,168,42,0.15)", color: "#E5B84B", letterSpacing: "0.06em" }}>予定</span>
                         ) : (
                           <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", letterSpacing: "0.06em" }}>飛び込み</span>
                         )}
@@ -1877,7 +1963,7 @@ function LineupTab({
           <input
             value={teamName}
             onChange={e => setTeamName(e.target.value)}
-            style={{ ...inputStyle, fontWeight: 700, fontSize: 14, color: "#d4a82a", maxWidth: 200 }}
+            style={{ ...inputStyle, fontWeight: 700, fontSize: 14, color: "#E5B84B", maxWidth: 200 }}
           />
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
             {slots.filter(s => s.memberId).length} / {slots.length} 名
@@ -1888,7 +1974,7 @@ function LineupTab({
             const used = slots.map(s => s.memberId).filter((id, idx) => id && idx !== i);
             return (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 110px", gap: 6, alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, color: "#d4a82a", textAlign: "center", fontWeight: 700 }}>{i + 1}</span>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, color: "#E5B84B", textAlign: "center", fontWeight: 700 }}>{i + 1}</span>
                 <select
                   value={slot.memberId}
                   onChange={e => updateSlot(teamKey, i, "memberId", e.target.value)}
@@ -2155,7 +2241,7 @@ function ScoreboardTab({
               <tr>
                 <th style={{ padding: 8, background: "rgba(255,255,255,0.06)", textAlign: "left", fontSize: 10, letterSpacing: "0.15em", color: "rgba(255,255,255,0.55)" }}>チーム</th>
                 {Array.from({ length: innings }, (_, i) => (
-                  <th key={i} style={{ padding: 8, background: i === currentInning - 1 ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.06)", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: i === currentInning - 1 ? "#d4a82a" : "rgba(255,255,255,0.65)" }}>{i + 1}</th>
+                  <th key={i} style={{ padding: 8, background: i === currentInning - 1 ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.06)", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: i === currentInning - 1 ? "#E5B84B" : "rgba(255,255,255,0.65)" }}>{i + 1}</th>
                 ))}
                 <th style={{ padding: 8, background: "#d10024", color: "#fff", textAlign: "center", fontWeight: 700 }}>R</th>
                 <th style={{ padding: 8, background: "rgba(255,255,255,0.06)", textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.55)" }}>H</th>
@@ -2225,7 +2311,7 @@ function ScoreboardTab({
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em" }}>LIVE COUNT</p>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
               <strong style={{ color: "#fff" }}>{currentInning}回{isTop ? "表" : "裏"}</strong>
-              <span style={{ marginLeft: 8, color: "#d4a82a" }}>攻撃: {offenseLabel}</span>
+              <span style={{ marginLeft: 8, color: "#E5B84B" }}>攻撃: {offenseLabel}</span>
               <button onClick={() => setIsTop(t => !t)} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 8 }}>表⇔裏</button>
               <button onClick={() => setCurrentInning(i => Math.min(innings, i + 1))} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 4 }}>+1回</button>
               <button onClick={() => setCurrentInning(i => Math.max(1, i - 1))} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 4 }}>-1回</button>
@@ -2235,7 +2321,7 @@ function ScoreboardTab({
           {/* B/S/O ＋ 塁ランナー（ダイヤモンド） */}
           <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr 1fr 180px" }}>
             <BSOCounter label="BALL" value={balls} max={4} color="#27ae60" onClick={addBall} onReset={() => setBalls(0)} />
-            <BSOCounter label="STRIKE" value={strikes} max={3} color="#d4a82a" onClick={addStrike} onReset={() => setStrikes(0)} />
+            <BSOCounter label="STRIKE" value={strikes} max={3} color="#E5B84B" onClick={addStrike} onReset={() => setStrikes(0)} />
             <BSOCounter label="OUT" value={outs} max={3} color="#d10024" onClick={addOut} onReset={() => setOuts(0)} />
             <BaseDiamond
               base1={base1} base2={base2} base3={base3}
@@ -2290,7 +2376,7 @@ function ScoreboardTab({
                     <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateJp(g.date)}</span></Td>
                     <Td><strong>{g.awayTeam}</strong> <span style={{ color: "rgba(255,255,255,0.4)" }}>vs</span> <strong>{g.homeTeam}</strong></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
                         {g.awayScores.reduce((a, b) => a + b, 0)} - {g.homeScores.reduce((a, b) => a + b, 0)}
                       </span>
                     </Td>
@@ -2319,7 +2405,7 @@ function BaseDiamond({
   const baseStyle = (on: boolean): React.CSSProperties => ({
     position: "absolute",
     width: 32, height: 32,
-    background: on ? "#d4a82a" : "rgba(255,255,255,0.06)",
+    background: on ? "#E5B84B" : "rgba(255,255,255,0.06)",
     border: on ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)",
     cursor: "pointer",
     transition: "all 0.15s",
@@ -2355,7 +2441,7 @@ function BaseDiamond({
         <div style={{ position: "absolute", bottom: 4, left: "50%", marginLeft: -10, width: 20, height: 20, background: "rgba(255,255,255,0.04)", border: "1.5px solid rgba(255,255,255,0.2)", borderRadius: "50% 50% 0 50%", transform: "rotate(45deg)" }} title="本塁" />
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-        <span style={{ flex: 1, fontSize: 10, textAlign: "center", color: runners === 0 ? "rgba(255,255,255,0.4)" : "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700 }}>
+        <span style={{ flex: 1, fontSize: 10, textAlign: "center", color: runners === 0 ? "rgba(255,255,255,0.4)" : "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700 }}>
           {runners}人 出塁中
         </span>
         <button onClick={onClear} style={{ padding: "2px 8px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.15)", fontSize: 10, cursor: "pointer" }}>C</button>
@@ -2539,14 +2625,14 @@ function PaymentsTab({
                     style={{ width: 18, height: 18, accentColor: "#1a9f3a", cursor: "pointer" }}
                   />
                   <div>
-                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                     <span style={{ fontWeight: 700 }}>{m.name}</span>
                     {m.nickname && <span style={{ marginLeft: 8, color: "rgba(255,255,255,0.4)", fontSize: 12 }}>({m.nickname})</span>}
                   </div>
                   <div style={{ fontSize: 12, color: checked ? "#67e088" : "rgba(255,255,255,0.45)" }}>
                     {checked ? `✓ ${amount}円 受領` : "—"}
                     {existing && existing.amount !== amount && (
-                      <span style={{ marginLeft: 8, fontSize: 10, color: "#d4a82a" }}>（保存時に {existing.amount} → {amount}円に更新）</span>
+                      <span style={{ marginLeft: 8, fontSize: 10, color: "#E5B84B" }}>（保存時に {existing.amount} → {amount}円に更新）</span>
                     )}
                   </div>
                 </li>
@@ -2664,7 +2750,7 @@ function BattingTab({
 
   return (
     <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
-      <section style={{ ...cardStyle, ...(editingRow != null ? { border: "1px solid #d4a82a" } : {}) }}>
+      <section style={{ ...cardStyle, ...(editingRow != null ? { border: "1px solid #E5B84B" } : {}) }}>
         <H3>{editingRow != null ? "✏️ 打席記録を編集中" : "新しい打席記録"}</H3>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
@@ -2749,7 +2835,7 @@ function BattingTab({
                     <Td><strong>{b.memberName}</strong></Td>
                     <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{b.opponent || "—"}</span></Td>
                     <Td>{b.atBats}</Td>
-                    <Td><span style={{ color: "#d4a82a", fontWeight: 700 }}>{b.hits}</span></Td>
+                    <Td><span style={{ color: "#E5B84B", fontWeight: 700 }}>{b.hits}</span></Td>
                     <Td>{b.doubles}</Td>
                     <Td>{b.triples}</Td>
                     <Td><span style={{ color: b.hr > 0 ? "#ff6982" : undefined, fontWeight: b.hr > 0 ? 700 : 400 }}>{b.hr}</span></Td>
@@ -2761,7 +2847,7 @@ function BattingTab({
                     <Td>{b.cs}</Td>
                     <Td>
                       <div style={{ display: "flex", gap: 5 }}>
-                        <button onClick={() => startEdit(b)} style={{ padding: "3px 8px", background: "transparent", color: "#d4a82a", border: "1px solid rgba(212,168,42,0.4)", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}>編集</button>
+                        <button onClick={() => startEdit(b)} style={{ padding: "3px 8px", background: "transparent", color: "#E5B84B", border: "1px solid rgba(212,168,42,0.4)", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}>編集</button>
                         <button onClick={() => remove(b)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
                       </div>
                     </Td>
@@ -2918,7 +3004,7 @@ function PitchingTab({
                       <Td><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatDateShort(p.date)}</span></Td>
                       <Td><strong>{p.memberName}</strong></Td>
                       <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{p.opponent || "—"}</span></Td>
-                      <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a" }}>{ipDisplay}</span></Td>
+                      <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B" }}>{ipDisplay}</span></Td>
                       <Td>{p.hits}</Td>
                       <Td>{p.runs}</Td>
                       <Td>{p.er}</Td>
@@ -3015,8 +3101,8 @@ function CatchingTab({
             <NumField label="盗塁試行 (SBA)" v={form.sba} on={n => setForm({ ...form, sba: n })} />
             <NumField label="盗塁阻止 (CS)" v={form.cs} on={n => setForm({ ...form, cs: n })} />
           </div>
-          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12 }}>
-            この試合の盗塁阻止率: <strong style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{(csRate * 100).toFixed(1)}%</strong>
+          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #E5B84B", fontSize: 12 }}>
+            この試合の盗塁阻止率: <strong style={{ color: "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{(csRate * 100).toFixed(1)}%</strong>
           </div>
           <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
             {saving ? "保存中…" : "記録する →"}
@@ -3057,7 +3143,7 @@ function CatchingTab({
                       <Td><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{c.opponent || "—"}</span></Td>
                       <Td>{c.sba}</Td>
                       <Td>{c.cs}</Td>
-                      <Td><span style={{ color: rate >= 0.3 ? "#67e088" : "#d4a82a", fontFamily: "var(--font-oswald),sans-serif" }}>{(rate * 100).toFixed(1)}%</span></Td>
+                      <Td><span style={{ color: rate >= 0.3 ? "#67e088" : "#E5B84B", fontFamily: "var(--font-oswald),sans-serif" }}>{(rate * 100).toFixed(1)}%</span></Td>
                       <Td>
                         <button onClick={() => remove(c)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
                       </Td>
@@ -3165,8 +3251,8 @@ function FieldingTab({
             <NumField label="捕殺 (A)" v={form.a} on={n => setForm({ ...form, a: n })} />
             <NumField label="失策 (E)" v={form.e} on={n => setForm({ ...form, e: n })} />
           </div>
-          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #d4a82a", fontSize: 12 }}>
-            この試合の守備率: <strong style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{rate.toFixed(3).replace(/^0/, "")}</strong>
+          <div style={{ padding: "10px 12px", background: "rgba(212,168,42,0.06)", borderLeft: "3px solid #E5B84B", fontSize: 12 }}>
+            この試合の守備率: <strong style={{ color: "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{rate.toFixed(3).replace(/^0/, "")}</strong>
             <span style={{ color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>（守備機会 {chances}）</span>
           </div>
           <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", margin: 0, lineHeight: 1.6 }}>
@@ -3214,7 +3300,7 @@ function FieldingTab({
                       <Td>{f.po}</Td>
                       <Td>{f.a}</Td>
                       <Td><span style={{ color: f.e > 0 ? "#ff6982" : undefined }}>{f.e}</span></Td>
-                      <Td><span style={{ color: "#d4a82a", fontFamily: "var(--font-oswald),sans-serif" }}>{r.toFixed(3).replace(/^0/, "")}</span></Td>
+                      <Td><span style={{ color: "#E5B84B", fontFamily: "var(--font-oswald),sans-serif" }}>{r.toFixed(3).replace(/^0/, "")}</span></Td>
                       <Td>
                         <button onClick={() => remove(f)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid rgba(209,0,36,0.3)", fontSize: 10, cursor: "pointer" }}>×</button>
                       </Td>
@@ -3349,7 +3435,7 @@ function ProbablesTab({
             <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="例: 初先発！応援よろしく" style={inputStyle} />
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "8px 0" }}>
-            <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} style={{ width: 18, height: 18, accentColor: "#d4a82a" }} />
+            <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} style={{ width: 18, height: 18, accentColor: "#E5B84B" }} />
             保存と同時にメンバーへ通知する 🔔
           </label>
           <button onClick={submit} disabled={saving || sending} style={{ ...btnPrimaryStyle, opacity: (saving || sending) ? 0.6 : 1, cursor: (saving || sending) ? "not-allowed" : "pointer" }}>
@@ -3378,7 +3464,7 @@ function ProbablesTab({
             {sorted.map((p, i) => (
               <li key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
                 <div style={{ minWidth: 60 }}>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#d4a82a" }}>{formatDateShort(p.date)}</span>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B" }}>{formatDateShort(p.date)}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700 }}>⚾ {p.memberName}{p.opponent && <span style={{ fontWeight: 400, color: "rgba(255,255,255,0.55)", fontSize: 12, marginLeft: 8 }}>vs {p.opponent}</span>}</div>
@@ -3535,7 +3621,7 @@ function NotifyTab({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                     <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{formatDateShort(a.date)}</span>
-                    <span style={{ fontSize: 10, color: "#d4a82a", background: "rgba(212,168,42,0.12)", padding: "1px 7px" }}>{a.category}</span>
+                    <span style={{ fontSize: 10, color: "#E5B84B", background: "rgba(212,168,42,0.12)", padding: "1px 7px" }}>{a.category}</span>
                   </div>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{a.title}</div>
                   {a.body && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{a.body}</div>}
@@ -3706,7 +3792,7 @@ function LinkRow({
             <button
               onClick={() => onRename(linkedMember, nameEdit)}
               disabled={saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name}
-              style={{ padding: "9px 14px", background: "#d4a82a", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? "not-allowed" : "pointer", opacity: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? 0.5 : 1, whiteSpace: "nowrap" }}
+              style={{ padding: "9px 14px", background: "#E5B84B", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? "not-allowed" : "pointer", opacity: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? 0.5 : 1, whiteSpace: "nowrap" }}
             >
               名前を変更
             </button>
@@ -3766,7 +3852,7 @@ function AccountsApprovalTab({
         <div>
           <H3>メンバーアカウント</H3>
           <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: 0 }}>
-            成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿にカナが登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#d4a82a" }}>ユーザーID＋パスワード</strong>で行います。
+            成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿にカナが登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#E5B84B" }}>ユーザーID＋パスワード</strong>で行います。
           </p>
         </div>
         <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>
@@ -3774,7 +3860,7 @@ function AccountsApprovalTab({
 
       {/* 承認待ち */}
       <div style={{ marginBottom: 26 }}>
-        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#d4a82a", marginBottom: 10, letterSpacing: "0.06em" }}>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#E5B84B", marginBottom: 10, letterSpacing: "0.06em" }}>
           承認待ち（{pendingList.length}）
         </div>
         {pendingList.length === 0 ? (
@@ -3820,7 +3906,7 @@ function AccountsApprovalTab({
               <div key={a.id || a._row} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)", flexWrap: "wrap" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1a9f3a", flexShrink: 0 }} />
                 <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, flex: 1, minWidth: 110 }}>{a.name}</span>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#d4a82a", letterSpacing: "0.08em" }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#E5B84B", letterSpacing: "0.08em" }}>
                   {a.userId || "—"}
                 </span>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
@@ -3989,7 +4075,7 @@ function PendingCard({
         </button>
         <button
           onClick={() => onSave(p, d)} disabled={saving}
-          style={{ flex: 1, padding: "12px", background: "transparent", color: "#d4a82a", border: "1px solid rgba(212,168,42,0.5)", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+          style={{ flex: 1, padding: "12px", background: "transparent", color: "#E5B84B", border: "1px solid rgba(212,168,42,0.5)", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
         >
           編集保存
         </button>
@@ -4362,12 +4448,12 @@ function StatsTab({
                 {ranking.map((s, i) => (
                   <tr key={s.m.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: i < 3 ? "#d4a82a" : "rgba(255,255,255,0.4)" }}>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: i < 3 ? "#E5B84B" : "rgba(255,255,255,0.4)" }}>
                         {i + 1}
                       </span>
                     </Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a", marginRight: 8 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", marginRight: 8 }}>#{s.m.jerseyNumber || "—"}</span>
                       <strong>{s.m.name}</strong>
                     </Td>
                     <Td>{s.games}</Td>
@@ -4376,7 +4462,7 @@ function StatsTab({
                     <Td>{s.hr}</Td>
                     <Td>{s.rbi}</Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>{avg3(s.avg)}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>{avg3(s.avg)}</span>
                     </Td>
                     <Td>
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.75)" }}>{avg3(s.obp)}</span>
@@ -4416,15 +4502,15 @@ function StatsTab({
                   .map(s => (
                     <tr key={s.m.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                       <Td>
-                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a", marginRight: 8 }}>#{s.m.jerseyNumber || "—"}</span>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", marginRight: 8 }}>#{s.m.jerseyNumber || "—"}</span>
                         <strong>{s.m.name}</strong>
                       </Td>
                       <Td><span style={{ color: "#67e088" }}>{s.presentCount}</span></Td>
-                      <Td><span style={{ color: "#d4a82a" }}>{s.lateCount}</span></Td>
+                      <Td><span style={{ color: "#E5B84B" }}>{s.lateCount}</span></Td>
                       <Td><span style={{ color: "#ff6982" }}>{s.absentCount}</span></Td>
                       <Td>{s.recordedDays}</Td>
                       <Td>
-                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 16, fontWeight: 700, color: "#d4a82a" }}>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 16, fontWeight: 700, color: "#E5B84B" }}>
                           {Math.round(s.attRate * 100)}%
                         </span>
                       </Td>

@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -241,7 +240,7 @@ function weekday(dateStr: string): string {
   return WEEKDAY_JP[new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getDay()] ?? "";
 }
 const PRACTICE_COLOR: Record<string, string> = {
-  球場練習: "#d10024", キャッチボール: "#d4a82a", 試合: "#4a90e2", 練習試合: "#9b59b6", 全体練習: "#27ae60",
+  球場練習: "#d10024", キャッチボール: "#E5B84B", 試合: "#4a90e2", 練習試合: "#9b59b6", 全体練習: "#27ae60",
 };
 function practiceTypeLabel(t: string): string {
   return t === "キャッチボール" ? "公園練習" : t;
@@ -334,6 +333,13 @@ const uiField: React.CSSProperties = {
   lineHeight: 1.4,
   outline: "none",
   WebkitAppearance: "none",
+};
+
+const uiCard: React.CSSProperties = {
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 16,
+  padding: 18,
 };
 
 const uiLabel: React.CSSProperties = {
@@ -1107,7 +1113,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="admin-dark" style={{
       minHeight: "100vh",
-      background: "radial-gradient(ellipse 90% 40% at 50% -5%, rgba(209,0,36,0.1), transparent), radial-gradient(ellipse 60% 40% at 90% 110%, rgba(212,168,42,0.06), transparent), #070b16",
+      background: "radial-gradient(ellipse 100% 38% at 50% -8%, rgba(11,30,63,0.75), transparent), #070B16",
       color: "#fff",
       position: "relative",
       // overflow は指定しない。ダッシュボードを覆う overflow:hidden は
@@ -1228,7 +1234,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         >
           <div className="stx-detail" style={{ width: "100%", maxWidth: 420, textAlign: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(212,168,42,0.4)", padding: "34px 26px", boxShadow: "0 24px 70px rgba(0,0,0,0.6)" }}>
             <div style={{ fontSize: 46, lineHeight: 1 }}>🛠</div>
-            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.32em", marginTop: 14 }}>UNDER MAINTENANCE</div>
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#E5B84B", letterSpacing: "0.32em", marginTop: 14 }}>UNDER MAINTENANCE</div>
             <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, marginTop: 8 }}>ただいまメンテナンス中です</h2>
             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.9, marginTop: 12, whiteSpace: "pre-line" }}>
               {maintenance.message || "成績アプリは一時的にご利用いただけません。\nしばらく経ってから開き直してください。"}
@@ -1236,7 +1242,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
             <button
               onClick={() => loadAll()}
               className="btn-sheen"
-              style={{ marginTop: 22, padding: "12px 26px", background: "linear-gradient(135deg, #d4a82a, #f0c75e)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.1em", cursor: "pointer" }}
+              style={{ marginTop: 22, padding: "12px 26px", background: "linear-gradient(135deg, #E5B84B, #f0c75e)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.1em", cursor: "pointer" }}
             >
               🔄 再読み込み
             </button>
@@ -1246,16 +1252,16 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       {/* ── ヘッダー ── */}
-      <header className="stx-headline" style={{ background: "linear-gradient(180deg, rgba(11,30,63,0.92), rgba(11,30,63,0.78))", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderBottom: "1px solid rgba(212,168,42,0.35)", boxShadow: "0 1px 0 rgba(212,168,42,0.12), 0 10px 30px rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 20 }}>
+      <header className="stx-headline" style={{ background: "rgba(10,14,26,0.82)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 20 }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 60, gap: 14 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>
                 メンバー成績アプリ
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#0a0e1a", background: "linear-gradient(135deg, #f3d176, #d4a82a)", padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em", boxShadow: "0 0 12px rgba(212,168,42,0.55)" }}>v{APP_VERSION}</span>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#0a0e1a", background: "linear-gradient(135deg, #f3d176, #E5B84B)", padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em", boxShadow: "0 0 12px rgba(212,168,42,0.55)" }}>v{APP_VERSION}</span>
               </div>
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#d4a82a", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#E5B84B", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
             </div>
           </Link>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
@@ -1273,7 +1279,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
                 padding: "7px 13px",
                 background: "linear-gradient(135deg, rgba(212,168,42,0.18), rgba(212,168,42,0.08))",
                 border: "1px solid rgba(212,168,42,0.45)",
-                color: "#d4a82a",
+                color: "#E5B84B",
                 fontSize: 11, fontWeight: 700,
                 cursor: loading ? "wait" : "pointer",
                 letterSpacing: "0.06em",
@@ -1300,7 +1306,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
 
       {/* ── 種別タブ ── */}
       <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 12, position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 14, padding: 5, gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch", backdropFilter: "blur(7px)", WebkitBackdropFilter: "blur(7px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+        <div style={{ display: "flex", background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 4, gap: 3, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {([
             ["news", "📢 お知らせ", announcements.length],
             ["batting", "⚾ 打撃", battingStats.filter(s => s.ab > 0).length],
@@ -1308,7 +1314,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
             ["catching", "🧤 捕手", catchingStats.length],
             ["fielding", "🧱 守備", fieldingStats.length],
             ["schedule", "📅 日程", scheduleCount],
-            ["form", "🧠 SKドッパミンAI", -1],
+            ["form", "🚧 AI（準備中）", -1],
             ["mypage", "👤 マイページ", -1],
           ] as [Tab, string, number][]).map(([key, label, count]) => {
             const active = tab === key;
@@ -1316,23 +1322,21 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               <button
                 key={key}
                 onClick={() => setTab(key)}
-                className="stx-sheen"
                 style={{
                   flex: "1 0 auto",
                   minWidth: 78,
-                  padding: "11px 10px",
-                  borderRadius: 10,
-                  background: active ? "linear-gradient(135deg, #d4a82a, #f0c75e)" : "transparent",
-                  color: active ? "#0a0e1a" : "rgba(255,255,255,0.6)",
+                  padding: "11px 12px",
+                  borderRadius: 11,
+                  background: active ? "#E5B84B" : "transparent",
+                  color: active ? "#10131C" : "rgba(255,255,255,0.62)",
                   border: "none",
                   fontFamily: "var(--font-zen),sans-serif",
                   fontSize: 13,
                   fontWeight: 800,
-                  letterSpacing: "0.04em",
+                  letterSpacing: "0.02em",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
-                  transition: "background 0.25s, color 0.25s, box-shadow 0.25s",
-                  boxShadow: active ? "0 4px 18px rgba(212,168,42,0.45)" : "none",
+                  transition: "background .18s, color .18s",
                 }}
               >
                 {label}{count >= 0 && <span style={{ marginLeft: 5, fontSize: 10.5, opacity: 0.7, fontFamily: "var(--font-oswald),sans-serif" }}>({count})</span>}
@@ -1388,276 +1392,27 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-/* ── フォームチェック（端末内AI解析） ────────────────────── */
-// dataURL の画像を端末に保存（ダウンロード）。iOSで効かない時は長押し保存の案内あり。
-function downloadDataUrl(dataUrl: string, filename: string) {
-  try {
-    const [head, b64] = dataUrl.split(",");
-    const mime = (head.match(/:(.*?);/) || [])[1] || "image/jpeg";
-    const bin = atob(b64);
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([u8], { type: mime }));
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  } catch {
-    try { window.open(dataUrl, "_blank"); } catch { /* noop */ }
-  }
-}
-
+/* ── SKドッパミンAI（大規模アップデートのため一時停止中）──────── */
 function FormCheckView() {
-  const [kind, setKind] = useState<Kind>("batting");
-  const [phase, setPhase] = useState<"idle" | "analyzing" | "done" | "error">("idle");
-  const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<FormResult | null>(null);
-  const [errMsg, setErrMsg] = useState("");
-  const [kfIndex, setKfIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    setPhase("analyzing"); setProgress(0); setResult(null); setErrMsg(""); setKfIndex(0);
-    try {
-      const r = await analyzeForm(f, kind, p => setProgress(p));
-      setResult(r); setPhase("done");
-    } catch (err) {
-      setErrMsg(err instanceof Error ? err.message : "解析に失敗しました。もう一度お試しください。");
-      setPhase("error");
-    }
-  }
-  function reset() { setPhase("idle"); setResult(null); setProgress(0); setErrMsg(""); }
-
-  const scoreColor = (s: number) => (s >= 74 ? "#67e088" : s >= 56 ? "#d4a82a" : "#ff6982");
-  const grade = (s: number) => (s >= 85 ? "S" : s >= 72 ? "A" : s >= 60 ? "B" : s >= 48 ? "C" : "D");
-
-  const kindLabel = kind === "batting" ? "バッティング" : "ピッチング";
-
   return (
-    <div className="stx-detail">
-      {/* ブランドヘッダー */}
-      <section style={{ ...cardStyle, textAlign: "center", overflow: "hidden", position: "relative" }} className="stx-headline">
-        <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.34em", marginBottom: 6 }}>博多SKルーキーズ 独自開発AI</div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-          <span style={{ fontSize: 30, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.6))" }}>🧠</span>
-          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 27, background: "linear-gradient(135deg,#f3d176,#d4a82a 55%,#ff8a5a)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", letterSpacing: "0.02em" }}>SKドッパミンAI</span>
+    <div style={{ maxWidth: 520, margin: "0 auto" }}>
+      <div style={{ ...uiCard, textAlign: "center", padding: "44px 26px" }}>
+        <div style={{ fontSize: 46, lineHeight: 1 }}>🚧</div>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 19, marginTop: 14 }}>
+          SKドッパミンAIは準備中です
         </div>
-        <div style={{ display: "inline-flex", gap: 6, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
-          {["🎯高精度AI", "🔒端末内解析", "📈フォーム診断"].map(t => (
-            <span key={t} style={{ fontSize: 10, fontWeight: 700, color: "#d4a82a", background: "rgba(212,168,42,0.12)", border: "1px solid rgba(212,168,42,0.3)", borderRadius: 999, padding: "3px 9px" }}>{t}</span>
-          ))}
-        </div>
-        <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", lineHeight: 1.9, margin: "0 auto", maxWidth: 460 }}>
-          自分の<strong style={{ color: "#fff" }}>{kindLabel}フォームの動画</strong>を選ぶと、<strong style={{ color: "#d4a82a" }}>SKドッパミンAI</strong>が骨格を解析して<strong style={{ color: "#d4a82a" }}>点数・項目別評価・改善点</strong>を、プロのフォーム理論をもとに診断します。
-          動画は<strong style={{ color: "#67e088" }}>あなたの端末の中だけ</strong>で処理され、外部には一切送られません。
-          <span style={{ color: "rgba(255,255,255,0.45)" }}>（結果は目安です）</span>
+        <p style={{ fontSize: 13.5, color: UI.sub, lineHeight: 1.9, margin: "12px 0 0" }}>
+          解析の精度を大きく上げるため、大規模なアップデートを進めています。
+          <br />準備ができ次第、このタブから使えるようになります。
         </p>
-      </section>
-
-      {/* 種別切替 */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {([["batting", "⚾ バッティング"], ["pitching", "🔥 ピッチング"]] as const).map(([k, lbl]) => (
-          <button key={k} onClick={() => { setKind(k); reset(); }} className="stx-chip"
-            style={{ flex: 1, padding: "12px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: kind === k ? "#0a0e1a" : "#fff", background: kind === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (kind === k ? "transparent" : "rgba(255,255,255,0.15)"), boxShadow: kind === k ? "0 4px 16px rgba(212,168,42,0.4)" : "none" }}>
-            {lbl}
-          </button>
-        ))}
+        <div style={{ marginTop: 20, padding: "11px 14px", background: UI.goldDim, border: `1px solid rgba(229,184,75,0.3)`, borderRadius: 12, fontSize: 12, color: UI.sub, lineHeight: 1.8 }}>
+          再開したらアプリのお知らせでご案内します。
+        </div>
       </div>
-
-      <input ref={inputRef} type="file" accept="video/*" onChange={onPick} style={{ display: "none" }} />
-
-      {(phase === "idle" || phase === "error") && (
-        <section style={{ ...cardStyle, textAlign: "center" }}>
-          {errMsg && (
-            <div style={{ marginBottom: 14, padding: "12px 14px", background: "rgba(209,0,36,0.12)", border: "1px solid rgba(209,0,36,0.4)", color: "#ff6982", fontSize: 13, lineHeight: 1.7, borderRadius: 10 }}>{errMsg}</div>
-          )}
-          <div style={{ fontSize: 44, marginBottom: 8 }}>🎥</div>
-          <button onClick={() => inputRef.current?.click()} className="stx-sheen"
-            style={{ padding: "15px 30px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12, boxShadow: "0 6px 22px rgba(212,168,42,0.45)" }}>
-            📹 {kindLabel}動画を選ぶ
-          </button>
-          <div style={{ marginTop: 20, textAlign: "left", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#d4a82a", letterSpacing: "0.1em", marginBottom: 8 }}>📌 撮影のコツ</div>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.9 }}>
-              <li><strong style={{ color: "#fff" }}>横から</strong>・全身が画面に収まるように撮る</li>
-              <li>明るい場所で、背景はシンプルだと精度UP</li>
-              <li><strong style={{ color: "#fff" }}>1〜10秒</strong>の動画でお願いします（10秒を超えると先頭10秒を解析）</li>
-              <li>スイング/投球の<strong style={{ color: "#fff" }}>全体が1回</strong>入っていればOK</li>
-            </ul>
-          </div>
-        </section>
-      )}
-
-      {phase === "analyzing" && (
-        <section style={{ ...cardStyle, textAlign: "center", padding: "40px 24px" }}>
-          <div className="stx-spin" style={{ width: 44, height: 44, margin: "0 auto 18px", border: "3px solid rgba(212,168,42,0.25)", borderTopColor: "#d4a82a", borderRadius: "50%" }} />
-          <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, marginBottom: 6 }}>
-            SKドッパミンAIが{progress < 0.12 ? "起動中…" : progress < 0.95 ? "骨格を解析中…" : "診断をまとめています…"}
-          </div>
-          <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", marginBottom: 16 }}>端末内で処理しています（動画は外部に送られません）</div>
-          <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.round(progress * 100)}%`, background: "linear-gradient(90deg,#d4a82a,#f0cf6a)", transition: "width 0.25s", boxShadow: "0 0 10px rgba(212,168,42,0.7)" }} />
-          </div>
-          <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginTop: 8 }}>{Math.round(progress * 100)}%</div>
-        </section>
-      )}
-
-      {phase === "done" && result && (
-        <>
-          {/* 精度に関する注意（暗い映像・コマ少 など） */}
-          {result.notes.length > 0 && (
-            <div style={{ ...cardStyle, background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.4)", padding: "14px 16px" }}>
-              {result.notes.map((n, i) => (
-                <p key={i} style={{ fontSize: 12.5, color: "#f0cf6a", lineHeight: 1.7, margin: i ? "6px 0 0" : 0 }}>{n}</p>
-              ))}
-            </div>
-          )}
-
-          {/* 総合スコア + 推定スピード */}
-          <section style={{ ...cardStyle }}>
-            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", textAlign: "center", marginBottom: 12 }}>SKドッパミンAI 診断結果{result.lowLight ? "（暗いため精度低め）" : ""}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", justifyContent: "center" }}>
-              {/* リングゲージ */}
-              <div style={{ position: "relative", width: 130, height: 130, flexShrink: 0 }}>
-                <svg viewBox="0 0 120 120" style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }}>
-                  <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" />
-                  <circle cx="60" cy="60" r="52" fill="none" stroke={scoreColor(result.overall)} strokeWidth="10" strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 52} strokeDashoffset={2 * Math.PI * 52 * (1 - result.overall / 100)}
-                    style={{ filter: `drop-shadow(0 0 6px ${scoreColor(result.overall)})`, transition: "stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
-                </svg>
-                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 40, fontWeight: 700, lineHeight: 1, color: "#fff" }}>{result.overall}</div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>/ 100</div>
-                </div>
-                <div style={{ position: "absolute", top: -6, right: -6, width: 34, height: 34, borderRadius: "50%", background: scoreColor(result.overall), color: "#0a0e1a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 18, boxShadow: `0 0 14px ${scoreColor(result.overall)}` }}>{grade(result.overall)}</div>
-              </div>
-              {/* 総合評価メッセージ */}
-              <div style={{ textAlign: "center", maxWidth: 190 }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", marginBottom: 4 }}>総合評価</div>
-                <div style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: scoreColor(result.overall) }}>
-                  {result.overall >= 85 ? "文句なし！" : result.overall >= 72 ? "とても良いフォーム" : result.overall >= 60 ? "基礎はバッチリ" : "伸びしろたっぷり"}
-                </div>
-                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.7 }}>
-                  下の<strong style={{ color: "#d4a82a" }}>「もっと良くするには」</strong>を1つずつ試してみよう。
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 打者タイプ判定 */}
-          {result.hitterType && (
-            <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.35)", background: "linear-gradient(135deg, rgba(212,168,42,0.1), rgba(255,255,255,0.012))" }}>
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.28em", marginBottom: 8 }}>HITTER TYPE</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <span style={{ fontSize: 38, lineHeight: 1, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.5))" }}>{result.hitterType.emoji}</span>
-                <div>
-                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 20, color: "#fff" }}>{result.hitterType.label}</div>
-                  <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.75, marginTop: 4 }}>{result.hitterType.desc}</div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* キーフレーム連続写真（構え〜フォロースルー） */}
-          {result.keyframes.length > 0 && (() => {
-            const sel = result.keyframes[Math.min(kfIndex, result.keyframes.length - 1)];
-            return (
-              <section style={{ ...cardStyle, padding: 14 }}>
-                <H sub="KEY FRAMES">フォーム連続写真</H>
-                {/* メイン表示 */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={sel.dataUrl} alt={sel.label} style={{ width: "100%", maxWidth: 320, display: "block", margin: "0 auto", borderRadius: 10, border: "1px solid rgba(212,168,42,0.4)" }} />
-                <div style={{ textAlign: "center", marginTop: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: "#d4a82a" }}>
-                  {sel.label}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 8 }}>{kfIndex + 1}/{result.keyframes.length}</span>
-                </div>
-                {/* 保存ボタン */}
-                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
-                  <button onClick={() => downloadDataUrl(sel.dataUrl, `SKドッパミンAI_${kind}_${sel.phase}.jpg`)}
-                    style={{ padding: "9px 16px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 12.5, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 9 }}>
-                    💾 この写真を保存
-                  </button>
-                  <button onClick={() => result.keyframes.forEach((k, i) => setTimeout(() => downloadDataUrl(k.dataUrl, `SKドッパミンAI_${kind}_${i + 1}_${k.phase}.jpg`), i * 350))}
-                    style={{ padding: "9px 16px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 12.5, color: "#d4a82a", background: "transparent", border: "1px solid rgba(212,168,42,0.5)", borderRadius: 9 }}>
-                    全部保存
-                  </button>
-                </div>
-                {/* サムネイル切替（横スクロール） */}
-                <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 12, paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
-                  {result.keyframes.map((k, i) => (
-                    <button key={i} onClick={() => setKfIndex(i)}
-                      style={{ flex: "0 0 auto", width: 66, cursor: "pointer", padding: 0, background: "transparent", border: "2px solid " + (i === kfIndex ? "#d4a82a" : "rgba(255,255,255,0.15)"), borderRadius: 8, overflow: "hidden" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={k.dataUrl} alt={k.label} style={{ width: "100%", display: "block" }} />
-                      <div style={{ fontSize: 9, fontWeight: 700, color: i === kfIndex ? "#0a0e1a" : "rgba(255,255,255,0.6)", background: i === kfIndex ? "#d4a82a" : "transparent", padding: "3px 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k.label}</div>
-                    </button>
-                  ))}
-                </div>
-                <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>サムネイルをタップで各フェーズを確認できます。<br />保存できない場合は写真を長押し →「写真に追加」でも保存できます。</p>
-              </section>
-            );
-          })()}
-
-          {/* 指標バー */}
-          <section style={{ ...cardStyle }}>
-            <H sub="DETAIL">項目別スコア</H>
-            <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-              {result.metrics.map(m => (
-                <div key={m.key}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
-                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, fontWeight: 700, color: scoreColor(m.score) }}>{m.score}</span>
-                  </div>
-                  <div style={{ height: 7, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${m.score}%`, background: scoreColor(m.score), borderRadius: 999, boxShadow: `0 0 8px ${scoreColor(m.score)}`, transition: "width 0.7s cubic-bezier(0.16,1,0.3,1)" }} />
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", marginTop: 4, lineHeight: 1.6 }}>{m.comment}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* 良かった点 */}
-          {result.strengths.length > 0 && (
-            <section style={{ ...cardStyle, border: "1px solid rgba(103,224,136,0.3)" }}>
-              <H sub="GOOD">👍 良かった点</H>
-              <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 10 }}>
-                {result.strengths.map((t, i) => (
-                  <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.88)", lineHeight: 1.7 }}>
-                    <span style={{ color: "#67e088", flexShrink: 0 }}>◎</span><span>{t}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* 改善ポイント */}
-          <section style={{ ...cardStyle, border: "1px solid rgba(212,168,42,0.3)" }}>
-            <H sub="ADVICE">🎯 もっと良くするには</H>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "0 0 10px", lineHeight: 1.6 }}>※ プロ・指導者のフォーム理論をもとにした改善ポイントです。</p>
-            <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
-              {result.tips.map((t, i) => (
-                <li key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.8 }}>
-                  <span style={{ color: "#d4a82a", flexShrink: 0, fontWeight: 800 }}>{i + 1}.</span><span>{t}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.38)", textAlign: "center", marginBottom: 12, lineHeight: 1.6 }}>
-            SKドッパミンAI ・ {result.framesAnalyzed}フレーム解析 ・ 推定のため誤差があります
-          </div>
-          <button onClick={() => inputRef.current?.click()} className="stx-sheen"
-            style={{ width: "100%", padding: "14px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", borderRadius: 12 }}>
-            🔄 別の動画でもう一度
-          </button>
-        </>
-      )}
     </div>
   );
 }
+
 
 /* ── 通知のオン/オフ バー ───────────────────────────────── */
 function NotifyBar() {
@@ -1689,7 +1444,7 @@ function NotifyBar() {
       <div style={notifyBarStyle}>
         <span style={{ fontSize: 16 }}>🔔</span>
         <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.5 }}>
-          この端末/ブラウザは通知に非対応です。iPhoneは<strong style={{ color: "#d4a82a" }}>ホーム画面に追加</strong>してから開くと通知が使えます。
+          この端末/ブラウザは通知に非対応です。iPhoneは<strong style={{ color: "#E5B84B" }}>ホーム画面に追加</strong>してから開くと通知が使えます。
         </span>
       </div>
     );
@@ -1711,7 +1466,7 @@ function NotifyBar() {
           style={{
             flexShrink: 0,
             padding: "7px 14px",
-            background: state === "working" ? "#555" : "linear-gradient(135deg, #d4a82a, #f0c75e)",
+            background: state === "working" ? "#555" : "linear-gradient(135deg, #E5B84B, #f0c75e)",
             color: "#0a0e1a", border: "none",
             fontFamily: "var(--font-zen),sans-serif", fontSize: 12, fontWeight: 800,
             cursor: state === "working" ? "wait" : "pointer", letterSpacing: "0.06em",
@@ -1738,8 +1493,9 @@ function ScopeChip({ children, active, onClick, primary }: { children: React.Rea
       className="stx-chip"
       style={{
         flexShrink: 0,
-        padding: "7px 14px",
-        background: active ? (primary ? "#d10024" : "#d4a82a") : "rgba(255,255,255,0.04)",
+        padding: "8px 15px",
+        borderRadius: 999,
+        background: active ? (primary ? "#d10024" : "#E5B84B") : "rgba(255,255,255,0.04)",
         color: active ? (primary ? "#fff" : "#0a0e1a") : "rgba(255,255,255,0.6)",
         border: `1px solid ${active ? "transparent" : "rgba(255,255,255,0.14)"}`,
         fontFamily: "var(--font-zen),sans-serif",
@@ -1761,7 +1517,7 @@ const ANN_CATEGORY: Record<string, { color: string; bg: string }> = {
   成績: { color: "#67e088", bg: "rgba(103,224,136,0.13)" },
   アップデート: { color: "#8fc4ff", bg: "rgba(143,196,255,0.13)" },
   メンテナンス: { color: "#ffb84a", bg: "rgba(255,184,74,0.13)" },
-  お知らせ: { color: "#d4a82a", bg: "rgba(212,168,42,0.13)" },
+  お知らせ: { color: "#E5B84B", bg: "rgba(212,168,42,0.13)" },
 };
 function annStyle(cat: string) {
   return ANN_CATEGORY[cat] ?? ANN_CATEGORY["お知らせ"];
@@ -1836,7 +1592,7 @@ function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: 
               onClick={save}
               disabled={busy || name.trim() === ""}
               className="btn-sheen"
-              style={{ width: "100%", padding: 14, background: busy ? "#666" : "linear-gradient(135deg, #d4a82a, #f0c75e)", color: "#0a0e1a", border: "none", borderRadius: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.08em", cursor: busy ? "not-allowed" : "pointer" }}
+              style={{ width: "100%", padding: 14, background: busy ? "#666" : "linear-gradient(135deg, #E5B84B, #f0c75e)", color: "#0a0e1a", border: "none", borderRadius: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.08em", cursor: busy ? "not-allowed" : "pointer" }}
             >
               {busy ? "保存中…" : "名前を保存する"}
             </button>
@@ -1876,13 +1632,13 @@ function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
       {/* バージョン / 更新情報 */}
       <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.25em" }}>APP VERSION</span>
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#E5B84B", letterSpacing: "0.25em" }}>APP VERSION</span>
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, fontWeight: 700, color: "#fff", lineHeight: 1 }}>v{APP_VERSION}</span>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>最新の状態です</span>
           <button
             onClick={() => setShowChangelog(v => !v)}
             className="stx-chip"
-            style={{ marginLeft: "auto", padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#d4a82a", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            style={{ marginLeft: "auto", padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#E5B84B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
           >
             {showChangelog ? "更新内容を閉じる" : "更新内容を見る →"}
           </button>
@@ -1890,9 +1646,9 @@ function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
         {showChangelog && (
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
             {CHANGELOG.map(c => (
-              <div key={c.version} style={{ borderLeft: "3px solid #d4a82a", paddingLeft: 14 }}>
+              <div key={c.version} style={{ borderLeft: "3px solid #E5B84B", paddingLeft: 14 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: "#d4a82a" }}>v{c.version}</span>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: "#E5B84B" }}>v{c.version}</span>
                   <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>{fmtAnnDate(c.date)}</span>
                 </div>
                 <ul style={{ margin: 0, paddingLeft: 4, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1932,7 +1688,7 @@ function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
           <div style={{ textAlign: "center", marginTop: 14 }}>
             <button
               onClick={() => setShowAll(v => !v)}
-              style={{ padding: "10px 24px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#d4a82a", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer" }}
+              style={{ padding: "10px 24px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "#E5B84B", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", cursor: "pointer" }}
             >
               {showAll ? "直近5件だけ表示" : `これ以前のお知らせを見る（全${sorted.length}件）→`}
             </button>
@@ -1969,7 +1725,7 @@ function CountUp({ value, fmt, duration = 900 }: { value: number; fmt: (n: numbe
 /* ── ランクバッジ ─────────────────────────────────────── */
 function RankBadge({ rank }: { rank: number }) {
   const styles: Record<number, { bg: string; color: string }> = {
-    1: { bg: "linear-gradient(135deg, #f0c75e, #d4a82a)", color: "#0a0e1a" },
+    1: { bg: "linear-gradient(135deg, #f0c75e, #E5B84B)", color: "#0a0e1a" },
     2: { bg: "linear-gradient(135deg, #d9dee6, #9aa4b2)", color: "#0a0e1a" },
     3: { bg: "linear-gradient(135deg, #d49a6a, #a06b3e)", color: "#0a0e1a" },
   };
@@ -2007,45 +1763,38 @@ function StatBar({ ratio, color, delay = 0 }: { ratio: number; color: string; de
 
 /* ── 共通 UI ─────────────────────────────────────────── */
 const cardStyle: React.CSSProperties = {
-  background: "linear-gradient(158deg, rgba(255,255,255,0.05), rgba(255,255,255,0.012))",
-  border: "1px solid rgba(255,255,255,0.09)",
-  borderRadius: 14,
-  padding: 20,
-  marginBottom: 16,
-  backdropFilter: "blur(7px)",
-  WebkitBackdropFilter: "blur(7px)",
-  boxShadow: "0 12px 34px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.07)",
-  position: "relative",
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 16,
+  padding: 18,
+  marginBottom: 14,
 };
 const tableStyle: React.CSSProperties = {
   width: "100%",
-  fontSize: 13,
+  fontSize: 13.5,
   borderCollapse: "collapse",
 };
 const emptyMsg: React.CSSProperties = {
-  color: "rgba(255,255,255,0.5)",
+  color: "rgba(255,255,255,0.45)",
   fontSize: 13,
   textAlign: "center",
-  padding: 32,
-  lineHeight: 1.8,
+  padding: 36,
+  lineHeight: 1.9,
 };
 
 function H({ children, sub }: { children: React.ReactNode; sub?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
       <h3 style={{
-        display: "flex", alignItems: "center", gap: 9,
         fontFamily: "var(--font-zen),sans-serif",
         fontWeight: 800,
-        fontSize: 14,
-        letterSpacing: "0.1em",
+        fontSize: 16,
+        letterSpacing: "0.01em",
         color: "#fff",
-        textShadow: "0 0 18px rgba(212,168,42,0.25)",
       }}>
-        <span aria-hidden style={{ width: 4, height: 16, borderRadius: 3, background: "linear-gradient(180deg, #f3d176, #d4a82a)", boxShadow: "0 0 10px rgba(212,168,42,0.75)" }} />
         {children}
       </h3>
-      {sub && <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(212,168,42,0.55)", letterSpacing: "0.25em" }}>{sub}</span>}
+      {sub && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", letterSpacing: "0.04em" }}>{sub}</span>}
     </div>
   );
 }
@@ -2053,14 +1802,13 @@ function H({ children, sub }: { children: React.ReactNode; sub?: string }) {
 function Th({ children }: { children: React.ReactNode }) {
   return (
     <th style={{
-      padding: "8px 10px",
+      padding: "10px",
       textAlign: "left",
-      color: "rgba(255,255,255,0.55)",
-      fontFamily: "var(--font-zen),sans-serif",
-      fontWeight: 700,
-      fontSize: 10,
-      letterSpacing: "0.12em",
-      borderBottom: "1px solid rgba(255,255,255,0.1)",
+      color: "rgba(255,255,255,0.5)",
+      fontWeight: 600,
+      fontSize: 11,
+      letterSpacing: "0.03em",
+      borderBottom: "1px solid rgba(255,255,255,0.08)",
       whiteSpace: "nowrap",
     }}>{children}</th>
   );
@@ -2069,7 +1817,7 @@ function Th({ children }: { children: React.ReactNode }) {
 function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <td style={{
-      padding: "10px",
+      padding: "12px 10px",
       whiteSpace: "nowrap",
       ...style,
     }}>{children}</td>
@@ -2081,17 +1829,17 @@ function BigNum({ children, hl }: { children: React.ReactNode; hl?: boolean }) {
     <span style={{
       fontFamily: "var(--font-oswald),sans-serif",
       fontWeight: 700,
-      fontSize: 15,
-      color: hl ? "#d4a82a" : "#fff",
+      fontSize: 16,
+      color: hl ? "#E5B84B" : "#fff",
     }}>{children}</span>
   );
 }
 
 function SummaryCell({ label, value, fmt, accent }: { label: string; value: number; fmt: (n: number) => string; accent?: boolean }) {
   return (
-    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", padding: "12px 14px", borderTop: accent ? "2px solid #d4a82a" : "2px solid rgba(255,255,255,0.12)" }}>
-      <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)", letterSpacing: "0.16em", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: accent ? "#d4a82a" : "#fff", lineHeight: 1 }}>
+    <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: "14px 14px" }}>
+      <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, fontWeight: 700, color: accent ? "#E5B84B" : "#fff", lineHeight: 1 }}>
         <CountUp value={value} fmt={fmt} />
       </div>
     </div>
@@ -2157,13 +1905,13 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", animationDelay: `${120 + i * 60}ms`, background: i === 0 ? "rgba(212,168,42,0.05)" : "transparent" }}>
                     <Td><RankBadge rank={i + 1} /></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
                       <strong>{s.m.name}</strong>
                       {s.m.nickname && <span style={{ marginLeft: 6, color: "rgba(255,255,255,0.4)", fontSize: 11 }}>({s.m.nickname})</span>}
                     </Td>
                     <Td>{s.games}</Td>
                     <Td>{s.ab}</Td>
-                    <Td><span style={{ color: "#d4a82a", fontWeight: 700 }}>{s.h}</span></Td>
+                    <Td><span style={{ color: "#E5B84B", fontWeight: 700 }}>{s.h}</span></Td>
                     <Td><span style={{ color: s.hr > 0 ? "#ff6982" : undefined, fontWeight: s.hr > 0 ? 700 : 400 }}>{s.hr}</span></Td>
                     <Td>{s.rbi}</Td>
                     <Td>{s.sb}{s.sbAttempts > 0 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginLeft: 4 }}>({fmtPct(s.sbPct)})</span>}</Td>
@@ -2175,11 +1923,11 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                     <Td>{fmtAvg(s.slg)}</Td>
                     <Td>
                       <BigNum hl>{fmtAvg(s.ops)}</BigNum>
-                      <StatBar ratio={s.ops / 1.5} color="#d4a82a" delay={260 + i * 60} />
+                      <StatBar ratio={s.ops / 1.5} color="#E5B84B" delay={260 + i * 60} />
                     </Td>
                     <Td>{s.pa > 0 ? fmtAvg(s.woba) : "—"}</Td>
                     <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.wrcPlus >= 100 ? "#67e088" : "#fff" }}>{s.pa > 0 ? s.wrcPlus : "—"}</span></Td>
-                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.war >= 0 ? "#d4a82a" : "#ff6982" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</span></Td>
+                    <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: s.war >= 0 ? "#E5B84B" : "#ff6982" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</span></Td>
                   </tr>
                 ))}
               </tbody>
@@ -2205,7 +1953,7 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   <span style={{ position: "absolute", top: 10, right: 12 }}><RankBadge rank={i + 1} /></span>
                 )}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a", fontSize: 22 }}>#{s.m.jerseyNumber || "—"}</span>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", fontSize: 22 }}>#{s.m.jerseyNumber || "—"}</span>
                   <span style={{ fontWeight: 800, fontSize: 16 }}>{s.m.name}</span>
                   <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>{s.m.position || "—"}</span>
                 </div>
@@ -2213,7 +1961,7 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   <Meter label="打率" text={fmtAvg(s.avg)} ratio={s.avg / 0.5} color="#67e088" delay={i * 70} />
                   <Meter label="出塁率" text={fmtAvg(s.obp)} ratio={s.obp / 0.6} color="#8fc4ff" delay={i * 70 + 60} />
                   <Meter label="長打率" text={fmtAvg(s.slg)} ratio={s.slg / 0.9} color="#f28899" delay={i * 70 + 120} />
-                  <Meter label="OPS" text={fmtAvg(s.ops)} ratio={s.ops / 1.5} color="#d4a82a" delay={i * 70 + 180} bold />
+                  <Meter label="OPS" text={fmtAvg(s.ops)} ratio={s.ops / 1.5} color="#E5B84B" delay={i * 70 + 180} bold />
                 </div>
                 {/* セイバー指標 */}
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -2223,7 +1971,7 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                   </div>
                   <div style={{ flex: 1, textAlign: "center", background: "rgba(212,168,42,0.08)", border: "1px solid rgba(212,168,42,0.2)", padding: "6px 4px" }}>
                     <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>WAR</div>
-                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</div>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>{s.pa > 0 ? s.war.toFixed(1) : "—"}</div>
                   </div>
                   <div style={{ flex: 1, textAlign: "center", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: "6px 4px" }}>
                     <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em" }}>wOBA</div>
@@ -2254,7 +2002,7 @@ function Meter({ label, text, ratio, color, delay = 0, bold }: { label: string; 
       <span className="stx-bar" style={{ maxWidth: "none", height: 5 }}>
         <span style={{ background: `linear-gradient(90deg, ${color}, ${color}cc)`, transform: `scaleX(${w})`, animationDelay: `${delay + 250}ms` }} />
       </span>
-      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: bold ? 15 : 13, fontWeight: 700, color: bold ? "#d4a82a" : "#fff", textAlign: "right" }}>{text}</span>
+      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: bold ? 15 : 13, fontWeight: 700, color: bold ? "#E5B84B" : "#fff", textAlign: "right" }}>{text}</span>
     </div>
   );
 }
@@ -2306,7 +2054,7 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
                   <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", animationDelay: `${120 + i * 60}ms`, background: i === 0 ? "rgba(212,168,42,0.05)" : "transparent" }}>
                     <Td><RankBadge rank={i + 1} /></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
                       <strong>{s.m.name}</strong>
                     </Td>
                     <Td>{s.appearances}</Td>
@@ -2360,7 +2108,7 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
                   <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", animationDelay: `${100 + i * 60}ms`, background: i === 0 ? "rgba(212,168,42,0.05)" : "transparent" }}>
                     <Td><RankBadge rank={i + 1} /></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
                       <strong>{s.m.name}</strong>
                     </Td>
                     <Td>{s.games}</Td>
@@ -2368,7 +2116,7 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
                     <Td><span style={{ color: "#67e088", fontWeight: 700 }}>{s.cs}</span></Td>
                     <Td>
                       <BigNum hl>{fmtPct(s.rate)}</BigNum>
-                      <StatBar ratio={s.rate} color="#d4a82a" delay={200 + i * 60} />
+                      <StatBar ratio={s.rate} color="#E5B84B" delay={200 + i * 60} />
                     </Td>
                   </tr>
                 ))}
@@ -2426,7 +2174,7 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
                   <tr key={s.m.id} className="stx-row" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", animationDelay: `${100 + i * 60}ms`, background: i === 0 ? "rgba(212,168,42,0.05)" : "transparent" }}>
                     <Td><RankBadge rank={i + 1} /></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#E5B84B", marginRight: 7 }}>#{s.m.jerseyNumber || "—"}</span>
                       <strong>{s.m.name}</strong>
                     </Td>
                     <Td>{s.games}</Td>
@@ -2436,7 +2184,7 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
                     <Td>{s.chances}</Td>
                     <Td>
                       <BigNum hl>{fmtAvg(s.rate)}</BigNum>
-                      <StatBar ratio={s.rate} color="#d4a82a" delay={200 + i * 60} />
+                      <StatBar ratio={s.rate} color="#E5B84B" delay={200 + i * 60} />
                     </Td>
                   </tr>
                 ))}
@@ -2500,7 +2248,7 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
         <section className="stx-row" style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
           {(() => {
             const st = practiceStatusLabel(next.status);
-            const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[next.type] ?? "#d4a82a");
+            const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[next.type] ?? "#E5B84B");
             const prob = isGameType(next.type) ? probableByDate.get(next.date) : undefined;
             const cnt = countFor(next.date);
             return (
@@ -2512,21 +2260,21 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
                 onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(next); } }}
                 style={{ borderLeft: `4px solid ${color}`, padding: "18px 18px 16px", background: "linear-gradient(135deg, rgba(212,168,42,0.06), rgba(209,0,36,0.04))", position: "relative", opacity: st.canceled ? 0.6 : 1 }}
               >
-                <span className="stx-rank-1" style={{ position: "absolute", top: -1, right: 12, fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.3em", background: "#d4a82a", color: "#0a0e1a", padding: "3px 12px" }}>NEXT</span>
+                <span className="stx-rank-1" style={{ position: "absolute", top: -1, right: 12, fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.3em", background: "#E5B84B", color: "#0a0e1a", padding: "3px 12px" }}>NEXT</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div style={{ textAlign: "center", flexShrink: 0 }}>
                     <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{mdLabel(next.date)}</div>
-                    <div style={{ fontSize: 11, color: "#d4a82a", marginTop: 5, letterSpacing: "0.15em", fontWeight: 700 }}>{weekday(next.date)}曜日</div>
+                    <div style={{ fontSize: 11, color: "#E5B84B", marginTop: 5, letterSpacing: "0.15em", fontWeight: 700 }}>{weekday(next.date)}曜日</div>
                   </div>
                   <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <span style={{ width: 9, height: 9, borderRadius: "50%", background: color }} />
                       <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{practiceTypeLabel(next.type)}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.canceled ? "rgba(255,255,255,0.08)" : st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.08)", color: st.canceled ? "rgba(255,255,255,0.5)" : st.tentative ? "#d4a82a" : "rgba(255,255,255,0.85)", padding: "2px 8px" }}>{st.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.canceled ? "rgba(255,255,255,0.08)" : st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.08)", color: st.canceled ? "rgba(255,255,255,0.5)" : st.tentative ? "#E5B84B" : "rgba(255,255,255,0.85)", padding: "2px 8px" }}>{st.label}</span>
                     </div>
                     <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>📍 {next.place}</div>
-                    {next.time && <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
+                    {next.time && <div style={{ fontSize: 12, color: "#E5B84B", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
                     {next.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginTop: 5 }}>※ {next.note}</div>}
                   </div>
                 </div>
@@ -2550,7 +2298,7 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
                   <span style={{ fontSize: 12.5, color: cnt > 0 ? "#67e088" : "rgba(255,255,255,0.5)" }}>
                     👥 参加予定 <strong style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15 }}>{cnt}</strong> 人
                   </span>
-                  <span style={{ fontSize: 11.5, color: "#d4a82a", fontWeight: 700 }}>タップで参加メンバー →</span>
+                  <span style={{ fontSize: 11.5, color: "#E5B84B", fontWeight: 700 }}>タップで参加メンバー →</span>
                 </div>
               </div>
             );
@@ -2569,7 +2317,7 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {rest.map((p, i) => {
               const st = practiceStatusLabel(p.status);
-              const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[p.type] ?? "#d4a82a");
+              const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[p.type] ?? "#E5B84B");
               const prob = isGameType(p.type) ? probableByDate.get(p.date) : undefined;
               const cnt = countFor(p.date);
               return (
@@ -2589,7 +2337,7 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 13.5 }}>{practiceTypeLabel(p.type)}</span>
-                      <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.07)", color: st.tentative ? "#d4a82a" : "rgba(255,255,255,0.55)", padding: "2px 7px" }}>{st.label}</span>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: st.tentative ? "rgba(212,168,42,0.15)" : "rgba(255,255,255,0.07)", color: st.tentative ? "#E5B84B" : "rgba(255,255,255,0.55)", padding: "2px 7px" }}>{st.label}</span>
                     </div>
                     <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
                     {prob && prob.memberName && (
@@ -2665,7 +2413,7 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
   onClose: () => void;
 }) {
   const st = practiceStatusLabel(practice.status);
-  const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[practice.type] ?? "#d4a82a");
+  const color = st.canceled ? "rgba(255,255,255,0.3)" : (PRACTICE_COLOR[practice.type] ?? "#E5B84B");
   const [voting, setVoting] = useState<"" | "出席" | "欠席">("");
   const [changeMe, setChangeMe] = useState(false);
   const [scoring, setScoring] = useState(false);
@@ -2714,7 +2462,7 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ textAlign: "center", flexShrink: 0 }}>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, fontWeight: 700, lineHeight: 1 }}>{mdLabel(practice.date)}</div>
-              <div style={{ fontSize: 10.5, color: "#d4a82a", marginTop: 4, fontWeight: 700 }}>{weekday(practice.date)}曜日</div>
+              <div style={{ fontSize: 10.5, color: "#E5B84B", marginTop: 4, fontWeight: 700 }}>{weekday(practice.date)}曜日</div>
             </div>
             <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2736,7 +2484,7 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
       {isGame && (
         <button
           onClick={() => setScoring(true)}
-          style={{ width: "100%", padding: "14px", marginBottom: 14, cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+          style={{ width: "100%", padding: "14px", marginBottom: 14, cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, color: "#0a0e1a", background: "linear-gradient(135deg,#E5B84B,#f0cf6a)", border: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
         >
           📋 スコアをつける
           <span style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.75 }}>（記録 → 管理者の承認で反映）</span>
@@ -2767,7 +2515,7 @@ function ParticipantDetail({ practice, participants, attendance, membersById, me
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>あなた：</span>
               <strong style={{ fontSize: 14 }}>#{meMember?.jerseyNumber || "—"} {meMember?.name || "（不明）"}</strong>
-              <button onClick={() => setChangeMe(true)} style={{ marginLeft: "auto", fontSize: 11, color: "#d4a82a", background: "transparent", border: "1px solid rgba(212,168,42,0.4)", padding: "3px 10px", cursor: "pointer" }}>変更</button>
+              <button onClick={() => setChangeMe(true)} style={{ marginLeft: "auto", fontSize: 11, color: "#E5B84B", background: "transparent", border: "1px solid rgba(212,168,42,0.4)", padding: "3px 10px", cursor: "pointer" }}>変更</button>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button
@@ -2847,7 +2595,7 @@ const BAT_ACTIONS: { key: string; label: string; deltas: Partial<BLine>; tone: s
   { key: "1b", label: "単打", deltas: { atBats: 1, hits: 1 }, tone: "#67e088" },
   { key: "2b", label: "二塁打", deltas: { atBats: 1, hits: 1, doubles: 1 }, tone: "#67e088" },
   { key: "3b", label: "三塁打", deltas: { atBats: 1, hits: 1, triples: 1 }, tone: "#67e088" },
-  { key: "hr", label: "本塁打", deltas: { atBats: 1, hits: 1, hr: 1 }, tone: "#d4a82a" },
+  { key: "hr", label: "本塁打", deltas: { atBats: 1, hits: 1, hr: 1 }, tone: "#E5B84B" },
   { key: "bb", label: "四球", deltas: { bb: 1 }, tone: "#7fb3ff" },
   { key: "hbp", label: "死球", deltas: { hbp: 1 }, tone: "#7fb3ff" },
   { key: "so", label: "三振", deltas: { atBats: 1, so: 1 }, tone: "#ff6982" },
@@ -2855,7 +2603,7 @@ const BAT_ACTIONS: { key: string; label: string; deltas: Partial<BLine>; tone: s
   { key: "sh", label: "犠打", deltas: { sh: 1 }, tone: "#7fb3ff" },
 ];
 const BAT_MODS: { key: string; label: string; deltas: Partial<BLine>; tone: string }[] = [
-  { key: "rbi", label: "打点 +1", deltas: { rbi: 1 }, tone: "#d4a82a" },
+  { key: "rbi", label: "打点 +1", deltas: { rbi: 1 }, tone: "#E5B84B" },
   { key: "sb", label: "盗塁 +1", deltas: { sb: 1 }, tone: "#67e088" },
   { key: "cs", label: "盗塁死 +1", deltas: { cs: 1 }, tone: "#ff6982" },
 ];
@@ -2922,7 +2670,7 @@ function LiveDots({ label, n, max, color }: { label: string; n: number; max: num
 function BaseDiamond({ bases }: { bases: Bases }) {
   const sq = (occ: boolean): React.CSSProperties => ({
     position: "absolute", width: 32, height: 32, transform: "translate(-50%,-50%) rotate(45deg)",
-    background: occ ? "linear-gradient(135deg,#f0cf6a,#d4a82a)" : "rgba(255,255,255,0.06)",
+    background: occ ? "linear-gradient(135deg,#f0cf6a,#E5B84B)" : "rgba(255,255,255,0.06)",
     border: "1px solid " + (occ ? "#f0cf6a" : "rgba(255,255,255,0.2)"),
     boxShadow: occ ? "0 0 16px rgba(212,168,42,0.65)" : "none", transition: "background .2s, box-shadow .2s",
   });
@@ -3200,7 +2948,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.7 }}>
           管理者が内容を確認して承認すると、成績に反映されます。<br />（承認まで成績ランキングには表示されません）
         </p>
-        <button onClick={onClose} style={{ marginTop: 20, padding: "12px 28px", background: "linear-gradient(135deg,#d4a82a,#f0cf6a)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>日程に戻る</button>
+        <button onClick={onClose} style={{ marginTop: 20, padding: "12px 28px", background: "linear-gradient(135deg,#E5B84B,#f0cf6a)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>日程に戻る</button>
       </div>
     );
   }
@@ -3227,7 +2975,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {([["live", "🎙 ライブ記録"], ["simple", "✍️ かんたん集計"]] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => setMode(k)} className="stx-chip"
-            style={{ flex: 1, padding: "11px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13.5, color: mode === k ? "#0a0e1a" : "#fff", background: mode === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (mode === k ? "transparent" : "rgba(255,255,255,0.15)"), boxShadow: mode === k ? "0 4px 16px rgba(212,168,42,0.4)" : "none" }}>
+            style={{ flex: 1, padding: "11px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13.5, color: mode === k ? "#0a0e1a" : "#fff", background: mode === k ? "linear-gradient(135deg,#E5B84B,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (mode === k ? "transparent" : "rgba(255,255,255,0.15)"), boxShadow: mode === k ? "0 4px 16px rgba(212,168,42,0.4)" : "none" }}>
             {lbl}
           </button>
         ))}
@@ -3247,29 +2995,29 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               {([["自", live.ourScore, ourTurn], ["相手", live.oppScore, !ourTurn]] as const).map(([lab, sc, act], idx) => (
                 <div key={idx} style={{ textAlign: "center", flex: 1, opacity: act ? 1 : 0.55 }}>
-                  <div style={{ fontSize: 11, color: act ? "#d4a82a" : "rgba(255,255,255,0.5)", fontWeight: 700, letterSpacing: "0.1em" }}>{lab}{act ? " ●攻撃" : ""}</div>
+                  <div style={{ fontSize: 11, color: act ? "#E5B84B" : "rgba(255,255,255,0.5)", fontWeight: 700, letterSpacing: "0.1em" }}>{lab}{act ? " ●攻撃" : ""}</div>
                   <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1, color: "#fff", textShadow: act ? "0 0 18px rgba(212,168,42,0.5)" : "none" }}>{sc}</div>
                 </div>
               ))}
               <div style={{ textAlign: "center", flex: 1.1, borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#d4a82a" }}>{live.inning}</div>
+                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#E5B84B" }}>{live.inning}</div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#fff" }}>{live.half === "top" ? "回 表" : "回 裏"}</div>
               </div>
             </div>
             <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 14, flexWrap: "wrap" }}>
               <LiveDots label="O" n={live.outs} max={2} color="#ff6982" />
               <LiveDots label="B" n={live.balls} max={3} color="#67e088" />
-              <LiveDots label="S" n={live.strikes} max={2} color="#d4a82a" />
+              <LiveDots label="S" n={live.strikes} max={2} color="#E5B84B" />
             </div>
             <BaseDiamond bases={live.bases} />
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button onClick={manualChange} className="stx-chip" style={{ flex: 1, padding: "10px", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "#fff", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)", fontFamily: "var(--font-zen),sans-serif" }}>▶ 攻守交代</button>
-              <button onClick={undoLive} disabled={!histLen} style={{ flex: 1, padding: "10px", cursor: histLen ? "pointer" : "default", fontWeight: 800, fontSize: 13, color: histLen ? "#d4a82a" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (histLen ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), borderRadius: 9, fontFamily: "var(--font-zen),sans-serif" }}>↩︎ 1つ戻す</button>
+              <button onClick={undoLive} disabled={!histLen} style={{ flex: 1, padding: "10px", cursor: histLen ? "pointer" : "default", fontWeight: 800, fontSize: 13, color: histLen ? "#E5B84B" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (histLen ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), borderRadius: 9, fontFamily: "var(--font-zen),sans-serif" }}>↩︎ 1つ戻す</button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, justifyContent: "center", fontSize: 11.5, color: "rgba(255,255,255,0.55)" }}>
               <span>自チームの攻撃：</span>
               {([["top", "表"], ["bottom", "裏"]] as const).map(([h, l]) => (
-                <button key={h} onClick={() => setWeBatHalf(h)} style={{ padding: "4px 12px", cursor: "pointer", borderRadius: 7, fontWeight: 800, fontSize: 12, color: weBatHalf === h ? "#0a0e1a" : "#fff", background: weBatHalf === h ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (weBatHalf === h ? "transparent" : "rgba(255,255,255,0.15)") }}>{l}</button>
+                <button key={h} onClick={() => setWeBatHalf(h)} style={{ padding: "4px 12px", cursor: "pointer", borderRadius: 7, fontWeight: 800, fontSize: 12, color: weBatHalf === h ? "#0a0e1a" : "#fff", background: weBatHalf === h ? "#E5B84B" : "rgba(255,255,255,0.06)", border: "1px solid " + (weBatHalf === h ? "transparent" : "rgba(255,255,255,0.15)") }}>{l}</button>
               ))}
             </div>
           </section>
@@ -3282,10 +3030,10 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                 const r = live.bases[b]!; const bn = b === "b1" ? "一塁" : b === "b2" ? "二塁" : "三塁";
                 return (
                   <div key={b} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 13, fontWeight: 700 }}><span style={{ color: "#d4a82a" }}>{bn}</span>　{r.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}><span style={{ color: "#E5B84B" }}>{bn}</span>　{r.name}</span>
                     <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                       <button onClick={() => runnerOp(b, "adv")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#67e088", background: "rgba(255,255,255,0.04)", border: "1px solid #67e08855", borderRadius: 7 }}>{b === "b3" ? "生還" : "進塁"}</button>
-                      {ourTurn && <button onClick={() => runnerOp(b, "steal")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#d4a82a", background: "rgba(255,255,255,0.04)", border: "1px solid #d4a82a55", borderRadius: 7 }}>盗塁</button>}
+                      {ourTurn && <button onClick={() => runnerOp(b, "steal")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#E5B84B", background: "rgba(255,255,255,0.04)", border: "1px solid #E5B84B55", borderRadius: 7 }}>盗塁</button>}
                       <button onClick={() => runnerOp(b, "out")} style={{ padding: "6px 11px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#ff6982", background: "rgba(255,255,255,0.04)", border: "1px solid #ff698255", borderRadius: 7 }}>アウト</button>
                     </div>
                   </div>
@@ -3303,7 +3051,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                   const on = batter === m.id;
                   return (
                     <button key={m.id} onClick={() => setBatter(m.id)} className="stx-chip"
-                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
+                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#E5B84B" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
                       #{m.jerseyNumber || "—"} {m.name}
                     </button>
                   );
@@ -3316,7 +3064,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                     {liveBtn(() => ourHit(1, "単打"), "単打", "#67e088", true)}
                     {liveBtn(() => ourHit(2, "二塁打"), "二塁打", "#67e088", true)}
                     {liveBtn(() => ourHit(3, "三塁打"), "三塁打", "#67e088", true)}
-                    {liveBtn(() => ourHit(4, "本塁打"), "本塁打", "#d4a82a", true)}
+                    {liveBtn(() => ourHit(4, "本塁打"), "本塁打", "#E5B84B", true)}
                     {liveBtn(() => ourWalk(false), "四球", "#7fb3ff", true)}
                     {liveBtn(() => ourWalk(true), "死球", "#7fb3ff", true)}
                     {liveBtn(() => ourOut("so"), "三振", "#ff6982", true)}
@@ -3327,7 +3075,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
                     {liveBtn(ourBall, "ボール", "#67e088")}
-                    {liveBtn(ourStrike, "ストライク", "#d4a82a")}
+                    {liveBtn(ourStrike, "ストライク", "#E5B84B")}
                     {liveBtn(ourFoul, "ファウル", "rgba(255,255,255,0.6)")}
                   </div>
                 </>
@@ -3341,7 +3089,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                   const on = pitcher === m.id;
                   return (
                     <button key={m.id} onClick={() => setPitcher(m.id)} className="stx-chip"
-                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
+                      style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#E5B84B" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : "rgba(255,255,255,0.15)") }}>
                       #{m.jerseyNumber || "—"} {m.name}
                     </button>
                   );
@@ -3364,7 +3112,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 8 }}>
                     {liveBtn(defBall, "ボール", "#67e088")}
-                    {liveBtn(defStrike, "ストライク", "#d4a82a")}
+                    {liveBtn(defStrike, "ストライク", "#E5B84B")}
                     {liveBtn(defFoul, "ファウル", "rgba(255,255,255,0.6)")}
                   </div>
                 </>
@@ -3393,7 +3141,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {([["bat", "🏏 打撃"], ["pitch", "⚾ 投球"]] as const).map(([k, lbl]) => (
           <button key={k} onClick={() => setTab(k)} className="stx-chip"
-            style={{ flex: 1, padding: "10px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: tab === k ? "#0a0e1a" : "#fff", background: tab === k ? "linear-gradient(135deg,#d4a82a,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (tab === k ? "transparent" : "rgba(255,255,255,0.15)") }}>
+            style={{ flex: 1, padding: "10px", cursor: "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, color: tab === k ? "#0a0e1a" : "#fff", background: tab === k ? "linear-gradient(135deg,#E5B84B,#f0cf6a)" : "rgba(255,255,255,0.06)", border: "1px solid " + (tab === k ? "transparent" : "rgba(255,255,255,0.15)") }}>
             {lbl}
           </button>
         ))}
@@ -3410,7 +3158,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                 const has = batLines[m.id] && Object.values(batLines[m.id]).some(v => v > 0);
                 return (
                   <button key={m.id} onClick={() => setBatter(m.id)} className="stx-chip"
-                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
+                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#E5B84B" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
                     #{m.jerseyNumber || "—"} {m.name}{has && !on ? " ✓" : ""}
                   </button>
                 );
@@ -3423,7 +3171,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
             <section style={{ ...cardStyle, marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <H sub="RESULT">{membersById.get(batter)?.name} の打席結果</H>
-                <button onClick={undo} disabled={!events.length} style={{ fontSize: 11.5, color: events.length ? "#d4a82a" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (events.length ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), padding: "5px 11px", cursor: events.length ? "pointer" : "default" }}>↩︎ 1つ戻す</button>
+                <button onClick={undo} disabled={!events.length} style={{ fontSize: 11.5, color: events.length ? "#E5B84B" : "rgba(255,255,255,0.3)", background: "transparent", border: "1px solid " + (events.length ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.1)"), padding: "5px 11px", cursor: events.length ? "pointer" : "default" }}>↩︎ 1つ戻す</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {BAT_ACTIONS.map(a => (
@@ -3483,7 +3231,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
                 const has = pitchRows.some(p => p.id === m.id);
                 return (
                   <button key={m.id} onClick={() => setPitcher(m.id)} className="stx-chip"
-                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#d4a82a" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
+                    style={{ padding: "7px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: on ? "#0a0e1a" : "#fff", background: on ? "#E5B84B" : has ? "rgba(212,168,42,0.18)" : "rgba(255,255,255,0.06)", border: "1px solid " + (on ? "transparent" : has ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.15)") }}>
                     #{m.jerseyNumber || "—"} {m.name}{has && !on ? " ✓" : ""}
                   </button>
                 );
@@ -3584,7 +3332,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
       {/* 送信 */}
       {err && <p style={{ color: "#ff6982", fontSize: 13, textAlign: "center", marginBottom: 10 }}>{err}</p>}
       <button onClick={submit} disabled={submitting || totalRecords === 0}
-        style={{ width: "100%", padding: "16px", cursor: submitting || totalRecords === 0 ? "default" : "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: totalRecords === 0 ? "rgba(255,255,255,0.4)" : "#0a0e1a", background: totalRecords === 0 ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#d4a82a,#f0cf6a)", border: "none" }}>
+        style={{ width: "100%", padding: "16px", cursor: submitting || totalRecords === 0 ? "default" : "pointer", fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: totalRecords === 0 ? "rgba(255,255,255,0.4)" : "#0a0e1a", background: totalRecords === 0 ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg,#E5B84B,#f0cf6a)", border: "none" }}>
         {submitting ? "送信中…" : totalRecords === 0 ? "記録を入力してください" : `📨 ${totalRecords}件を承認待ちに送信`}
       </button>
       <p style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>

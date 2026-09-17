@@ -137,8 +137,10 @@ async function callAppsScriptRaw(payload: Record<string, unknown>): Promise<
   // 全体の制限時間。健全なら1回で即返るので影響なし。バックエンドが不調な時に
   // 50秒も待たせず、早めに分かりやすいエラーを返すための上限。
   const startedAt = Date.now();
-  const DEADLINE_MS = 34_000;
-  const PER_ATTEMPT_MS = 18_000;
+  // まとめ取得(listMany)は複数シートを読むぶん時間がかかるため、1回あたりを長めに取る。
+  // maxDuration(60s) の手前で必ず打ち切る。
+  const DEADLINE_MS = 50_000;
+  const PER_ATTEMPT_MS = 25_000;
 
   let lastStatus = 502;
   let lastError = "Apps Script への接続に失敗しました。";

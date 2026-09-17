@@ -23,6 +23,22 @@ export function readCache<T>(key: string, maxAgeMs = 24 * 60 * 60 * 1000): T | n
   }
 }
 
+/** 値と「取得してからの経過ミリ秒」を返す。十分新しければ再取得を省くのに使う。 */
+export function readCacheWithAge<T>(key: string, maxAgeMs = 24 * 60 * 60 * 1000): { v: T; age: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PREFIX + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { at?: number; v?: T };
+    if (!o || typeof o.at !== "number" || o.v === undefined) return null;
+    const age = Date.now() - o.at;
+    if (age > maxAgeMs) return null;
+    return { v: o.v as T, age };
+  } catch {
+    return null;
+  }
+}
+
 export function writeCache<T>(key: string, v: T): void {
   if (typeof window === "undefined") return;
   try {
