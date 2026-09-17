@@ -22,13 +22,18 @@ export async function POST(request: Request) {
   const auth = ensureAuth(request.headers);
   if (auth) return auth;
 
-  let body: { op?: string };
+  let body: { op?: string; sheets?: string[] };
   try {
     body = await request.json();
   } catch {
     return Response.json({ ok: false, error: "リクエスト形式が不正です。" }, { status: 400 });
   }
   const op = body.op || "check";
+  // 対象を絞れるようにする（件数が多いと1回の実行時間に収まらないため、
+  // 残りだけをやり直せるようにしておく）
+  const targets = Array.isArray(body.sheets) && body.sheets.length > 0
+    ? SHEETS.filter(s => body.sheets!.includes(s))
+    : SHEETS;
 
   if (!supabaseEnabled()) {
     return Response.json({
@@ -40,7 +45,7 @@ export async function POST(request: Request) {
   // ── 現状確認（変更しない）──
   if (op === "check") {
     const rows: { sheet: string; sheetCount: number | null; dbCount: number | null; error?: string }[] = [];
-    for (const sheet of SHEETS) {
+    for (const sheet of targets) {
       let sheetCount: number | null = null;
       let dbCount: number | null = null;
       let error: string | undefined;
@@ -57,7 +62,7 @@ export async function POST(request: Request) {
   // ── 実行 ──
   if (op === "migrate") {
     const results: { sheet: string; moved: number; error?: string }[] = [];
-    for (const sheet of SHEETS) {
+    for (const sheet of targets) {
       try {
         const src = await callAppsScriptLegacy({ op: "list", sheet });
         if (!src.ok) {
