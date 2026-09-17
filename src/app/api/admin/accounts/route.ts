@@ -45,6 +45,16 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, accounts });
   }
 
+  // 1件だけリセット（＝削除）。本人は新しく登録し直せる。
+  if (op === "reset") {
+    const rowIndex = Number(body.rowIndex);
+    const target = rows.find(r => r.rowIndex === rowIndex);
+    if (!target) return Response.json({ ok: false, error: "対象アカウントが見つかりません。" }, { status: 404 });
+    const res = await callAppsScript({ op: "delete", sheet: "accounts", rowIndex });
+    if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: res.status });
+    return Response.json({ ok: true, name: target.data[1] ?? "" });
+  }
+
   // 全アカウント削除（作り直し用）。行番号のズレを避けるため下の行から消す。
   if (op === "resetAll") {
     const targets = rows.map(r => r.rowIndex).sort((a, b) => b - a);

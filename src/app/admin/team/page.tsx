@@ -900,7 +900,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 
       {/* Tabs — 18個を横並びにすると探しにくいので「カテゴリ → タブ」の2段にする */}
       {(() => {
-        const acctAlerts = accounts.filter(a => a.status === "pending").length;
+        // 承認待ち・パスワードリセット申請があればタブに赤ドットを出す
+        const acctAlerts = accounts.filter(a => a.status === "pending" || a.status === "reset_requested").length;
         const groups: { key: string; label: string; items: [Tab, string, number | undefined, boolean][] }[] = [
           { key: "team", label: "チーム", items: [
             ["members", "名簿", members.length, false],
@@ -3821,6 +3822,22 @@ function AccountsApprovalTab({
     () => accounts.filter(a => a.status === "approved").sort((a, b) => (a.name < b.name ? -1 : 1)),
     [accounts],
   );
+  // パスワードを忘れた人からのリセット申請
+  const resetList = useMemo(
+    () => accounts.filter(a => a.status === "reset_requested").sort((a, b) => (a.name < b.name ? -1 : 1)),
+    [accounts],
+  );
+
+  async function resetOne(a: AccountRow) {
+    if (typeof window !== "undefined" && !window.confirm(
+      `「${a.name}」さんのアカウントをリセットしますか？\n\n現在のユーザーID（${a.userId || "—"}）とパスワードは使えなくなり、本人に新規登録をやり直してもらう必要があります。成績データは消えません。`
+    )) return;
+    const ok = await api("/api/admin/accounts", { op: "reset", rowIndex: a._row });
+    if (ok) {
+      showToast(true, `${a.name} さんのアカウントをリセットしました。本人に新規登録をご案内ください。`);
+      reload();
+    }
+  }
 
   async function act(a: AccountRow, op: "approve" | "reject") {
     if (op === "reject" && typeof window !== "undefined" && !window.confirm(`「${a.name}」さんの登録を却下しますか？ログインできなくなります。`)) return;
@@ -3891,6 +3908,37 @@ function AccountsApprovalTab({
         )}
       </div>
 
+      {/* パスワードリセット申請 */}
+      {resetList.length > 0 && (
+        <div style={{ marginBottom: 26 }}>
+          <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#ffb84a", marginBottom: 10, letterSpacing: "0.06em" }}>
+            🔑 パスワードリセットの申請（{resetList.length}）
+          </div>
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+            {resetList.map(a => (
+              <section key={a.id || a._row} style={{ ...cardStyle, border: "1px solid rgba(255,184,74,0.45)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17 }}>{a.name || "（無名）"}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginTop: 3 }}>
+                    現在のID：{a.userId || "—"} ／ パスワードを忘れたため申請中
+                  </div>
+                </div>
+                <button
+                  onClick={() => resetOne(a)}
+                  disabled={saving}
+                  style={{ padding: "11px 18px", background: "#ffb84a", color: "#10131C", border: "none", borderRadius: 10, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}
+                >
+                  リセットする
+                </button>
+              </section>
+            ))}
+          </div>
+          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.8, margin: "10px 2px 0" }}>
+            ※ リセットすると、その人のアカウントが削除され「新規登録」からやり直せるようになります（新しいユーザーIDが発行されます）。本人にご連絡ください。
+          </p>
+        </div>
+      )}
+
       {/* 登録済み */}
       <div>
         <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 10, letterSpacing: "0.06em" }}>
@@ -3910,8 +3958,12 @@ function AccountsApprovalTab({
                   {a.userId || "—"}
                 </span>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
+                <button onClick={() => resetOne(a)} disabled={saving}
+                  style={{ padding: "6px 12px", background: "transparent", color: "#ffb84a", border: "1px solid rgba(255,184,74,0.45)", borderRadius: 8, fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                  リセット
+                </button>
                 <button onClick={() => revoke(a)} disabled={saving}
-                  style={{ padding: "6px 12px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                  style={{ padding: "6px 12px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
                   無効化
                 </button>
               </div>

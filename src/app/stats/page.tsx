@@ -392,7 +392,9 @@ function Rule({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 
 /* ── ログイン / 新規登録 ──────────────────────────────── */
 function LoginGate({ onSuccess }: { onSuccess: () => void }) {
-  const [view, setView] = useState<"login" | "register" | "issued">("login");
+  const [view, setView] = useState<"login" | "register" | "issued" | "forgot">("login");
+  const [forgotName, setForgotName] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
   const [userId, setUserId] = useState("");
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
@@ -409,8 +411,27 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
   const nameTouched = name.trim().length > 0;
   const canRegister = nameOk && pc.len && pc.alpha && pc.num && pw === pw2;
 
-  function go(v: "login" | "register") {
-    setView(v); setError(""); setPw(""); setPw2("");
+  function go(v: "login" | "register" | "forgot") {
+    setView(v); setError(""); setPw(""); setPw2(""); setForgotMsg("");
+  }
+
+  async function doForgot() {
+    if (busy) return;
+    if (!isKatakanaClient(forgotName)) { setError("氏名は全角カタカナで入力してください（例：ヤマダ　タロウ）。"); return; }
+    setBusy(true); setError(""); setForgotMsg("");
+    try {
+      const res = await fetch("/api/member/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: forgotName.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok) setForgotMsg(d.message || "申請しました。");
+      else if (res.status === 429) setError("申請が多すぎます。しばらく待ってからお試しください。");
+      else setError(d?.error || "申請に失敗しました。");
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally { setBusy(false); }
   }
 
   async function doLogin() {
@@ -539,6 +560,90 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           >
             ログイン画面へ
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── パスワードを忘れた場合の申請画面 ── */
+  if (view === "forgot") {
+    return (
+      <div style={pageBgStyle}>
+        <div style={{ width: "100%", maxWidth: 420 }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 36, lineHeight: 1 }}>🔑</div>
+            <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 20, marginTop: 12 }}>
+              パスワードを忘れた場合
+            </div>
+            <p style={{ fontSize: 12.5, color: UI.sub, lineHeight: 1.85, marginTop: 10 }}>
+              安全のためパスワードは元に戻せません。<br />
+              管理者にリセットを申請すると、<strong style={{ color: "#fff" }}>新しく登録し直せる</strong>ようになります。
+            </p>
+          </div>
+
+          {forgotMsg ? (
+            <>
+              <div style={{
+                padding: "16px 16px", background: "rgba(91,217,138,0.12)",
+                border: "1px solid rgba(91,217,138,0.4)", borderRadius: 12,
+                fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.85)",
+              }}>
+                ✅ {forgotMsg}
+              </div>
+              <button onClick={() => go("login")} style={{ ...uiPrimary, marginTop: 18 }}>
+                ログイン画面へ戻る
+              </button>
+            </>
+          ) : (
+            <form onSubmit={e => { e.preventDefault(); doForgot(); }}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={uiLabel}>氏名（全角カタカナ）</label>
+                <input
+                  value={forgotName}
+                  onChange={e => setForgotName(e.target.value)}
+                  placeholder="ヤマダ　タロウ"
+                  autoFocus
+                  style={{
+                    ...uiField,
+                    borderColor: forgotName.trim()
+                      ? (isKatakanaClient(forgotName) ? "rgba(91,217,138,0.5)" : "rgba(255,107,127,0.5)")
+                      : "transparent",
+                  }}
+                />
+                <div style={{ marginTop: 7 }}>
+                  <Rule ok={isKatakanaClient(forgotName)}>登録したときと同じカタカナの氏名</Rule>
+                </div>
+              </div>
+
+              {error && (
+                <div style={{
+                  marginBottom: 16, padding: "12px 14px", background: "rgba(209,0,36,0.12)",
+                  border: "1px solid rgba(209,0,36,0.35)", borderRadius: 12,
+                  color: UI.danger, fontSize: 12.5, lineHeight: 1.7,
+                }}>
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy || !isKatakanaClient(forgotName)}
+                style={{
+                  ...uiPrimary,
+                  opacity: (busy || !isKatakanaClient(forgotName)) ? 0.4 : 1,
+                  cursor: (busy || !isKatakanaClient(forgotName)) ? "not-allowed" : "pointer",
+                }}
+              >
+                {busy ? "送信中…" : "管理者にリセットを申請する"}
+              </button>
+            </form>
+          )}
+
+          <div style={{ textAlign: "center", marginTop: 18 }}>
+            <button onClick={() => go("login")} style={{ background: "none", border: "none", color: UI.faint, fontSize: 12.5, cursor: "pointer" }}>
+              ← ログイン画面へ戻る
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -697,6 +802,18 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           >
             {busy ? "処理中…" : isLogin ? "ログイン" : "登録する"}
           </button>
+
+          {isLogin && (
+            <div style={{ textAlign: "center", marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={() => go("forgot")}
+                style={{ background: "none", border: "none", color: UI.sub, fontSize: 12.5, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}
+              >
+                ユーザーID・パスワードを忘れた場合
+              </button>
+            </div>
+          )}
         </form>
 
         {/* ホーム画面に追加 */}
