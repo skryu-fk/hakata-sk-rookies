@@ -1638,34 +1638,28 @@ function fmtAnnDate(d: string): string {
 
 /* ── お知らせビュー ───────────────────────────────────── */
 function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: () => void }) {
-  const [name, setName] = useState("");
+  // 本人が変更できるのは「ニックネーム」と「ポジション」だけ。
+  // 名前は名簿との照合に使うため、背番号・加入日はチーム管理情報のため変更不可。
   const [nickname, setNickname] = useState("");
-  const [jersey, setJersey] = useState("");
   const [position, setPosition] = useState("未定");
-  const [joined, setJoined] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     if (profile) {
-      setName(profile.memberName || "");
       setNickname(profile.nickname || "");
-      setJersey(profile.jerseyNumber || "");
       setPosition(profile.position || "未定");
-      setJoined(profile.joinedDate || "");
     }
-  }, [profile?.memberName, profile?.nickname, profile?.jerseyNumber, profile?.position, profile?.joinedDate]);
+  }, [profile?.nickname, profile?.position]);
 
   async function save() {
     if (busy) return;
-    const nm = name.trim();
-    if (!nm) { setMsg({ ok: false, text: "名前を入力してください。" }); return; }
     setBusy(true); setMsg(null);
     try {
       const res = await fetch("/api/member/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nm, nickname: nickname.trim(), jerseyNumber: jersey.trim(), position, joinedDate: joined }),
+        body: JSON.stringify({ nickname: nickname.trim(), position }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d?.ok) { setMsg({ ok: true, text: "保存しました。" }); onReload(); }
@@ -1693,52 +1687,51 @@ function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: 
           <div style={{ textAlign: "center", padding: "20px 0", color: "rgba(235,235,245,0.60)", fontSize: 13 }}>読み込み中…</div>
         ) : profile.linked ? (
           <>
-            <div style={{ marginBottom: 14 }}>
-              <label style={label}>表示名（成績・ランキングに出る名前）</label>
-              <input value={name} onChange={e => setName(e.target.value)} maxLength={40} style={input} placeholder="山田 太郎" />
+            {/* チームが管理する情報（本人は変更できない） */}
+            <div style={{ background: "#2C2C2E", borderRadius: 10, overflow: "hidden", marginBottom: 18 }}>
+              {([
+                ["名前", profile.memberName || "—"],
+                ["背番号", profile.jerseyNumber ? `#${profile.jerseyNumber}` : "—"],
+                ["加入日", profile.joinedDate || "—"],
+              ] as [string, string][]).map(([k, v], i) => (
+                <div key={k} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 14px", borderTop: i === 0 ? "none" : "0.5px solid #38383A",
+                }}>
+                  <span style={{ fontSize: 14, color: "rgba(235,235,245,0.60)" }}>{k}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{v}</span>
+                </div>
+              ))}
             </div>
+            <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, margin: "-10px 0 18px", padding: "0 2px" }}>
+              名前・背番号・加入日はチームが管理しています。変更したい場合は管理者にご連絡ください。
+            </p>
+
             <div style={{ marginBottom: 14 }}>
               <label style={label}>ニックネーム（任意）</label>
               <input value={nickname} onChange={e => setNickname(e.target.value)} maxLength={20} style={input} placeholder="たろー" />
             </div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-              <div style={{ flex: 1 }}>
-                <label style={label}>背番号</label>
-                <input
-                  value={jersey}
-                  onChange={e => setJersey(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
-                  inputMode="numeric"
-                  style={{ ...input, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}
-                  placeholder="9"
-                />
-              </div>
-              <div style={{ flex: 1.4 }}>
-                <label style={label}>ポジション</label>
-                <select value={position} onChange={e => setPosition(e.target.value)} style={{ ...input, appearance: "none" }}>
-                  {MEMBER_POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={label}>加入日</label>
-              <input type="date" value={joined} onChange={e => setJoined(e.target.value)} style={input} />
+              <label style={label}>ポジション</label>
+              <select value={position} onChange={e => setPosition(e.target.value)} style={{ ...input, appearance: "none" }}>
+                {MEMBER_POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
             {msg && (
-              <div style={{ marginBottom: 12, fontSize: 12.5, color: msg.ok ? "#9fe6b0" : "#ff6982" }}>{msg.ok ? "✅ " : ""}{msg.text}</div>
+              <div style={{ marginBottom: 12, fontSize: 12.5, color: msg.ok ? "#30D158" : "#FF453A" }}>{msg.ok ? "✅ " : ""}{msg.text}</div>
             )}
             <button
               onClick={save}
-              disabled={busy || name.trim() === ""}
-              className="btn-sheen"
-              style={{ width: "100%", padding: 14, background: busy ? "#666" : "linear-gradient(135deg, #E5B84B, #f0c75e)", color: "#000000", border: "none", borderRadius: 8, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.08em", cursor: busy ? "not-allowed" : "pointer" }}
+              disabled={busy}
+              style={{ width: "100%", padding: 14, background: busy ? "#3A3A3C" : "#E5B84B", color: "#10131C", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 16, cursor: busy ? "not-allowed" : "pointer" }}
             >
-              {busy ? "保存中…" : "名前を保存する"}
+              {busy ? "保存中…" : "保存する"}
             </button>
           </>
         ) : (
-          <div style={{ padding: "18px 14px", background: "#1a1a19", border: "1px solid #51441e", borderRadius: 10, fontSize: 13, lineHeight: 1.8, color: "rgba(235,235,245,0.75)" }}>
-            まだ名簿と<strong style={{ color: "#f0c75e" }}>連携されていません</strong>。<br />
-            管理者が連携すると、あなたの<strong style={{ color: "#fff" }}>成績が表示され、名前を編集</strong>できるようになります。管理者に連携を依頼してください。
+          <div style={{ padding: "18px 14px", background: "#2D2920", border: "1px solid #51441e", borderRadius: 10, fontSize: 13, lineHeight: 1.8, color: "rgba(235,235,245,0.75)" }}>
+            まだ名簿と<strong style={{ color: "#E5B84B" }}>連携されていません</strong>。<br />
+            管理者に連携を依頼してください。連携されると、あなたの<strong style={{ color: "#fff" }}>成績が表示</strong>されます。
           </div>
         )}
       </div>

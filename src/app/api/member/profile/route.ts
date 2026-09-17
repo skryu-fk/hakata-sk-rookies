@@ -82,50 +82,37 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "まだ名簿と連携されていません。管理者に連携を依頼してください。" }, { status: 409 });
   }
 
-  let body: { name?: string; nickname?: string; jerseyNumber?: string; position?: string; joinedDate?: string };
+  let body: { nickname?: string; position?: string };
   try {
     body = await request.json();
   } catch {
     return Response.json({ ok: false, error: "リクエスト形式が不正です。" }, { status: 400 });
   }
-  const name = (body.name ?? "").trim();
+  // 本人が変更できるのは「ニックネーム」と「ポジション」だけ。
+  // 名前は名簿との照合キー（変えると登録・連携が壊れる）、
+  // 背番号・加入日はチームが管理する情報なので、ここでは受け付けない。
   const nickname = (body.nickname ?? "").trim();
-  const jerseyNumber = (body.jerseyNumber ?? "").trim();
   const position = (body.position ?? "").trim();
-  const joinedDate = (body.joinedDate ?? "").trim();
-  if (name.length < 1 || name.length > 40) {
-    return Response.json({ ok: false, error: "名前は1〜40文字で入力してください。" }, { status: 400 });
-  }
   if (nickname.length > 20) {
     return Response.json({ ok: false, error: "ニックネームは20文字以内にしてください。" }, { status: 400 });
-  }
-  if (jerseyNumber && !/^\d{1,3}$/.test(jerseyNumber)) {
-    return Response.json({ ok: false, error: "背番号は3桁までの数字で入力してください。" }, { status: 400 });
   }
   if (position && !POSITIONS.includes(position)) {
     return Response.json({ ok: false, error: "ポジションの指定が不正です。" }, { status: 400 });
   }
-  if (joinedDate && !/^\d{4}-\d{2}-\d{2}$/.test(joinedDate)) {
-    return Response.json({ ok: false, error: "加入日の形式が不正です。" }, { status: 400 });
-  }
 
-  // 連携先の名簿メンバー行を取得し、name / nickname 列だけ書き換える（他列は保持）。
   const ml = await callAppsScript({ op: "list", sheet: "members" });
   if (!ml.ok) return Response.json({ ok: false, error: ml.error }, { status: ml.status });
   const target = ((ml.data as { rows?: Row[] }).rows ?? []).find(r => (r.data[0] ?? "") === memberId);
   if (!target) return Response.json({ ok: false, error: "連携先のメンバーが見つかりません。" }, { status: 404 });
 
   // members 列: [id, name, nickname, jerseyNumber, position, joinedDate, active, kana]
-  // 本人が編集できるのはこの5項目だけ。active(現役/休止) などは管理者のみが変更できる。
+  // nickname(2) と position(4) 以外は元の値をそのまま保持する。
   const next = target.data.slice();
   while (next.length < 8) next.push("");
-  next[1] = name;
   next[2] = nickname;
-  next[3] = jerseyNumber;
-  next[4] = position || (next[4] ?? "");
-  if (joinedDate) next[5] = joinedDate;
+  if (position) next[4] = position;
   const res = await callAppsScript({ op: "update", sheet: "members", rowIndex: target.rowIndex, row: next });
   if (!res.ok) return Response.json({ ok: false, error: res.error }, { status: res.status });
 
-  return Response.json({ ok: true, name, nickname, jerseyNumber, position, joinedDate });
+  return Response.json({ ok: true, nickname, position });
 }
