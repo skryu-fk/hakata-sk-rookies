@@ -951,7 +951,8 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 /* ── ダッシュボード ───────────────────────────────────── */
 type Tab = "news" | "stats" | "schedule" | "mypage";
 type StatKind = "batting" | "pitching" | "catching" | "fielding";
-type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string };
+type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string; jerseyNumber: string; position: string; joinedDate: string };
+const MEMBER_POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"];
 const TOTAL_SCOPE = "__total__";
 
 function StatsDashboard({ onLogout }: { onLogout: () => void }) {
@@ -1212,7 +1213,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       const res = await fetch("/api/member/profile", { cache: "no-store" });
       const d = await res.json().catch(() => null);
       if (res.ok && d?.ok) {
-        setProfile({ name: d.name ?? "", linked: !!d.linked, memberId: d.memberId ?? "", memberName: d.memberName ?? "", nickname: d.nickname ?? "" });
+        setProfile({ name: d.name ?? "", linked: !!d.linked, memberId: d.memberId ?? "", memberName: d.memberName ?? "", nickname: d.nickname ?? "", jerseyNumber: d.jerseyNumber ?? "", position: d.position ?? "", joinedDate: d.joinedDate ?? "" });
         if (d.linked && d.memberId) {
           setMe(d.memberId);
           try { window.localStorage.setItem("skr_me", d.memberId); } catch {}
@@ -1639,12 +1640,21 @@ function fmtAnnDate(d: string): string {
 function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: () => void }) {
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
+  const [jersey, setJersey] = useState("");
+  const [position, setPosition] = useState("未定");
+  const [joined, setJoined] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    if (profile) { setName(profile.memberName || ""); setNickname(profile.nickname || ""); }
-  }, [profile?.memberName, profile?.nickname]);
+    if (profile) {
+      setName(profile.memberName || "");
+      setNickname(profile.nickname || "");
+      setJersey(profile.jerseyNumber || "");
+      setPosition(profile.position || "未定");
+      setJoined(profile.joinedDate || "");
+    }
+  }, [profile?.memberName, profile?.nickname, profile?.jerseyNumber, profile?.position, profile?.joinedDate]);
 
   async function save() {
     if (busy) return;
@@ -1655,7 +1665,7 @@ function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: 
       const res = await fetch("/api/member/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nm, nickname: nickname.trim() }),
+        body: JSON.stringify({ name: nm, nickname: nickname.trim(), jerseyNumber: jersey.trim(), position, joinedDate: joined }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d?.ok) { setMsg({ ok: true, text: "保存しました。" }); onReload(); }
@@ -1690,6 +1700,28 @@ function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: 
             <div style={{ marginBottom: 14 }}>
               <label style={label}>ニックネーム（任意）</label>
               <input value={nickname} onChange={e => setNickname(e.target.value)} maxLength={20} style={input} placeholder="たろー" />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1 }}>
+                <label style={label}>背番号</label>
+                <input
+                  value={jersey}
+                  onChange={e => setJersey(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+                  inputMode="numeric"
+                  style={{ ...input, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}
+                  placeholder="9"
+                />
+              </div>
+              <div style={{ flex: 1.4 }}>
+                <label style={label}>ポジション</label>
+                <select value={position} onChange={e => setPosition(e.target.value)} style={{ ...input, appearance: "none" }}>
+                  {MEMBER_POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={label}>加入日</label>
+              <input type="date" value={joined} onChange={e => setJoined(e.target.value)} style={input} />
             </div>
             {msg && (
               <div style={{ marginBottom: 12, fontSize: 12.5, color: msg.ok ? "#9fe6b0" : "#ff6982" }}>{msg.ok ? "✅ " : ""}{msg.text}</div>

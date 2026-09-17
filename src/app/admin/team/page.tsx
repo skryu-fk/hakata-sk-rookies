@@ -1464,11 +1464,6 @@ function MembersTab({
                       )}
                     </Td>
                     <Td>
-                      {m.kana
-                        ? <span style={{ fontSize: 12, color: "rgba(235,235,245,0.75)" }}>{m.kana}</span>
-                        : <span style={{ fontSize: 10, padding: "3px 8px", background: "#280c1a", color: "#ff6982", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>未設定→登録不可</span>}
-                    </Td>
-                    <Td>
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
                         {m.jerseyNumber || "—"}
                       </span>
