@@ -58,7 +58,7 @@ function getOrCreateSheet(name) {
   else if (name === "tweets")     sh.appendRow(["date", "text", "url"]);
   else if (name === "blog")       sh.appendRow(["date", "category", "title", "excerpt", "content", "slug"]);
   else if (name === "practices")  sh.appendRow(["date", "type", "place", "status", "time", "note"]);
-  else if (name === "members")    sh.appendRow(["id", "name", "nickname", "jerseyNumber", "position", "joinedDate", "active"]);
+  else if (name === "members")    sh.appendRow(["id", "name", "nickname", "jerseyNumber", "position", "joinedDate", "active", "kana"]);
   else if (name === "attendance") sh.appendRow(["date", "memberId", "memberName", "status", "note"]);
   else if (name === "batting")    sh.appendRow(["date", "memberId", "memberName", "opponent", "atBats", "hits", "doubles", "triples", "hr", "rbi", "bb", "so", "hbp", "sh", "sb", "cs"]);
   else if (name === "lineups")    sh.appendRow(["id", "date", "team", "order", "memberId", "memberName", "position"]);
@@ -73,7 +73,7 @@ function getOrCreateSheet(name) {
   else if (name === "announcements") sh.appendRow(["date", "category", "title", "body"]);
   else if (name === "settings")   sh.appendRow(["key", "value", "note"]);
   else if (name === "pending")    sh.appendRow(["id", "kind", "date", "opponent", "memberId", "memberName", "data", "createdAt"]);
-  else if (name === "accounts")   sh.appendRow(["id", "name", "nameKey", "hash", "salt", "status", "createdAt", "memberId"]);
+  else if (name === "accounts")   sh.appendRow(["id", "name", "nameKey", "hash", "salt", "status", "createdAt", "memberId", "userId"]);
   return sh;
 }
 

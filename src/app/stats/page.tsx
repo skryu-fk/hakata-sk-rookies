@@ -14,13 +14,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
+import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "1.5";
+const APP_VERSION = "2.0";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "2.0",
+    date: "2026-09-18",
+    items: [
+      "🔑 ログイン方法を「ユーザーID＋パスワード」に変更しました",
+      "🆕 アカウントを作り直しました。お手数ですが各自で新規登録をお願いします",
+      "👤 氏名は全角カタカナで入力（例：ヤマダ　タロウ）",
+      "🎫 登録するとユーザーIDが発行されます。必ず控えてください",
+      "🔒 パスワードは英字と数字を含む8文字以上に変更",
+      "⚡ 表示を高速化（前回のデータをすぐ表示して裏で更新）",
+      "🎨 ログイン画面のデザインを刷新しました",
+    ],
+  },
   {
     version: "1.5",
     date: "2026-07-01",
@@ -277,6 +291,9 @@ export default function StatsPage() {
   if (!authed) return <LoginGate onSuccess={() => setAuthed(true)} />;
   return <StatsDashboard onLogout={async () => {
     try { await fetch("/api/member/logout", { method: "POST" }); } catch {}
+    // 端末に残したキャッシュ（成績など）も消す
+    clearCache();
+    try { localStorage.removeItem("skr_me"); localStorage.removeItem("skr_login_name"); } catch {}
     setAuthed(false);
   }} />;
 }
@@ -291,135 +308,270 @@ const pageBgStyle: React.CSSProperties = {
   padding: 20,
 };
 
-/* ── ログイン画面 ─────────────────────────────────────── */
+/* ── デザイントークン（iOS風のシンプルさ × チームカラー）──────── */
+const UI = {
+  gold: "#E5B84B",
+  goldDim: "rgba(229,184,75,0.16)",
+  field: "rgba(255,255,255,0.07)",
+  line: "rgba(255,255,255,0.09)",
+  text: "#FFFFFF",
+  sub: "rgba(255,255,255,0.58)",
+  faint: "rgba(255,255,255,0.34)",
+  danger: "#FF6B7F",
+  ok: "#5BD98A",
+  r: 14,
+};
+
+const uiField: React.CSSProperties = {
+  width: "100%",
+  padding: "15px 16px",
+  background: UI.field,
+  border: "1px solid transparent",
+  borderRadius: 12,
+  color: UI.text,
+  // 16px 未満だと iOS でフォーカス時にズームしてしまう
+  fontSize: 16,
+  lineHeight: 1.4,
+  outline: "none",
+  WebkitAppearance: "none",
+};
+
+const uiLabel: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  color: UI.sub,
+  marginBottom: 7,
+  letterSpacing: "0.02em",
+};
+
+const uiPrimary: React.CSSProperties = {
+  width: "100%",
+  height: 52,
+  background: UI.gold,
+  color: "#10131C",
+  border: "none",
+  borderRadius: 12,
+  fontFamily: "var(--font-zen),sans-serif",
+  fontWeight: 800,
+  fontSize: 16,
+  letterSpacing: "0.04em",
+  cursor: "pointer",
+};
+
+/** 全角カタカナ＋スペースのみか（サーバ側 isKatakanaName と同じ判定） */
+function isKatakanaClient(s: string): boolean {
+  const t = s.normalize("NFKC").trim();
+  if (!t) return false;
+  if (!/^[゠-ヿ 　]+$/.test(t)) return false;
+  return /[ァ-ヺ]/.test(t);
+}
+/** パスワード条件の充足状況 */
+function pwChecks(pw: string) {
+  return { len: pw.length >= 8, alpha: /[A-Za-z]/.test(pw), num: /[0-9]/.test(pw) };
+}
+
+function Rule({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: ok ? UI.ok : UI.faint }}>
+      <span style={{
+        width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
+        background: ok ? "rgba(91,217,138,0.18)" : "rgba(255,255,255,0.07)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, lineHeight: 1,
+      }}>{ok ? "✓" : ""}</span>
+      {children}
+    </div>
+  );
+}
+
+/* ── ログイン / 新規登録 ──────────────────────────────── */
 function LoginGate({ onSuccess }: { onSuccess: () => void }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [view, setView] = useState<"login" | "register" | "issued">("login");
+  const [userId, setUserId] = useState("");
   const [name, setName] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState(""); // 承認待ち等の案内（成功系）
   const [busy, setBusy] = useState(false);
-  const isLogin = mode === "login";
+  // 発行されたユーザーID（登録直後に控えてもらう画面で使う）
+  const [issued, setIssued] = useState<{ userId: string; name: string } | null>(null);
+  const [memorized, setMemorized] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  function switchMode(m: "login" | "register") {
-    setMode(m);
-    setError("");
-    setNotice("");
-    setPw("");
-    setPw2("");
+  const pc = pwChecks(pw);
+  const nameOk = isKatakanaClient(name);
+  const nameTouched = name.trim().length > 0;
+  const canRegister = nameOk && pc.len && pc.alpha && pc.num && pw === pw2;
+
+  function go(v: "login" | "register") {
+    setView(v); setError(""); setPw(""); setPw2("");
   }
 
-  async function submit() {
+  async function doLogin() {
     if (busy) return;
-    const nm = name.trim();
-    if (!nm || !pw) { setError("本名とパスワードを入力してください。"); return; }
-    if (!isLogin) {
-      if (pw.length < 8) { setError("パスワードは8文字以上にしてください。"); return; }
-      if (pw !== pw2) { setError("確認用パスワードが一致しません。"); return; }
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
+    if (!userId.trim() || !pw) { setError("ユーザーIDとパスワードを入力してください。"); return; }
+    setBusy(true); setError("");
     try {
-      if (isLogin) {
-        // 成功すると HttpOnly セッション Cookie が発行される（パスワードは保存しない）
-        const res = await fetch("/api/member/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: nm, password: pw }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data?.ok) {
-          try { localStorage.setItem("skr_login_name", data.name || nm); } catch {}
-          onSuccess();
-        } else if (res.status === 429) {
-          setError("試行回数が多すぎます。しばらく待ってからお試しください。");
-        } else {
-          setError(data?.error || "ログインに失敗しました。");
-        }
+      const res = await fetch("/api/member/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userId.trim(), password: pw }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok) {
+        try { localStorage.setItem("skr_login_name", d.name || ""); } catch {}
+        onSuccess();
+      } else if (res.status === 429) {
+        setError("試行回数が多すぎます。しばらく待ってからお試しください。");
       } else {
-        const res = await fetch("/api/member/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: nm, password: pw, password2: pw2 }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data?.ok) {
-          setMode("login");
-          setPw("");
-          setPw2("");
-          setNotice(data.message || "登録申請を受け付けました。管理者の承認後にログインできます。");
-        } else if (res.status === 429) {
-          setError("試行回数が多すぎます。しばらく待ってからお試しください。");
-        } else {
-          setError(data?.error || "登録に失敗しました。");
-        }
+        setError(d?.error || "ログインに失敗しました。");
       }
     } catch {
       setError("ネットワークエラーが発生しました。");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
-  const fieldStyle = {
-    width: "100%",
-    padding: 14,
-    marginTop: 10,
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#fff",
-    fontSize: 15,
-    letterSpacing: "0.06em",
-  } as const;
+  async function doRegister() {
+    if (busy) return;
+    if (!nameOk) { setError("氏名は全角カタカナで入力してください（例：ヤマダ　タロウ）。"); return; }
+    if (!(pc.len && pc.alpha && pc.num)) { setError("パスワードは8文字以上で、英字と数字の両方を含めてください。"); return; }
+    if (pw !== pw2) { setError("確認用パスワードが一致しません。"); return; }
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/member/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), password: pw, password2: pw2 }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok && d.userId) {
+        setIssued({ userId: d.userId, name: d.name || name.trim() });
+        setUserId(d.userId);
+        setPw(""); setPw2(""); setMemorized(false); setCopied(false);
+        setView("issued");
+      } else if (res.status === 429) {
+        setError("試行回数が多すぎます。しばらく待ってからお試しください。");
+      } else {
+        setError(d?.error || "登録に失敗しました。");
+      }
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    } finally { setBusy(false); }
+  }
+
+  async function copyId() {
+    if (!issued) return;
+    try {
+      await navigator.clipboard.writeText(issued.userId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* クリップボード不可の端末は手で控えてもらう */ }
+  }
+
+  /* ── ユーザーID発行画面 ── */
+  if (view === "issued" && issued) {
+    return (
+      <div style={pageBgStyle}>
+        <div style={{ width: "100%", maxWidth: 420 }}>
+          <div style={{ textAlign: "center", marginBottom: 22 }}>
+            <div style={{ fontSize: 40, lineHeight: 1 }}>🎉</div>
+            <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 21, marginTop: 12 }}>
+              登録が完了しました
+            </div>
+            <div style={{ fontSize: 13, color: UI.sub, marginTop: 6 }}>{issued.name} さん</div>
+          </div>
+
+          <div style={{
+            background: "rgba(229,184,75,0.1)", border: `1px solid rgba(229,184,75,0.45)`,
+            borderRadius: UI.r, padding: "22px 20px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: UI.gold, letterSpacing: "0.12em" }}>あなたのユーザーID</div>
+            <div style={{
+              fontFamily: "var(--font-oswald),sans-serif", fontSize: 40, fontWeight: 700,
+              color: UI.gold, letterSpacing: "0.1em", margin: "10px 0 4px",
+            }}>
+              {issued.userId}
+            </div>
+            <button
+              onClick={copyId}
+              style={{
+                marginTop: 8, padding: "9px 18px", background: "rgba(255,255,255,0.08)",
+                color: UI.text, border: `1px solid ${UI.line}`, borderRadius: 999,
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              {copied ? "✓ コピーしました" : "IDをコピー"}
+            </button>
+          </div>
+
+          <div style={{
+            marginTop: 16, padding: "14px 16px", background: "rgba(209,0,36,0.1)",
+            border: "1px solid rgba(209,0,36,0.4)", borderRadius: 12,
+            fontSize: 12.5, lineHeight: 1.8, color: "rgba(255,255,255,0.8)",
+          }}>
+            ⚠️ <strong style={{ color: "#fff" }}>このIDは次回以降のログインに必ず必要です。</strong><br />
+            スクリーンショットを撮る・メモする など、<strong style={{ color: "#fff" }}>今すぐ控えてください</strong>。忘れた場合は管理者に確認が必要になります。
+          </div>
+
+          <label style={{
+            display: "flex", alignItems: "center", gap: 10, marginTop: 18,
+            fontSize: 14, color: UI.text, cursor: "pointer",
+          }}>
+            <input
+              type="checkbox"
+              checked={memorized}
+              onChange={e => setMemorized(e.target.checked)}
+              style={{ width: 20, height: 20, accentColor: UI.gold, cursor: "pointer" }}
+            />
+            ユーザーIDを控えました
+          </label>
+
+          <button
+            onClick={() => { setIssued(null); setView("login"); }}
+            disabled={!memorized}
+            style={{ ...uiPrimary, marginTop: 14, opacity: memorized ? 1 : 0.4, cursor: memorized ? "pointer" : "not-allowed" }}
+          >
+            ログイン画面へ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isLogin = view === "login";
 
   return (
     <div style={pageBgStyle}>
-      <div style={{ width: "100%", maxWidth: 380 }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        {/* ヘッダー */}
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <Image src="/sk_logo_crop.png" alt="" width={62} height={50} style={{ objectFit: "contain", margin: "0 auto", display: "block" }} />
           <div style={{
-            display: "inline-grid", placeItems: "center",
-            width: 120, height: 104, margin: "0 auto",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            boxShadow: "0 0 60px rgba(209,0,36,0.18)",
+            fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, letterSpacing: "0.34em",
+            color: UI.gold, marginTop: 12,
           }}>
-            <Image src="/sk_logo_crop.png" alt="logo" width={92} height={76} style={{ objectFit: "contain" }} />
-          </div>
-          <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.32em", marginTop: 16 }}>
             HAKATA SK ROOKIES
           </div>
-          <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17, marginTop: 6, lineHeight: 1.4 }}>
-            博多SKルーキーズ<br />メンバー成績アプリ
-          </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 10, letterSpacing: "0.05em", lineHeight: 1.6 }}>
-            {isLogin
-              ? "本名と個人パスワードでログイン"
-              : "本名で新規登録（管理者の承認後にログインできます）"}
+          <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 22, marginTop: 7, letterSpacing: "0.01em" }}>
+            メンバー成績アプリ
           </div>
         </div>
 
-        {/* ログイン / 新規登録 切替 */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-          {([["login", "ログイン"], ["register", "新規登録"]] as const).map(([m, label]) => {
-            const on = mode === m;
+        {/* セグメント切替（iOS風） */}
+        <div style={{ display: "flex", background: UI.field, borderRadius: 12, padding: 4, marginBottom: 22 }}>
+          {([["login", "ログイン"], ["register", "新規登録"]] as const).map(([k, label]) => {
+            const on = view === k;
             return (
               <button
-                key={m}
+                key={k}
                 type="button"
-                onClick={() => switchMode(m)}
+                onClick={() => go(k)}
                 style={{
-                  flex: 1,
-                  padding: "11px 0",
-                  background: on ? "rgba(212,168,42,0.16)" : "rgba(255,255,255,0.04)",
-                  border: on ? "1px solid rgba(212,168,42,0.6)" : "1px solid rgba(255,255,255,0.1)",
-                  color: on ? "#f0c75e" : "rgba(255,255,255,0.6)",
-                  fontFamily: "var(--font-zen),sans-serif",
-                  fontWeight: 800,
-                  fontSize: 13,
-                  letterSpacing: "0.1em",
-                  cursor: "pointer",
+                  flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
+                  background: on ? UI.gold : "transparent",
+                  color: on ? "#10131C" : UI.sub,
+                  fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14,
+                  cursor: "pointer", transition: "background .18s, color .18s",
                 }}
               >
                 {label}
@@ -428,118 +580,134 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           })}
         </div>
 
-        {notice && (
-          <div style={{
-            marginBottom: 14, padding: "11px 12px", fontSize: 12, lineHeight: 1.6,
-            color: "#9fe6b0", background: "rgba(40,180,99,0.1)", border: "1px solid rgba(40,180,99,0.35)",
-          }}>
-            ✅ {notice}
-          </div>
-        )}
+        <form onSubmit={e => { e.preventDefault(); isLogin ? doLogin() : doRegister(); }}>
+          {isLogin ? (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <label style={uiLabel}>ユーザーID</label>
+                <input
+                  value={userId}
+                  onChange={e => setUserId(e.target.value.toUpperCase())}
+                  placeholder="SKR-8421"
+                  autoComplete="username"
+                  autoCapitalize="characters"
+                  autoFocus
+                  style={{ ...uiField, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.1em", fontSize: 18 }}
+                />
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={uiLabel}>パスワード</label>
+                <input
+                  type="password"
+                  value={pw}
+                  onChange={e => setPw(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  style={uiField}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <label style={uiLabel}>氏名（全角カタカナ）</label>
+                <input
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="ヤマダ　タロウ"
+                  autoComplete="name"
+                  autoFocus
+                  style={{
+                    ...uiField,
+                    borderColor: nameTouched ? (nameOk ? "rgba(91,217,138,0.5)" : "rgba(255,107,127,0.5)") : "transparent",
+                  }}
+                />
+                <div style={{ marginTop: 7 }}>
+                  <Rule ok={nameOk}>カタカナのみ（漢字・ひらがな・英数字は使えません）</Rule>
+                </div>
+              </div>
 
-        <form onSubmit={e => { e.preventDefault(); submit(); }}>
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="本名（フルネーム）"
-            autoFocus
-            style={{ ...fieldStyle, marginTop: 0 }}
-          />
-          <input
-            type="password"
-            name="password"
-            id="member-password"
-            value={pw}
-            onChange={e => setPw(e.target.value)}
-            placeholder={isLogin ? "パスワード" : "パスワード（8文字以上）"}
-            autoComplete={isLogin ? "current-password" : "new-password"}
-            style={fieldStyle}
-          />
-          {!isLogin && (
-            <input
-              type="password"
-              name="password2"
-              value={pw2}
-              onChange={e => setPw2(e.target.value)}
-              placeholder="パスワード（確認・もう一度）"
-              autoComplete="new-password"
-              style={fieldStyle}
-            />
+              <div style={{ marginBottom: 14 }}>
+                <label style={uiLabel}>パスワード</label>
+                <input
+                  type="password"
+                  value={pw}
+                  onChange={e => setPw(e.target.value)}
+                  placeholder="英字と数字を含む8文字以上"
+                  autoComplete="new-password"
+                  style={uiField}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: 8 }}>
+                  <Rule ok={pc.len}>8文字以上</Rule>
+                  <Rule ok={pc.alpha}>英字を含む</Rule>
+                  <Rule ok={pc.num}>数字を含む</Rule>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={uiLabel}>パスワード（確認）</label>
+                <input
+                  type="password"
+                  value={pw2}
+                  onChange={e => setPw2(e.target.value)}
+                  placeholder="もう一度入力"
+                  autoComplete="new-password"
+                  style={{
+                    ...uiField,
+                    borderColor: pw2 ? (pw === pw2 ? "rgba(91,217,138,0.5)" : "rgba(255,107,127,0.5)") : "transparent",
+                  }}
+                />
+              </div>
+
+              <div style={{
+                marginBottom: 18, padding: "12px 14px", background: UI.goldDim,
+                border: `1px solid rgba(229,184,75,0.3)`, borderRadius: 12,
+                fontSize: 11.5, lineHeight: 1.75, color: "rgba(255,255,255,0.72)",
+              }}>
+                登録できるのは<strong style={{ color: "#fff" }}>チーム名簿に登録済みのメンバー</strong>のみです。登録が完了すると<strong style={{ color: UI.gold }}>ユーザーID</strong>が発行されます。
+              </div>
+            </>
           )}
-          {!isLogin && (
-            <div style={{ marginTop: 9, fontSize: 10.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
-              ※ 本名は必ず正確に入力してください（チーム名簿・成績の照合に使います）。
+
+          {error && (
+            <div style={{
+              marginBottom: 16, padding: "12px 14px", background: "rgba(209,0,36,0.12)",
+              border: "1px solid rgba(209,0,36,0.35)", borderRadius: 12,
+              color: UI.danger, fontSize: 12.5, lineHeight: 1.7,
+            }}>
+              {error}
             </div>
           )}
-          {error && (
-            <div style={{ marginTop: 10, color: "#ff6982", fontSize: 12, lineHeight: 1.6 }}>{error}</div>
-          )}
+
           <button
             type="submit"
-            disabled={busy}
-            className="btn-sheen"
+            disabled={busy || (!isLogin && !canRegister)}
             style={{
-              marginTop: 18,
-              width: "100%",
-              padding: 14,
-              background: busy ? "#666" : "linear-gradient(135deg, #d4a82a, #f0c75e)",
-              color: "#0a0e1a",
-              border: "none",
-              fontFamily: "var(--font-zen),sans-serif",
-              fontWeight: 700,
-              fontSize: 15,
-              letterSpacing: "0.2em",
-              cursor: busy ? "not-allowed" : "pointer",
+              ...uiPrimary,
+              background: busy ? "rgba(255,255,255,0.2)" : UI.gold,
+              opacity: (!isLogin && !canRegister) ? 0.4 : 1,
+              cursor: busy || (!isLogin && !canRegister) ? "not-allowed" : "pointer",
             }}
           >
-            {busy ? "処理中..." : isLogin ? "ログイン →" : "登録を申請する →"}
+            {busy ? "処理中…" : isLogin ? "ログイン" : "登録する"}
           </button>
         </form>
 
-        {/* ホーム画面に追加する手順 — アプリのように使えるようにする案内 */}
-        <div style={{ marginTop: 26, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", padding: "16px 16px 14px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 16 }}>📱</span>
-            <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: "0.08em", color: "#d4a82a" }}>
-              ホーム画面に追加すると便利
-            </span>
+        {/* ホーム画面に追加 */}
+        <details style={{ marginTop: 24, background: "rgba(255,255,255,0.04)", border: `1px solid ${UI.line}`, borderRadius: 12, padding: "13px 16px" }}>
+          <summary style={{ fontSize: 13, color: UI.sub, cursor: "pointer", listStyle: "none", fontWeight: 600 }}>
+            📱 ホーム画面に追加すると便利です
+          </summary>
+          <div style={{ marginTop: 12, fontSize: 12, color: UI.faint, lineHeight: 1.85 }}>
+            <div style={{ color: UI.sub, fontWeight: 600, marginBottom: 3 }}>iPhone（Safari）</div>
+            共有ボタン → 「ホーム画面に追加」 → 「追加」
+            <div style={{ color: UI.sub, fontWeight: 600, margin: "10px 0 3px" }}>Android（Chrome）</div>
+            右上「⋮」→ 「ホーム画面に追加」 → 「追加」
           </div>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", lineHeight: 1.6, margin: "0 0 12px" }}>
-            このページをホーム画面に追加すると、アプリのように1タップで開けます。
-          </p>
+        </details>
 
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", marginBottom: 5 }}>
-               iPhone（Safari）の場合
-            </div>
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.7 }}>
-              <li>下の <strong style={{ color: "#fff" }}>共有ボタン</strong>（□に↑のマーク）を開く</li>
-              <li><strong style={{ color: "#fff" }}>「ホーム画面に追加」</strong>をタップ</li>
-              <li>右上の「追加」を押せば完了</li>
-            </ol>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#fff", letterSpacing: "0.06em", marginBottom: 5 }}>
-               Android（Chrome）の場合
-            </div>
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: "rgba(255,255,255,0.6)", lineHeight: 1.7 }}>
-              <li>右上の <strong style={{ color: "#fff" }}>「⋮」メニュー</strong>を開く</li>
-              <li><strong style={{ color: "#fff" }}>「ホーム画面に追加」</strong>を選ぶ</li>
-              <li>名前を確認して「追加」をタップ</li>
-            </ol>
-          </div>
-
-          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", lineHeight: 1.6, margin: "12px 0 0" }}>
-            ※ 追加後は「博多SKルーキーズメンバー成績アプリ」としてホーム画面に並びます。
-          </p>
-        </div>
-
-        <div style={{ textAlign: "center", marginTop: 16 }}>
-          <Link href="/" style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", textDecoration: "none" }}>
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <Link href="/" style={{ fontSize: 12, color: UI.faint, textDecoration: "none" }}>
             ← トップサイトへ戻る
           </Link>
         </div>
@@ -682,13 +850,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
     return data.sheets as Record<string, ListRow[]>;
   }, []);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const map = await fetchSheets([
-        "members", "batting", "pitching", "catching", "fielding",
-        "practices", "probables", "announcements", "participants", "settings", "attendance",
-      ]);
+  // 取得済みデータを画面に反映する（キャッシュからの復元にも使う）
+  const applySheets = useCallback((map: Record<string, ListRow[]>) => {
+    {
       const rowsOf = (name: string): ListRow[] => map[name] ?? [];
 
       setMembers(rowsOf("members").map(r => ({
@@ -784,13 +948,39 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       }));
       const mt = setts.find(s => s.key === "maintenance");
       setMaintenance({ on: mt?.value === "on", message: mt?.note ?? "" });
-      setUpdatedAt(new Date());
+    }
+  }, []);
+
+  const loadAll = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
+    try {
+      const map = await fetchSheets([
+        "members", "batting", "pitching", "catching", "fielding",
+        "practices", "probables", "announcements", "participants", "settings", "attendance",
+      ]);
+      // 取得できた時だけ反映（失敗時はキャッシュ表示を保つ）
+      if (Object.keys(map).length > 0) {
+        applySheets(map);
+        writeCache("stats_sheets", map);
+        setUpdatedAt(new Date());
+      }
     } finally {
       setLoading(false);
     }
-  }, [fetchSheets]);
+  }, [fetchSheets, applySheets]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  // 初回：キャッシュがあれば即描画してから、裏で最新を取り直す
+  useEffect(() => {
+    const cached = readCache<Record<string, ListRow[]>>("stats_sheets");
+    if (cached) {
+      applySheets(cached);
+      setLoading(false);
+      loadAll(true);
+    } else {
+      loadAll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── 試合一覧（各成績の記録から日付+対戦をユニーク抽出） ── */
   const games = useMemo(() => {
@@ -1044,7 +1234,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               {maintenance.message || "成績アプリは一時的にご利用いただけません。\nしばらく経ってから開き直してください。"}
             </p>
             <button
-              onClick={loadAll}
+              onClick={() => loadAll()}
               className="btn-sheen"
               style={{ marginTop: 22, padding: "12px 26px", background: "linear-gradient(135deg, #d4a82a, #f0c75e)", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: "0.1em", cursor: "pointer" }}
             >
@@ -1075,7 +1265,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               </span>
             )}
             <button
-              onClick={loadAll}
+              onClick={() => loadAll()}
               disabled={loading}
               aria-label="データを更新"
               style={{

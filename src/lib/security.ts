@@ -31,6 +31,50 @@ export function nameKey(name: string): string {
   return String(name).trim().toLowerCase().replace(/\s+/g, "");
 }
 
+/* ── カタカナ名・パスワード・ユーザーID ───────────────────────── */
+
+/**
+ * 氏名は「全角カタカナ＋スペース」のみ許可する（漢字・ひらがな・英数字は不可）。
+ * 半角カナで打たれても NFKC で全角に寄せてから判定する。
+ */
+export function isKatakanaName(name: string): boolean {
+  const s = String(name).normalize("NFKC").trim();
+  if (!s) return false;
+  // ゠-ヿ = カタカナブロック（ー・ヴ・「・」含む）
+  if (!/^[゠-ヿ 　]+$/.test(s)) return false;
+  // スペースや記号だけは不可。カナ本体が1文字以上必要。
+  return /[ァ-ヺ]/.test(s);
+}
+
+/**
+ * 名簿照合用のカナキー。
+ * 全角化 → ひらがなをカタカナへ → 空白を全除去、で表記ゆれを吸収する。
+ */
+export function kanaKey(s: string): string {
+  return String(s)
+    .normalize("NFKC")
+    .replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60))
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+/** パスワード条件: 8文字以上72文字以下で、英字と数字を両方含む。 */
+export function isStrongPassword(pw: string): boolean {
+  if (typeof pw !== "string") return false;
+  if (pw.length < 8 || pw.length > 72) return false;
+  return /[A-Za-z]/.test(pw) && /[0-9]/.test(pw);
+}
+
+/** ユーザーID（例: SKR-8421）を1件生成する。重複確認は呼び出し側で行う。 */
+export function genUserId(): string {
+  return `SKR-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+/** 入力されたユーザーIDの表記ゆれ（小文字・全角・ハイフン抜け）を吸収する。 */
+export function userIdKey(v: string): string {
+  return String(v).normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 /**
  * 定数時間でのパスワード比較。`===` は早期リターンで長さ・内容の差が
  * 処理時間に出るため、タイミング攻撃の手がかりになる。常に同じ手順で比較する。

@@ -69,7 +69,58 @@ export function ensureSheet(sheet: string | undefined): Response | null {
   return null;
 }
 
+/* ── 読み取りの短期キャッシュ & 同時リクエストの集約 ─────────────
+ * Apps Script は1往復が重い（コールドスタート時は数秒）。同じ一覧を何度も
+ * 取りに行くと体感が一気に悪化するため、読み取り(list/listMany)だけ
+ *   ① 直近 TTL 内の結果を使い回す
+ *   ② 同じ内容のリクエストが同時に来たら1本にまとめる
+ * を行う。書き込み時は flushCaches() で全部捨てる（古い値を見せないため）。
+ */
+type ListCacheEntry = { at: number; data: unknown };
+const LIST_TTL_MS = 20_000;
+const listCache = new Map<string, ListCacheEntry>();
+const inflight = new Map<string, Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }>>();
+
+function readKey(payload: Record<string, unknown>): string | null {
+  const op = payload.op;
+  if (op === "list") return `list:${String(payload.sheet ?? "")}`;
+  if (op === "listMany") return `listMany:${(payload.sheets as string[] | undefined)?.join(",") ?? ""}`;
+  return null;
+}
+
+/** 書き込み後に読み取りキャッシュを捨てる（sheet 単位の判別はせず全消し＝安全側）。 */
+export function dropListCache() {
+  listCache.clear();
+}
+
 export async function callAppsScript(payload: Record<string, unknown>): Promise<
+  { ok: true; data: unknown } | { ok: false; status: number; error: string }
+> {
+  const key = readKey(payload);
+  if (key) {
+    const hit = listCache.get(key);
+    if (hit && Date.now() - hit.at < LIST_TTL_MS) {
+      return { ok: true, data: hit.data };
+    }
+    const running = inflight.get(key);
+    if (running) return running;
+    const p = callAppsScriptRaw(payload).then(res => {
+      if (res.ok) listCache.set(key, { at: Date.now(), data: res.data });
+      return res;
+    }).finally(() => { inflight.delete(key); });
+    inflight.set(key, p);
+    return p;
+  }
+  // 書き込み系は成功したら読み取りキャッシュを捨てる（どのルート経由でも古い値を残さない）
+  const res = await callAppsScriptRaw(payload);
+  const op = String(payload.op ?? "");
+  if (res.ok && (op === "append" || op === "update" || op === "delete" || op === "upsert")) {
+    dropListCache();
+  }
+  return res;
+}
+
+async function callAppsScriptRaw(payload: Record<string, unknown>): Promise<
   { ok: true; data: unknown } | { ok: false; status: number; error: string }
 > {
   const url = process.env.APPS_SCRIPT_URL;
@@ -148,6 +199,7 @@ export async function callAppsScript(payload: Record<string, unknown>): Promise<
 
 /** 書き込み系の操作後に呼ぶキャッシュ無効化。 */
 export function flushCaches(sheet: string) {
+  dropListCache();
   try {
     // `{ expire: 0 }` で即時失効。"max" だと stale-while-revalidate になり、
     // 直後にアクセスしたユーザーが「追加前」のキャッシュを掴まされて404になる。

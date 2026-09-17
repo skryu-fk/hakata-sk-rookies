@@ -18,13 +18,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { readCache, writeCache } from "@/lib/clientCache";
 
 type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
 // メンバー個人アカウント（パスワードハッシュはサーバ側のみ。ここには持たない）
-type AccountRow = { id: string; name: string; status: string; createdAt: string; memberId: string; _row: number };
+type AccountRow = { id: string; name: string; status: string; createdAt: string; memberId: string; userId: string; _row: number };
 
 type Member = {
   id: string;
@@ -34,6 +35,8 @@ type Member = {
   position: string;
   joinedDate: string;
   active: boolean;
+  /** カタカナ読み。メンバーが新規登録する際の本人照合に使う（例: ヤマダ　タロウ）。 */
+  kana: string;
   _row?: number;
 };
 
@@ -500,15 +503,32 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     }
   }, [pw]);
 
+  /**
+   * 一覧取得（キャッシュ優先）。
+   * 前回の内容があれば即座に描画してから、裏で最新を取り直して上書きする。
+   * Apps Script は1往復が重いので、これだけで体感速度が大きく変わる。
+   */
+  const listCached = useCallback(async (sheet: string, apply: (rows: ListRow[]) => void) => {
+    const ck = `admin_rows_${sheet}`;
+    const cached = readCache<ListRow[]>(ck);
+    if (cached) apply(cached);
+    setLoadingFor(sheet, !cached);
+    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet });
+    setLoadingFor(sheet, false);
+    if (!data) return;
+    const rows = data.rows ?? [];
+    writeCache(ck, rows);
+    apply(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
+
   const setLoadingFor = (key: string, v: boolean) =>
     setLoading(prev => ({ ...prev, [key]: v }));
 
   // ── 取得 ──
   const loadMembers = useCallback(async () => {
-    setLoadingFor("members", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "members" });
-    setLoadingFor("members", false);
-    if (!data) return;
+    await listCached("members", (rows) => {
+      const data = { rows };
     const parsed = (data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
       name: r.data[1] ?? "",
@@ -517,16 +537,16 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       position: r.data[4] ?? "",
       joinedDate: normalizeDate(r.data[5] ?? ""),
       active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
+      kana: r.data[7] ?? "",
       _row: r.rowIndex,
     } as Member));
     setMembers(parsed);
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadAttendance = useCallback(async () => {
-    setLoadingFor("attendance", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "attendance" });
-    setLoadingFor("attendance", false);
-    if (!data) return;
+    await listCached("attendance", (rows) => {
+      const data = { rows };
     setAttendance((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -535,13 +555,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[4] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadBatting = useCallback(async () => {
-    setLoadingFor("batting", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "batting" });
-    setLoadingFor("batting", false);
-    if (!data) return;
+    await listCached("batting", (rows) => {
+      const data = { rows };
     setBatting((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -562,13 +581,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       cs: num(r.data[15]),
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadPitching = useCallback(async () => {
-    setLoadingFor("pitching", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "pitching" });
-    setLoadingFor("pitching", false);
-    if (!data) return;
+    await listCached("pitching", (rows) => {
+      const data = { rows };
     setPitching((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -583,13 +601,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       hbp: num(r.data[10]),
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadCatching = useCallback(async () => {
-    setLoadingFor("catching", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "catching" });
-    setLoadingFor("catching", false);
-    if (!data) return;
+    await listCached("catching", (rows) => {
+      const data = { rows };
     setCatching((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -599,13 +616,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       cs: num(r.data[5]),
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadFielding = useCallback(async () => {
-    setLoadingFor("fielding", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "fielding" });
-    setLoadingFor("fielding", false);
-    if (!data) return;
+    await listCached("fielding", (rows) => {
+      const data = { rows };
     setFielding((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -616,13 +632,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       e: num(r.data[6]),
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadProbables = useCallback(async () => {
-    setLoadingFor("probables", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "probables" });
-    setLoadingFor("probables", false);
-    if (!data) return;
+    await listCached("probables", (rows) => {
+      const data = { rows };
     setProbables((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       opponent: r.data[1] ?? "",
@@ -631,13 +646,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[4] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadAnnouncements = useCallback(async () => {
-    setLoadingFor("announcements", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "announcements" });
-    setLoadingFor("announcements", false);
-    if (!data) return;
+    await listCached("announcements", (rows) => {
+      const data = { rows };
     setAnnouncements((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       category: r.data[1] ?? "お知らせ",
@@ -645,26 +659,24 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       body: r.data[3] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadSettings = useCallback(async () => {
-    setLoadingFor("settings", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "settings" });
-    setLoadingFor("settings", false);
-    if (!data) return;
+    await listCached("settings", (rows) => {
+      const data = { rows };
     setSettings((data.rows ?? []).map(r => ({
       key: r.data[0] ?? "",
       value: r.data[1] ?? "",
       note: r.data[2] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadLineups = useCallback(async () => {
-    setLoadingFor("lineups", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "lineups" });
-    setLoadingFor("lineups", false);
-    if (!data) return;
+    await listCached("lineups", (rows) => {
+      const data = { rows };
     setLineups((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
       date: normalizeDate(r.data[1] ?? ""),
@@ -675,13 +687,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       position: r.data[6] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadGames = useCallback(async () => {
-    setLoadingFor("games", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "games" });
-    setLoadingFor("games", false);
-    if (!data) return;
+    await listCached("games", (rows) => {
+      const data = { rows };
     setGames((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
       date: normalizeDate(r.data[1] ?? ""),
@@ -697,13 +708,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[11] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadPayments = useCallback(async () => {
-    setLoadingFor("payments", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "payments" });
-    setLoadingFor("payments", false);
-    if (!data) return;
+    await listCached("payments", (rows) => {
+      const data = { rows };
     setPayments((data.rows ?? []).map(r => ({
       id: r.data[0] ?? "",
       date: normalizeDate(r.data[1] ?? ""),
@@ -713,13 +723,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[5] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadPractices = useCallback(async () => {
-    setLoadingFor("practices", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "practices" });
-    setLoadingFor("practices", false);
-    if (!data) return;
+    await listCached("practices", (rows) => {
+      const data = { rows };
     setPractices((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       type: r.data[1] ?? "",
@@ -729,13 +738,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[5] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadParticipants = useCallback(async () => {
-    setLoadingFor("participants", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "participants" });
-    setLoadingFor("participants", false);
-    if (!data) return;
+    await listCached("participants", (rows) => {
+      const data = { rows };
     setParticipants((data.rows ?? []).map(r => ({
       date: normalizeDate(r.data[0] ?? ""),
       memberId: r.data[1] ?? "",
@@ -743,13 +751,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       note: r.data[3] ?? "",
       _row: r.rowIndex,
     })));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadPending = useCallback(async () => {
-    setLoadingFor("pending", true);
-    const data = await api<{ ok: true; rows: ListRow[] }>("/api/admin/list", { sheet: "pending" });
-    setLoadingFor("pending", false);
-    if (!data) return;
+    await listCached("pending", (rows) => {
+      const data = { rows };
     setPending((data.rows ?? []).map(r => {
       let parsed: Record<string, number> = {};
       try { const o = JSON.parse(r.data[6] ?? "{}"); if (o && typeof o === "object") parsed = o; } catch { /* 壊れたJSONは空に */ }
@@ -765,16 +772,22 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         _row: r.rowIndex,
       } as PendingRow;
     }));
-  }, [api]);
+    });
+  }, [listCached]);
 
   const loadAccounts = useCallback(async () => {
-    setLoadingFor("accounts", true);
-    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; memberId?: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
+    const cachedAcc = readCache<AccountRow[]>("admin_accounts");
+    if (cachedAcc) setAccounts(cachedAcc);
+    setLoadingFor("accounts", !cachedAcc);
+    const data = await api<{ ok: true; accounts: { id: string; name: string; status: string; createdAt: string; memberId?: string; userId?: string; rowIndex: number }[] }>("/api/admin/accounts", { op: "list" });
     setLoadingFor("accounts", false);
     if (!data) return;
-    setAccounts((data.accounts ?? []).map(a => ({
-      id: a.id, name: a.name, status: a.status, createdAt: a.createdAt, memberId: a.memberId ?? "", _row: a.rowIndex,
-    })));
+    const parsedAcc = (data.accounts ?? []).map(a => ({
+      id: a.id, name: a.name, status: a.status, createdAt: a.createdAt,
+      memberId: a.memberId ?? "", userId: a.userId ?? "", _row: a.rowIndex,
+    }));
+    writeCache("admin_accounts", parsedAcc);
+    setAccounts(parsedAcc);
   }, [api]);
 
   // 初回ロード
@@ -1211,7 +1224,7 @@ function MembersTab({
 }) {
   const [editing, setEditing] = useState<Member | null>(null);
   const [form, setForm] = useState({
-    id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true,
+    id: "", name: "", kana: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true,
   });
 
   function startEdit(m: Member) {
@@ -1219,6 +1232,7 @@ function MembersTab({
     setForm({
       id: m.id,
       name: m.name,
+      kana: m.kana,
       nickname: m.nickname,
       jerseyNumber: m.jerseyNumber,
       position: m.position || "未定",
@@ -1228,7 +1242,7 @@ function MembersTab({
   }
   function cancelEdit() {
     setEditing(null);
-    setForm({ id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true });
+    setForm({ id: "", name: "", kana: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true });
   }
 
   async function submit() {
@@ -1240,6 +1254,7 @@ function MembersTab({
     const row = [
       id, form.name.trim(), form.nickname.trim(), form.jerseyNumber.trim(),
       form.position, form.joinedDate, form.active ? "TRUE" : "FALSE",
+      form.kana.trim(),
     ];
     let ok;
     if (editing) {
@@ -1273,6 +1288,15 @@ function MembersTab({
           <div>
             <label style={labelStyle}>名前 <span style={{ color: "#d10024" }}>*</span></label>
             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="例: 柏木 海斗" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>
+              カナ <span style={{ color: "#d4a82a", fontSize: 10 }}>※本人が新規登録するのに必須</span>
+            </label>
+            <input value={form.kana} onChange={e => setForm({ ...form, kana: e.target.value })} placeholder="例: カシワギ　カイト" style={inputStyle} />
+            <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.4)", marginTop: 4, lineHeight: 1.6 }}>
+              メンバーはこのカナと一致した場合だけアカウントを作れます。空欄だと本人が登録できません。
+            </div>
           </div>
           <div>
             <label style={labelStyle}>ニックネーム</label>
@@ -1330,6 +1354,7 @@ function MembersTab({
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <Th>#</Th>
                   <Th>名前</Th>
+                  <Th>カナ</Th>
                   <Th>背番号</Th>
                   <Th>ポジション</Th>
                   <Th>加入日</Th>
@@ -1344,6 +1369,11 @@ function MembersTab({
                     <Td>
                       <div style={{ fontWeight: 700 }}>{m.name}</div>
                       {m.nickname && <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11 }}>{m.nickname}</div>}
+                    </Td>
+                    <Td>
+                      {m.kana
+                        ? <span style={{ fontSize: 12, color: "rgba(255,255,255,0.75)" }}>{m.kana}</span>
+                        : <span style={{ fontSize: 10, padding: "3px 8px", background: "rgba(209,0,36,0.15)", color: "#ff6982", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>未設定→登録不可</span>}
                     </Td>
                     <Td>
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#d4a82a" }}>
@@ -3721,13 +3751,22 @@ function AccountsApprovalTab({
     if (ok) { showToast(true, `${a.name} さんを無効化しました。`); reload(); }
   }
 
+  async function resetAll() {
+    if (typeof window === "undefined") return;
+    if (accounts.length === 0) { showToast(false, "削除するアカウントがありません。"); return; }
+    if (!window.confirm(`本当に全アカウント（${accounts.length}件）を削除しますか？\n\n全員がログインできなくなり、各自で新規登録をやり直す必要があります。この操作は元に戻せません。`)) return;
+    if (!window.confirm("最終確認です。すべてのユーザーIDとパスワードが消えます。実行しますか？")) return;
+    const ok = await api<{ ok: true; deleted: number }>("/api/admin/accounts", { op: "resetAll" });
+    if (ok) { showToast(true, `${ok.deleted}件のアカウントを削除しました。各自で新規登録してもらってください。`); reload(); }
+  }
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <div>
-          <H3>メンバーアカウント承認</H3>
+          <H3>メンバーアカウント</H3>
           <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: 0 }}>
-            成績アプリに「本名＋パスワード」で新規登録した人の一覧です。本人確認のうえ<strong style={{ color: "#67e088" }}>承認</strong>すると、その人はログインできるようになります。<strong style={{ color: "#ff6982" }}>却下</strong>するとログインできません。
+            成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿にカナが登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#d4a82a" }}>ユーザーID＋パスワード</strong>で行います。
           </p>
         </div>
         <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>
@@ -3766,21 +3805,24 @@ function AccountsApprovalTab({
         )}
       </div>
 
-      {/* 承認済み */}
+      {/* 登録済み */}
       <div>
         <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,0.7)", marginBottom: 10, letterSpacing: "0.06em" }}>
-          承認済み（{approvedList.length}）
+          登録済み（{approvedList.length}）
         </div>
         {approvedList.length === 0 ? (
           <div style={{ ...cardStyle, textAlign: "center", padding: "24px 20px", color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
-            まだ承認済みのアカウントはありません。
+            まだ登録されたアカウントはありません。
           </div>
         ) : (
           <div style={{ ...cardStyle, padding: "6px 4px" }}>
             {approvedList.map((a, i) => (
               <div key={a.id || a._row} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.06)", flexWrap: "wrap" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1a9f3a", flexShrink: 0 }} />
-                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, flex: 1, minWidth: 120 }}>{a.name}</span>
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, flex: 1, minWidth: 110 }}>{a.name}</span>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#d4a82a", letterSpacing: "0.08em" }}>
+                  {a.userId || "—"}
+                </span>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
                 <button onClick={() => revoke(a)} disabled={saving}
                   style={{ padding: "6px 12px", background: "transparent", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.18)", fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
@@ -3790,6 +3832,23 @@ function AccountsApprovalTab({
             ))}
           </div>
         )}
+      </div>
+
+      {/* 危険な操作 */}
+      <div style={{ ...cardStyle, marginTop: 26, border: "1px solid rgba(209,0,36,0.4)" }}>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#ff6982", marginBottom: 8 }}>
+          ⚠️ 全アカウントのリセット
+        </div>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.8, margin: "0 0 12px" }}>
+          登録済みのアカウントを<strong style={{ color: "#fff" }}>すべて削除</strong>します。全員がログインできなくなり、各自で新規登録をやり直してもらう必要があります（名簿・成績データは消えません）。
+        </p>
+        <button
+          onClick={resetAll}
+          disabled={saving || accounts.length === 0}
+          style={{ padding: "11px 18px", background: "#d10024", color: "#fff", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || accounts.length === 0) ? "not-allowed" : "pointer", opacity: (saving || accounts.length === 0) ? 0.5 : 1 }}
+        >
+          {saving ? "処理中…" : `全アカウントを削除（${accounts.length}件）`}
+        </button>
       </div>
     </div>
   );
