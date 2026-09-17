@@ -5,6 +5,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { safeEqual, verifySession, readCookie, MEMBER_COOKIE, ADMIN_COOKIE } from "@/lib/security";
+import { callSupabase, supabaseEnabled } from "@/lib/supabaseData";
 
 export const ALLOWED_SHEETS = new Set([
   // コンテンツ系
@@ -93,7 +94,28 @@ export function dropListCache() {
   listCache.clear();
 }
 
+/**
+ * データ操作の入口。
+ * Supabase が設定されていればそちらを使い（速く、タイムアウトしない）、
+ * 未設定なら従来どおり Apps Script（スプレッドシート）にフォールバックする。
+ * 呼び出し側のインターフェースは変わらない。
+ */
 export async function callAppsScript(payload: Record<string, unknown>): Promise<
+  { ok: true; data: unknown } | { ok: false; status: number; error: string }
+> {
+  if (supabaseEnabled()) {
+    const res = await callSupabase(payload);
+    const op = String(payload.op ?? "");
+    if (res.ok && (op === "append" || op === "update" || op === "delete" || op === "upsert")) {
+      dropListCache();
+    }
+    return res;
+  }
+  return callAppsScriptLegacy(payload);
+}
+
+/** スプレッドシート（Apps Script）経由の従来ルート。移行前・移行元の読み出しに使う。 */
+export async function callAppsScriptLegacy(payload: Record<string, unknown>): Promise<
   { ok: true; data: unknown } | { ok: false; status: number; error: string }
 > {
   const key = readKey(payload);

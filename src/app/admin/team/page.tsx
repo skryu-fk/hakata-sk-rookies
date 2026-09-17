@@ -4181,7 +4181,118 @@ function MaintenanceTab({
           <li>管理画面（このページ）はメンテナンス中でも通常どおり使えます。</li>
         </ul>
       </section>
+
+      <div style={{ gridColumn: "1 / -1" }}>
+        <MigrationCard api={api} saving={saving} showToast={showToast} />
+      </div>
     </div>
+  );
+}
+
+/* ── スプレッドシート → Supabase 移行 ─────────────────────── */
+type MigrateCheckRow = { sheet: string; sheetCount: number | null; dbCount: number | null; error?: string };
+type MigrateResultRow = { sheet: string; moved: number; error?: string };
+
+function MigrationCard({
+  api, saving, showToast,
+}: {
+  api: <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }) => Promise<T | null>;
+  saving: boolean;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [checking, setChecking] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [check, setCheck] = useState<MigrateCheckRow[] | null>(null);
+  const [done, setDone] = useState<{ total: number; failedCount: number; results: MigrateResultRow[] } | null>(null);
+
+  async function doCheck() {
+    setChecking(true); setDone(null);
+    const r = await api<{ ok: true; rows: MigrateCheckRow[] }>("/api/admin/migrate", { op: "check" });
+    setChecking(false);
+    if (r) setCheck(r.rows ?? []);
+  }
+
+  async function doMigrate() {
+    if (typeof window !== "undefined" &&
+      !window.confirm("スプレッドシートの全データを Supabase にコピーします。\n\nSupabase側の同じ表は一度空にしてから入れ直します（スプレッドシート側は変更しません）。実行しますか？")) return;
+    setRunning(true);
+    const r = await api<{ ok: true; total: number; failedCount: number; results: MigrateResultRow[] }>("/api/admin/migrate", { op: "migrate" });
+    setRunning(false);
+    if (r) {
+      setDone({ total: r.total, failedCount: r.failedCount, results: r.results ?? [] });
+      showToast(r.failedCount === 0, r.failedCount === 0
+        ? `移行が完了しました（合計 ${r.total} 件）。`
+        : `移行しましたが ${r.failedCount} 件のシートで問題がありました。`);
+      doCheck();
+    }
+  }
+
+  const busy = saving || checking || running;
+
+  return (
+    <section style={{ ...cardStyle, border: "1px solid rgba(91,217,138,0.35)" }}>
+      <H3>データ移行（スプレッドシート → Supabase）</H3>
+      <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.9, margin: "0 0 14px" }}>
+        今スプレッドシートにあるデータを、そのまま Supabase にコピーします。<strong style={{ color: "#fff" }}>スプレッドシート側は一切変更しません</strong>（読み取るだけ）。
+        移行後は自動的に Supabase から読み書きするようになり、「応答が遅くタイムアウトしました」は出なくなります。
+        何度実行しても重複しません。
+      </p>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        <button onClick={doCheck} disabled={busy} style={{ ...btnSubStyle, opacity: busy ? 0.5 : 1, cursor: busy ? "not-allowed" : "pointer" }}>
+          {checking ? "確認中…" : "① 件数を確認"}
+        </button>
+        <button
+          onClick={doMigrate}
+          disabled={busy}
+          style={{ padding: "11px 20px", background: "#1a9f3a", color: "#fff", border: "none", borderRadius: 10, fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.5 : 1 }}
+        >
+          {running ? "移行中… そのままお待ちください" : "② 移行を実行する"}
+        </button>
+      </div>
+
+      {done && (
+        <div style={{ marginBottom: 14, padding: "12px 14px", background: done.failedCount === 0 ? "rgba(26,159,58,0.12)" : "rgba(255,184,74,0.12)", border: `1px solid ${done.failedCount === 0 ? "rgba(26,159,58,0.4)" : "rgba(255,184,74,0.4)"}`, borderRadius: 10, fontSize: 12.5, lineHeight: 1.8 }}>
+          {done.failedCount === 0
+            ? <>✅ 移行完了：合計 <strong style={{ color: "#fff" }}>{done.total}</strong> 件をコピーしました。</>
+            : <>⚠️ 合計 {done.total} 件をコピーしましたが、{done.failedCount} 件のシートで問題がありました。下の表をご確認ください。</>}
+        </div>
+      )}
+
+      {check && (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
+                <Th>データ</Th>
+                <Th>スプレッドシート</Th>
+                <Th>Supabase</Th>
+                <Th>状態</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {check.map(r => {
+                const same = r.sheetCount !== null && r.sheetCount === r.dbCount;
+                return (
+                  <tr key={r.sheet} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Td>{r.sheet}</Td>
+                    <Td>{r.sheetCount ?? "—"}</Td>
+                    <Td>{r.dbCount ?? "—"}</Td>
+                    <Td>
+                      {r.error
+                        ? <span style={{ color: "#ffb84a", fontSize: 11 }}>{r.error.slice(0, 40)}</span>
+                        : same
+                          ? <span style={{ color: "#67e088" }}>一致</span>
+                          : <span style={{ color: "rgba(255,255,255,0.45)" }}>未移行</span>}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
