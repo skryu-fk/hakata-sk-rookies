@@ -20,6 +20,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 
+const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
+
 type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
@@ -352,7 +354,7 @@ function LoginGate({
       background:
         "radial-gradient(ellipse at top, #220c19, transparent 50%), " +
         "radial-gradient(ellipse at bottom, #161719, transparent 50%), " +
-        "#0a0e1a",
+        "#000000",
       display: "grid",
       placeItems: "center",
       padding: "20px",
@@ -366,16 +368,16 @@ function LoginGate({
           <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#fff", marginTop: 6 }}>
             チーム管理コンソール
           </h1>
-          <p style={{ fontSize: 12, color: "#98A1B2", marginTop: 8, lineHeight: 1.8 }}>
+          <p style={{ fontSize: 12, color: "rgba(235,235,245,0.60)", marginTop: 8, lineHeight: 1.8 }}>
             メンバー名簿・背番号・打席記録・出欠管理。<br />
             管理者専用ページです。
           </p>
         </div>
         <form
           onSubmit={e => { e.preventDefault(); onSubmit(); }}
-          style={{ background: "#151B29", border: "1px solid #262E40", padding: "28px 24px" }}
+          style={{ background: "#1C1C1E", border: "1px solid #38383A", padding: "28px 24px" }}
         >
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#98A1B2", letterSpacing: "0.18em", marginBottom: 10 }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(235,235,245,0.60)", letterSpacing: "0.18em", marginBottom: 10 }}>
             PASSWORD
           </label>
           <input
@@ -390,8 +392,8 @@ function LoginGate({
               padding: "13px 16px",
               fontSize: 15,
               fontFamily: "var(--font-zen),sans-serif",
-              background: "#1E2536",
-              border: "1px solid #262E40",
+              background: "#2C2C2E",
+              border: "1px solid #38383A",
               color: "#fff",
               outline: "none",
             }}
@@ -422,7 +424,7 @@ function LoginGate({
           </button>
         </form>
         <div style={{ textAlign: "center", marginTop: 16 }}>
-          <Link href="/" style={{ fontSize: 11, color: "#6E778A", textDecoration: "none" }}>
+          <Link href="/" style={{ fontSize: 11, color: "rgba(235,235,245,0.30)", textDecoration: "none" }}>
             ← トップサイトへ戻る
           </Link>
         </div>
@@ -875,7 +877,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 
   // ── レンダリング ──
   return (
-    <div className="admin-dark" style={{ minHeight: "100vh", background: "#0a0e1a", color: "#fff" }}>
+    <div className="admin-dark" style={{ minHeight: "100vh", fontFamily: IOS_FONT, background: "#000000", color: "#fff" }}>
       {/* Top bar */}
       <header style={{ background: "#0b1e3f", borderBottom: "3px solid #d10024" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 64, gap: 16 }}>
@@ -886,12 +888,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#E5B84B", letterSpacing: "0.3em", marginTop: 2 }}>TEAM CONSOLE</div>
             </div>
           </Link>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: "#6E778A", letterSpacing: "0.1em" }}>
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "rgba(235,235,245,0.30)", letterSpacing: "0.1em" }}>
             管理者専用ページ
           </span>
           <button
             onClick={onLogout}
-            style={{ padding: "8px 14px", background: "transparent", border: "1px solid #262E40", color: "#fff", fontSize: 12, cursor: "pointer", letterSpacing: "0.06em" }}
+            style={{ padding: "8px 14px", background: "transparent", border: "1px solid #38383A", color: "#fff", fontSize: 12, cursor: "pointer", letterSpacing: "0.06em" }}
           >
             ログアウト
           </button>
@@ -932,10 +934,10 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF4D6A", display: "inline-block", marginRight: 6, flexShrink: 0 }} />
         );
         return (
-          <div style={{ background: "#0F1626", borderBottom: "1px solid #262E40" }}>
+          <div style={{ background: "#0F1626", borderBottom: "1px solid #38383A" }}>
             <div className="max-w-[1280px] mx-auto px-4 md:px-8" style={{ paddingTop: 12, paddingBottom: 12 }}>
               {/* カテゴリ */}
-              <div style={{ display: "flex", gap: 4, background: "#1E2536", borderRadius: 12, padding: 4, width: "fit-content", maxWidth: "100%", overflowX: "auto" }}>
+              <div style={{ display: "flex", gap: 4, background: "#2C2C2E", borderRadius: 12, padding: 4, width: "fit-content", maxWidth: "100%", overflowX: "auto" }}>
                 {groups.map(g => {
                   const on = g.key === activeGroup.key;
                   const alerts = g.items.some(it => it[3]);
@@ -947,7 +949,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
                         display: "flex", alignItems: "center",
                         padding: "9px 20px", borderRadius: 9, border: "none",
                         background: on ? "#E5B84B" : "transparent",
-                        color: on ? "#10131C" : "#98A1B2",
+                        color: on ? "#10131C" : "rgba(235,235,245,0.60)",
                         fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14,
                         cursor: "pointer", whiteSpace: "nowrap", transition: "background .18s, color .18s",
                       }}
@@ -968,8 +970,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
                       style={{
                         display: "flex", alignItems: "center", flexShrink: 0,
                         padding: "9px 16px", borderRadius: 999,
-                        background: on ? "#2d2920" : "#262E40",
-                        color: on ? "#E5B84B" : "#98A1B2",
+                        background: on ? "#2d2920" : "#38383A",
+                        color: on ? "#E5B84B" : "rgba(235,235,245,0.60)",
                         border: on ? "1px solid #826c34" : "1px solid transparent",
                         fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700,
                         cursor: "pointer", whiteSpace: "nowrap", transition: "background .18s, color .18s",
@@ -1241,16 +1243,16 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
 // 共通スタイル
 // ────────────────────────────────────────────────────────
 const cardStyle: React.CSSProperties = {
-  background: "#151B29",
-  border: "1px solid #262E40",
+  background: "#1C1C1E",
+  border: "1px solid #38383A",
   borderRadius: 14,
   padding: 22,
 };
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "12px 13px",
-  background: "#1E2536",
-  border: "1px solid #262E40",
+  background: "#2C2C2E",
+  border: "1px solid #38383A",
   borderRadius: 10,
   color: "#fff",
   fontSize: 16,
@@ -1260,7 +1262,7 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: 10,
   fontWeight: 700,
-  color: "#98A1B2",
+  color: "rgba(235,235,245,0.60)",
   letterSpacing: "0.16em",
   marginBottom: 5,
   textTransform: "uppercase",
@@ -1278,8 +1280,8 @@ const btnPrimaryStyle: React.CSSProperties = {
 };
 const btnSubStyle: React.CSSProperties = {
   background: "transparent",
-  color: "#C6CDDA",
-  border: "1px solid #262E40",
+  color: "rgba(235,235,245,0.75)",
+  border: "1px solid #38383A",
   padding: "8px 14px",
   fontFamily: "var(--font-zen),sans-serif",
   fontSize: 12,
@@ -1380,7 +1382,7 @@ function MembersTab({
               カナ <span style={{ color: "#E5B84B", fontSize: 10 }}>※本人が新規登録するのに必須</span>
             </label>
             <input value={form.kana} onChange={e => setForm({ ...form, kana: e.target.value })} placeholder="例: カシワギ　カイト" style={inputStyle} />
-            <div style={{ fontSize: 10.5, color: "#6E778A", marginTop: 4, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 4, lineHeight: 1.6 }}>
               メンバーはこのカナと一致した場合だけアカウントを作れます。空欄だと本人が登録できません。
             </div>
           </div>
@@ -1404,7 +1406,7 @@ function MembersTab({
             <label style={labelStyle}>加入日</label>
             <input type="date" value={form.joinedDate} onChange={e => setForm({ ...form, joinedDate: e.target.value })} style={inputStyle} />
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#151B29", border: "1px solid #262E40", fontSize: 12, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#1C1C1E", border: "1px solid #38383A", fontSize: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} style={{ accentColor: "#d10024" }} />
             <span>アクティブ（現役メンバー）</span>
           </label>
@@ -1428,16 +1430,16 @@ function MembersTab({
           </button>
         </div>
         {loading && members.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>読み込み中…</p>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>読み込み中…</p>
         ) : members.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             まだメンバーが登録されていません。左のフォームから追加してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>#</Th>
                   <Th>名前</Th>
                   <Th>カナ</Th>
@@ -1450,15 +1452,15 @@ function MembersTab({
               </thead>
               <tbody>
                 {members.map((m, i) => (
-                  <tr key={m.id || i} style={{ borderBottom: "1px solid #262E40" }}>
-                    <Td><span style={{ color: "#6E778A" }}>{i + 1}</span></Td>
+                  <tr key={m.id || i} style={{ borderBottom: "1px solid #38383A" }}>
+                    <Td><span style={{ color: "rgba(235,235,245,0.30)" }}>{i + 1}</span></Td>
                     <Td>
                       <div style={{ fontWeight: 700 }}>{m.name}</div>
-                      {m.nickname && <div style={{ color: "#98A1B2", fontSize: 11 }}>{m.nickname}</div>}
+                      {m.nickname && <div style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{m.nickname}</div>}
                     </Td>
                     <Td>
                       {m.kana
-                        ? <span style={{ fontSize: 12, color: "#C6CDDA" }}>{m.kana}</span>
+                        ? <span style={{ fontSize: 12, color: "rgba(235,235,245,0.75)" }}>{m.kana}</span>
                         : <span style={{ fontSize: 10, padding: "3px 8px", background: "#280c1a", color: "#ff6982", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>未設定→登録不可</span>}
                     </Td>
                     <Td>
@@ -1467,12 +1469,12 @@ function MembersTab({
                       </span>
                     </Td>
                     <Td>{m.position || "—"}</Td>
-                    <Td><span style={{ color: "#98A1B2", fontSize: 12 }}>{formatDateJp(m.joinedDate) || "—"}</span></Td>
+                    <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 12 }}>{formatDateJp(m.joinedDate) || "—"}</span></Td>
                     <Td>
                       {m.active ? (
                         <span style={{ fontSize: 10, padding: "3px 8px", background: "#0c241d", color: "#67e088", letterSpacing: "0.06em" }}>現役</span>
                       ) : (
-                        <span style={{ fontSize: 10, padding: "3px 8px", background: "#1E2536", color: "#6E778A", letterSpacing: "0.06em" }}>休止</span>
+                        <span style={{ fontSize: 10, padding: "3px 8px", background: "#2C2C2E", color: "rgba(235,235,245,0.30)", letterSpacing: "0.06em" }}>休止</span>
                       )}
                     </Td>
                     <Td>
@@ -1493,7 +1495,7 @@ function MembersTab({
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: "#6E778A", letterSpacing: "0.12em", textTransform: "uppercase" }}>{children}</th>;
+  return <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 10, fontWeight: 700, color: "rgba(235,235,245,0.30)", letterSpacing: "0.12em", textTransform: "uppercase" }}>{children}</th>;
 }
 function Td({ children }: { children: React.ReactNode }) {
   return <td style={{ padding: "10px", verticalAlign: "middle" }}>{children}</td>;
@@ -1640,7 +1642,7 @@ function AttendanceTab({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
           <H3>練習出欠</H3>
           {/* モード切替 */}
-          <div style={{ display: "inline-flex", border: "1px solid #262E40", overflow: "hidden" }}>
+          <div style={{ display: "inline-flex", border: "1px solid #38383A", overflow: "hidden" }}>
             {([
               ["register", "📝 事前登録"],
               ["checkin", "✅ 当日出欠"],
@@ -1651,7 +1653,7 @@ function AttendanceTab({
                 style={{
                   padding: "8px 16px",
                   background: mode === key ? "#d10024" : "transparent",
-                  color: mode === key ? "#fff" : "#98A1B2",
+                  color: mode === key ? "#fff" : "rgba(235,235,245,0.60)",
                   border: "none",
                   fontFamily: "var(--font-zen),sans-serif",
                   fontWeight: 700,
@@ -1670,7 +1672,7 @@ function AttendanceTab({
           <div>
             <label style={labelStyle}>練習日</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
-            <p style={{ fontSize: 10, color: "#6E778A", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
+            <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
           </div>
           {sortedPractices.length > 0 && (
             <div>
@@ -1697,7 +1699,7 @@ function AttendanceTab({
           ) : (
             <>
               <button onClick={saveAttendance} style={btnPrimaryStyle}>💾 出欠を保存</button>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", border: "1px solid #262E40", fontSize: 12, cursor: "pointer" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", border: "1px solid #38383A", fontSize: 12, cursor: "pointer" }}>
                 <input type="checkbox" checked={showAllInCheckin} onChange={e => setShowAllInCheckin(e.target.checked)} style={{ accentColor: "#d10024" }} />
                 飛び込み参加者も表示
               </label>
@@ -1712,8 +1714,8 @@ function AttendanceTab({
         {mode === "checkin" && (
           <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
             {ATTENDANCE_STATUSES.map(s => (
-              <div key={s} style={{ background: "#151B29", border: "1px solid #262E40", padding: "10px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "#98A1B2", letterSpacing: "0.16em", textTransform: "uppercase" }}>{s}</div>
+              <div key={s} style={{ background: "#1C1C1E", border: "1px solid #38383A", padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: "rgba(235,235,245,0.60)", letterSpacing: "0.16em", textTransform: "uppercase" }}>{s}</div>
                 <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{countBy(s)}</div>
               </div>
             ))}
@@ -1722,7 +1724,7 @@ function AttendanceTab({
 
         {/* 事前登録モードの案内 */}
         {mode === "register" && (
-          <div style={{ marginTop: 14, padding: "12px 14px", background: "#161719", borderLeft: "3px solid #E5B84B", fontSize: 12, color: "#C6CDDA", lineHeight: 1.7 }}>
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "#161719", borderLeft: "3px solid #E5B84B", fontSize: 12, color: "rgba(235,235,245,0.75)", lineHeight: 1.7 }}>
             この日の<strong style={{ color: "#E5B84B" }}>参加予定者</strong>を選んでください。保存後、当日に「✅ 当日出欠」モードへ切り替えると、ここで登録した人だけがリストアップされ、出席／欠席／遅刻を素早く確認できます。
           </div>
         )}
@@ -1734,7 +1736,7 @@ function AttendanceTab({
           <>
             <H3>参加予定の登録（{draftPreReg.size} / {activeMembers.length}名）</H3>
             {activeMembers.length === 0 ? (
-              <p style={{ color: "#98A1B2", fontSize: 12 }}>アクティブなメンバーがいません。「名簿」タブから追加してください。</p>
+              <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12 }}>アクティブなメンバーがいません。「名簿」タブから追加してください。</p>
             ) : (
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {activeMembers.map((m, i) => {
@@ -1749,7 +1751,7 @@ function AttendanceTab({
                         gap: 12,
                         alignItems: "center",
                         padding: "12px 10px",
-                        borderTop: i === 0 ? "none" : "1px solid #262E40",
+                        borderTop: i === 0 ? "none" : "1px solid #38383A",
                         cursor: "pointer",
                         background: checked ? "#181919" : "transparent",
                       }}
@@ -1764,7 +1766,7 @@ function AttendanceTab({
                       <div>
                         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                         <span style={{ fontWeight: 700 }}>{m.name}</span>
-                        {m.nickname && <span style={{ marginLeft: 8, color: "#6E778A", fontSize: 12 }}>({m.nickname})</span>}
+                        {m.nickname && <span style={{ marginLeft: 8, color: "rgba(235,235,245,0.30)", fontSize: 12 }}>({m.nickname})</span>}
                       </div>
                     </li>
                   );
@@ -1778,30 +1780,30 @@ function AttendanceTab({
               当日出欠（{checkinMembers.length}名{showAllInCheckin ? `／全${activeMembers.length}名` : "・参加予定者のみ"}）
             </H3>
             {preRegisteredIds.size === 0 && !showAllInCheckin ? (
-              <div style={{ padding: 20, textAlign: "center", background: "#151B29", border: "1px dashed #262E40" }}>
-                <p style={{ color: "#98A1B2", fontSize: 13, marginBottom: 10 }}>
+              <div style={{ padding: 20, textAlign: "center", background: "#1C1C1E", border: "1px dashed #38383A" }}>
+                <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13, marginBottom: 10 }}>
                   この日の参加予定が登録されていません。
                 </p>
                 <button onClick={() => setMode("register")} style={btnPrimaryStyle}>📝 事前登録モードへ</button>
                 <button onClick={() => setShowAllInCheckin(true)} style={{ ...btnSubStyle, marginLeft: 6 }}>全メンバーで進める</button>
               </div>
             ) : checkinMembers.length === 0 ? (
-              <p style={{ color: "#98A1B2", fontSize: 12 }}>表示できるメンバーがいません。</p>
+              <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12 }}>表示できるメンバーがいません。</p>
             ) : (
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {checkinMembers.map((m, i) => {
                   const cur = statusFor(m);
                   const isPreReg = preRegisteredIds.has(m.id);
                   return (
-                    <li key={m.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid #262E40" }}>
+                    <li key={m.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid #38383A" }}>
                       <div>
                         <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                         <span style={{ fontWeight: 700 }}>{m.name}</span>
-                        {m.nickname && <span style={{ marginLeft: 8, color: "#6E778A", fontSize: 12 }}>({m.nickname})</span>}
+                        {m.nickname && <span style={{ marginLeft: 8, color: "rgba(235,235,245,0.30)", fontSize: 12 }}>({m.nickname})</span>}
                         {isPreReg ? (
                           <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "#28251b", color: "#E5B84B", letterSpacing: "0.06em" }}>予定</span>
                         ) : (
-                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "#1E2536", color: "#6E778A", letterSpacing: "0.06em" }}>飛び込み</span>
+                          <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 7px", background: "#2C2C2E", color: "rgba(235,235,245,0.30)", letterSpacing: "0.06em" }}>飛び込み</span>
                         )}
                       </div>
                       <div style={{ display: "flex", gap: 4 }}>
@@ -1814,8 +1816,8 @@ function AttendanceTab({
                               style={{
                                 padding: "6px 12px",
                                 background: active ? colors[s] : "transparent",
-                                color: active ? "#fff" : "#98A1B2",
-                                border: active ? "none" : "1px solid #262E40",
+                                color: active ? "#fff" : "rgba(235,235,245,0.60)",
+                                border: active ? "none" : "1px solid #38383A",
                                 fontSize: 11,
                                 fontWeight: 700,
                                 letterSpacing: "0.06em",
@@ -1965,7 +1967,7 @@ function LineupTab({
             onChange={e => setTeamName(e.target.value)}
             style={{ ...inputStyle, fontWeight: 700, fontSize: 14, color: "#E5B84B", maxWidth: 200 }}
           />
-          <span style={{ fontSize: 11, color: "#98A1B2" }}>
+          <span style={{ fontSize: 11, color: "rgba(235,235,245,0.60)" }}>
             {slots.filter(s => s.memberId).length} / {slots.length} 名
           </span>
         </div>
@@ -2043,7 +2045,7 @@ function LineupTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
           <button onClick={reloadPractices} style={btnSubStyle}>練習リスト更新</button>
         </div>
-        <p style={{ fontSize: 11, color: "#6E778A", marginTop: 10, lineHeight: 1.7 }}>
+        <p style={{ fontSize: 11, color: "rgba(235,235,245,0.30)", marginTop: 10, lineHeight: 1.7 }}>
           ※ 保存すると同日付の既存スタメンは上書きされます。
         </p>
       </section>
@@ -2216,7 +2218,7 @@ function ScoreboardTab({
           <div>
             <label style={labelStyle}>日付</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
-            <p style={{ fontSize: 10, color: "#6E778A", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
+            <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
           </div>
           <div>
             <label style={labelStyle}>ビジター（相手 / 上段）</label>
@@ -2239,66 +2241,66 @@ function ScoreboardTab({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
-                <th style={{ padding: 8, background: "#1E2536", textAlign: "left", fontSize: 10, letterSpacing: "0.15em", color: "#98A1B2" }}>チーム</th>
+                <th style={{ padding: 8, background: "#2C2C2E", textAlign: "left", fontSize: 10, letterSpacing: "0.15em", color: "rgba(235,235,245,0.60)" }}>チーム</th>
                 {Array.from({ length: innings }, (_, i) => (
-                  <th key={i} style={{ padding: 8, background: i === currentInning - 1 ? "#28251b" : "#262E40", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: i === currentInning - 1 ? "#E5B84B" : "#98A1B2" }}>{i + 1}</th>
+                  <th key={i} style={{ padding: 8, background: i === currentInning - 1 ? "#28251b" : "#38383A", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: i === currentInning - 1 ? "#E5B84B" : "rgba(235,235,245,0.60)" }}>{i + 1}</th>
                 ))}
                 <th style={{ padding: 8, background: "#d10024", color: "#fff", textAlign: "center", fontWeight: 700 }}>R</th>
-                <th style={{ padding: 8, background: "#1E2536", textAlign: "center", fontSize: 10, color: "#98A1B2" }}>H</th>
-                <th style={{ padding: 8, background: "#1E2536", textAlign: "center", fontSize: 10, color: "#98A1B2" }}>E</th>
+                <th style={{ padding: 8, background: "#2C2C2E", textAlign: "center", fontSize: 10, color: "rgba(235,235,245,0.60)" }}>H</th>
+                <th style={{ padding: 8, background: "#2C2C2E", textAlign: "center", fontSize: 10, color: "rgba(235,235,245,0.60)" }}>E</th>
               </tr>
             </thead>
             <tbody>
               {/* 1行目: ビジター（表 = away batting） */}
-              <tr style={{ borderTop: "1px solid #262E40" }}>
+              <tr style={{ borderTop: "1px solid #38383A" }}>
                 <td style={{ padding: 8, fontWeight: 700, maxWidth: 160 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     {isTop && <span style={{ fontSize: 10, padding: "2px 6px", background: "#d10024", color: "#fff", letterSpacing: "0.1em" }}>攻撃</span>}
                     {awayTeam}
                   </span>
-                  <div style={{ fontSize: 9, color: "#6E778A", letterSpacing: "0.1em" }}>VISITOR / 表</div>
+                  <div style={{ fontSize: 9, color: "rgba(235,235,245,0.30)", letterSpacing: "0.1em" }}>VISITOR / 表</div>
                 </td>
                 {awayScores.map((s, i) => (
                   <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && isTop ? "#1e1d1a" : undefined }}>
                     <input
                       type="number" min={0} value={s}
                       onChange={e => setAwayScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
-                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
+                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
                     />
                   </td>
                 ))}
                 <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{awayTotal}</td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={awayHits} onChange={e => setAwayHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <input type="number" min={0} value={awayHits} onChange={e => setAwayHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={awayErrors} onChange={e => setAwayErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <input type="number" min={0} value={awayErrors} onChange={e => setAwayErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
               </tr>
               {/* 2行目: ホーム（裏 = home batting） */}
-              <tr style={{ borderTop: "1px solid #262E40" }}>
+              <tr style={{ borderTop: "1px solid #38383A" }}>
                 <td style={{ padding: 8, fontWeight: 700, maxWidth: 160 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     {!isTop && <span style={{ fontSize: 10, padding: "2px 6px", background: "#d10024", color: "#fff", letterSpacing: "0.1em" }}>攻撃</span>}
                     {homeTeam}
                   </span>
-                  <div style={{ fontSize: 9, color: "#6E778A", letterSpacing: "0.1em" }}>HOME / 裏</div>
+                  <div style={{ fontSize: 9, color: "rgba(235,235,245,0.30)", letterSpacing: "0.1em" }}>HOME / 裏</div>
                 </td>
                 {homeScores.map((s, i) => (
                   <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && !isTop ? "#1e1d1a" : undefined }}>
                     <input
                       type="number" min={0} value={s}
                       onChange={e => setHomeScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
-                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
+                      style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
                     />
                   </td>
                 ))}
                 <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{homeTotal}</td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={homeHits} onChange={e => setHomeHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <input type="number" min={0} value={homeHits} onChange={e => setHomeHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={homeErrors} onChange={e => setHomeErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #262E40", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <input type="number" min={0} value={homeErrors} onChange={e => setHomeErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
               </tr>
             </tbody>
@@ -2306,10 +2308,10 @@ function ScoreboardTab({
         </div>
 
         {/* ライブ指標：B/S/O ＋ 塁ランナー */}
-        <div style={{ background: "#070a11", padding: "16px 18px", border: "1px solid #262E40", marginBottom: 14 }}>
+        <div style={{ background: "#070a11", padding: "16px 18px", border: "1px solid #38383A", marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em" }}>LIVE COUNT</p>
-            <div style={{ fontSize: 12, color: "#98A1B2" }}>
+            <div style={{ fontSize: 12, color: "rgba(235,235,245,0.60)" }}>
               <strong style={{ color: "#fff" }}>{currentInning}回{isTop ? "表" : "裏"}</strong>
               <span style={{ marginLeft: 8, color: "#E5B84B" }}>攻撃: {offenseLabel}</span>
               <button onClick={() => setIsTop(t => !t)} style={{ ...btnSubStyle, padding: "3px 8px", fontSize: 11, marginLeft: 8 }}>表⇔裏</button>
@@ -2356,12 +2358,12 @@ function ScoreboardTab({
       <section style={cardStyle}>
         <H3>過去の試合（{games.length}試合）</H3>
         {games.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>記録された試合がまだありません。</p>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>記録された試合がまだありません。</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
                   <Th>カード（ビジター vs ホーム）</Th>
                   <Th>スコア</Th>
@@ -2372,16 +2374,16 @@ function ScoreboardTab({
               </thead>
               <tbody>
                 {[...games].sort((a, b) => b.date.localeCompare(a.date)).map(g => (
-                  <tr key={g.id} style={{ borderBottom: "1px solid #262E40" }}>
-                    <Td><span style={{ color: "#C6CDDA", fontSize: 12 }}>{formatDateJp(g.date)}</span></Td>
-                    <Td><strong>{g.awayTeam}</strong> <span style={{ color: "#6E778A" }}>vs</span> <strong>{g.homeTeam}</strong></Td>
+                  <tr key={g.id} style={{ borderBottom: "1px solid #38383A" }}>
+                    <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateJp(g.date)}</span></Td>
+                    <Td><strong>{g.awayTeam}</strong> <span style={{ color: "rgba(235,235,245,0.30)" }}>vs</span> <strong>{g.homeTeam}</strong></Td>
                     <Td>
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
                         {g.awayScores.reduce((a, b) => a + b, 0)} - {g.homeScores.reduce((a, b) => a + b, 0)}
                       </span>
                     </Td>
                     <Td>{g.winner}</Td>
-                    <Td><span style={{ fontSize: 11, color: "#98A1B2" }}>{g.note || "—"}</span></Td>
+                    <Td><span style={{ fontSize: 11, color: "rgba(235,235,245,0.60)" }}>{g.note || "—"}</span></Td>
                     <Td><button onClick={() => remove(g)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button></Td>
                   </tr>
                 ))}
@@ -2405,8 +2407,8 @@ function BaseDiamond({
   const baseStyle = (on: boolean): React.CSSProperties => ({
     position: "absolute",
     width: 32, height: 32,
-    background: on ? "#E5B84B" : "#262E40",
-    border: on ? "2px solid #fff" : "2px solid #262E40",
+    background: on ? "#E5B84B" : "#38383A",
+    border: on ? "2px solid #fff" : "2px solid #38383A",
     cursor: "pointer",
     transition: "all 0.15s",
     transform: "rotate(45deg)",
@@ -2422,29 +2424,29 @@ function BaseDiamond({
   };
   const runners = (base1 ? 1 : 0) + (base2 ? 1 : 0) + (base3 ? 1 : 0);
   return (
-    <div style={{ background: "#151B29", border: "1px solid #262E40", padding: 8, position: "relative" }}>
-      <div style={{ fontSize: 10, color: "#98A1B2", letterSpacing: "0.18em", textAlign: "center", marginBottom: 4 }}>RUNNERS</div>
+    <div style={{ background: "#1C1C1E", border: "1px solid #38383A", padding: 8, position: "relative" }}>
+      <div style={{ fontSize: 10, color: "rgba(235,235,245,0.60)", letterSpacing: "0.18em", textAlign: "center", marginBottom: 4 }}>RUNNERS</div>
       <div style={{ position: "relative", width: 110, height: 110, margin: "0 auto" }}>
         {/* 2塁 (top) */}
         <button onClick={onToggle2} style={{ ...baseStyle(base2), top: 4, left: "50%", marginLeft: -16 }} title="2塁">
-          <span style={{ ...labelStyle, color: base2 ? "#0b1e3f" : "#98A1B2" }}>2</span>
+          <span style={{ ...labelStyle, color: base2 ? "#0b1e3f" : "rgba(235,235,245,0.60)" }}>2</span>
         </button>
         {/* 3塁 (left) */}
         <button onClick={onToggle3} style={{ ...baseStyle(base3), top: "50%", left: 4, marginTop: -16 }} title="3塁">
-          <span style={{ ...labelStyle, color: base3 ? "#0b1e3f" : "#98A1B2" }}>3</span>
+          <span style={{ ...labelStyle, color: base3 ? "#0b1e3f" : "rgba(235,235,245,0.60)" }}>3</span>
         </button>
         {/* 1塁 (right) */}
         <button onClick={onToggle1} style={{ ...baseStyle(base1), top: "50%", right: 4, marginTop: -16 }} title="1塁">
-          <span style={{ ...labelStyle, color: base1 ? "#0b1e3f" : "#98A1B2" }}>1</span>
+          <span style={{ ...labelStyle, color: base1 ? "#0b1e3f" : "rgba(235,235,245,0.60)" }}>1</span>
         </button>
         {/* 本塁 (bottom) - 飾りのみ */}
-        <div style={{ position: "absolute", bottom: 4, left: "50%", marginLeft: -10, width: 20, height: 20, background: "#151B29", border: "1.5px solid #262E40", borderRadius: "50% 50% 0 50%", transform: "rotate(45deg)" }} title="本塁" />
+        <div style={{ position: "absolute", bottom: 4, left: "50%", marginLeft: -10, width: 20, height: 20, background: "#1C1C1E", border: "1.5px solid #38383A", borderRadius: "50% 50% 0 50%", transform: "rotate(45deg)" }} title="本塁" />
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-        <span style={{ flex: 1, fontSize: 10, textAlign: "center", color: runners === 0 ? "#98A1B2" : "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700 }}>
+        <span style={{ flex: 1, fontSize: 10, textAlign: "center", color: runners === 0 ? "rgba(235,235,245,0.60)" : "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700 }}>
           {runners}人 出塁中
         </span>
-        <button onClick={onClear} style={{ padding: "2px 8px", background: "transparent", color: "#98A1B2", border: "1px solid #262E40", fontSize: 10, cursor: "pointer" }}>C</button>
+        <button onClick={onClear} style={{ padding: "2px 8px", background: "transparent", color: "rgba(235,235,245,0.60)", border: "1px solid #38383A", fontSize: 10, cursor: "pointer" }}>C</button>
       </div>
     </div>
   );
@@ -2455,14 +2457,14 @@ function BSOCounter({ label, value, max, color, onClick, onReset }: {
   onClick: () => void; onReset: () => void;
 }) {
   return (
-    <div style={{ background: "#151B29", border: "1px solid #262E40", padding: 12, textAlign: "center" }}>
-      <div style={{ fontSize: 10, color: "#98A1B2", letterSpacing: "0.18em" }}>{label}</div>
+    <div style={{ background: "#1C1C1E", border: "1px solid #38383A", padding: 12, textAlign: "center" }}>
+      <div style={{ fontSize: 10, color: "rgba(235,235,245,0.60)", letterSpacing: "0.18em" }}>{label}</div>
       <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 44, fontWeight: 700, color, lineHeight: 1, margin: "8px 0" }}>{value}</div>
       <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
         <button onClick={onClick} style={{ flex: 1, padding: "8px", background: color, color: "#fff", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", letterSpacing: "0.1em" }}>+1</button>
-        <button onClick={onReset} style={{ padding: "8px 10px", background: "transparent", color: "#98A1B2", border: "1px solid #262E40", fontSize: 11, cursor: "pointer" }}>R</button>
+        <button onClick={onReset} style={{ padding: "8px 10px", background: "transparent", color: "rgba(235,235,245,0.60)", border: "1px solid #38383A", fontSize: 11, cursor: "pointer" }}>R</button>
       </div>
-      <div style={{ fontSize: 9, color: "#6E778A", marginTop: 4 }}>{value}/{max - 1}</div>
+      <div style={{ fontSize: 9, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>{value}/{max - 1}</div>
     </div>
   );
 }
@@ -2596,7 +2598,7 @@ function PaymentsTab({
       <section style={cardStyle}>
         <H3>メンバー（{activeMembers.length}名）</H3>
         {activeMembers.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12 }}>アクティブなメンバーがいません。</p>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12 }}>アクティブなメンバーがいません。</p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {activeMembers.map((m, i) => {
@@ -2612,7 +2614,7 @@ function PaymentsTab({
                     alignItems: "center",
                     gap: 12,
                     padding: "12px 10px",
-                    borderTop: i === 0 ? "none" : "1px solid #262E40",
+                    borderTop: i === 0 ? "none" : "1px solid #38383A",
                     cursor: "pointer",
                     background: checked ? "#0b171a" : "transparent",
                   }}
@@ -2627,9 +2629,9 @@ function PaymentsTab({
                   <div>
                     <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                     <span style={{ fontWeight: 700 }}>{m.name}</span>
-                    {m.nickname && <span style={{ marginLeft: 8, color: "#6E778A", fontSize: 12 }}>({m.nickname})</span>}
+                    {m.nickname && <span style={{ marginLeft: 8, color: "rgba(235,235,245,0.30)", fontSize: 12 }}>({m.nickname})</span>}
                   </div>
-                  <div style={{ fontSize: 12, color: checked ? "#67e088" : "#98A1B2" }}>
+                  <div style={{ fontSize: 12, color: checked ? "#67e088" : "rgba(235,235,245,0.60)" }}>
                     {checked ? `✓ ${amount}円 受領` : "—"}
                     {existing && existing.amount !== amount && (
                       <span style={{ marginLeft: 8, fontSize: 10, color: "#E5B84B" }}>（保存時に {existing.amount} → {amount}円に更新）</span>
@@ -2803,14 +2805,14 @@ function BattingTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
         {batting.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             打席記録がありません。左から登録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
                   <Th>選手</Th>
                   <Th>対戦</Th>
@@ -2830,10 +2832,10 @@ function BattingTab({
               </thead>
               <tbody>
                 {sortedBatting.map((b, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #262E40", background: editingRow === b._row ? "#1e1d1a" : undefined }}>
-                    <Td><span style={{ color: "#C6CDDA", fontSize: 12 }}>{formatDateShort(b.date)}</span></Td>
+                  <tr key={i} style={{ borderBottom: "1px solid #38383A", background: editingRow === b._row ? "#1e1d1a" : undefined }}>
+                    <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateShort(b.date)}</span></Td>
                     <Td><strong>{b.memberName}</strong></Td>
-                    <Td><span style={{ color: "#98A1B2", fontSize: 11 }}>{b.opponent || "—"}</span></Td>
+                    <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{b.opponent || "—"}</span></Td>
                     <Td>{b.atBats}</Td>
                     <Td><span style={{ color: "#E5B84B", fontWeight: 700 }}>{b.hits}</span></Td>
                     <Td>{b.doubles}</Td>
@@ -2960,7 +2962,7 @@ function PitchingTab({
             <NumField label="与四球 (BB)" v={form.bb} on={n => setForm({ ...form, bb: n })} />
             <NumField label="与死球 (HBP)" v={form.hbp} on={n => setForm({ ...form, hbp: n })} />
           </div>
-          <p style={{ fontSize: 10, color: "#6E778A", margin: "4px 0 0" }}>
+          <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", margin: "4px 0 0" }}>
             投球回は「完了回 + 端数アウト」で入力（例: 5.2 回 = 5回 + 2 out）。防御率は ER×27 / outs で計算します。
           </p>
           <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
@@ -2975,14 +2977,14 @@ function PitchingTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
         {pitching.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             投手記録がありません。左から登録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
                   <Th>投手</Th>
                   <Th>対戦</Th>
@@ -3000,10 +3002,10 @@ function PitchingTab({
                 {sortedPitching.map((p, i) => {
                   const ipDisplay = `${Math.floor(p.ipOuts / 3)}.${p.ipOuts % 3}`;
                   return (
-                    <tr key={i} style={{ borderBottom: "1px solid #262E40" }}>
-                      <Td><span style={{ color: "#C6CDDA", fontSize: 12 }}>{formatDateShort(p.date)}</span></Td>
+                    <tr key={i} style={{ borderBottom: "1px solid #38383A" }}>
+                      <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateShort(p.date)}</span></Td>
                       <Td><strong>{p.memberName}</strong></Td>
-                      <Td><span style={{ color: "#98A1B2", fontSize: 11 }}>{p.opponent || "—"}</span></Td>
+                      <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{p.opponent || "—"}</span></Td>
                       <Td><span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B" }}>{ipDisplay}</span></Td>
                       <Td>{p.hits}</Td>
                       <Td>{p.runs}</Td>
@@ -3116,14 +3118,14 @@ function CatchingTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
         {catching.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             捕手記録がありません。左から登録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
                   <Th>捕手</Th>
                   <Th>対戦</Th>
@@ -3137,10 +3139,10 @@ function CatchingTab({
                 {sortedCatching.map((c, i) => {
                   const rate = c.sba > 0 ? c.cs / c.sba : 0;
                   return (
-                    <tr key={i} style={{ borderBottom: "1px solid #262E40" }}>
-                      <Td><span style={{ color: "#C6CDDA", fontSize: 12 }}>{formatDateShort(c.date)}</span></Td>
+                    <tr key={i} style={{ borderBottom: "1px solid #38383A" }}>
+                      <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateShort(c.date)}</span></Td>
                       <Td><strong>{c.memberName}</strong></Td>
-                      <Td><span style={{ color: "#98A1B2", fontSize: 11 }}>{c.opponent || "—"}</span></Td>
+                      <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{c.opponent || "—"}</span></Td>
                       <Td>{c.sba}</Td>
                       <Td>{c.cs}</Td>
                       <Td><span style={{ color: rate >= 0.3 ? "#67e088" : "#E5B84B", fontFamily: "var(--font-oswald),sans-serif" }}>{(rate * 100).toFixed(1)}%</span></Td>
@@ -3253,9 +3255,9 @@ function FieldingTab({
           </div>
           <div style={{ padding: "10px 12px", background: "#161719", borderLeft: "3px solid #E5B84B", fontSize: 12 }}>
             この試合の守備率: <strong style={{ color: "#E5B84B", fontFamily: "var(--font-oswald),sans-serif", fontSize: 16 }}>{rate.toFixed(3).replace(/^0/, "")}</strong>
-            <span style={{ color: "#6E778A", marginLeft: 8 }}>（守備機会 {chances}）</span>
+            <span style={{ color: "rgba(235,235,245,0.30)", marginLeft: 8 }}>（守備機会 {chances}）</span>
           </div>
-          <p style={{ fontSize: 10.5, color: "#6E778A", margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", margin: 0, lineHeight: 1.6 }}>
             刺殺(PO)=直接アウトを取った数（捕球・ベースタッチ等）。捕殺(A)=送球などで補助した数。失策(E)=エラー。
           </p>
           <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
@@ -3270,14 +3272,14 @@ function FieldingTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
         {fielding.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             守備記録がありません。左から登録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
                   <Th>選手</Th>
                   <Th>対戦</Th>
@@ -3293,10 +3295,10 @@ function FieldingTab({
                   const ch = f.po + f.a + f.e;
                   const r = ch > 0 ? (f.po + f.a) / ch : 0;
                   return (
-                    <tr key={i} style={{ borderBottom: "1px solid #262E40" }}>
-                      <Td><span style={{ color: "#C6CDDA", fontSize: 12 }}>{formatDateShort(f.date)}</span></Td>
+                    <tr key={i} style={{ borderBottom: "1px solid #38383A" }}>
+                      <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateShort(f.date)}</span></Td>
                       <Td><strong>{f.memberName}</strong></Td>
-                      <Td><span style={{ color: "#98A1B2", fontSize: 11 }}>{f.opponent || "—"}</span></Td>
+                      <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{f.opponent || "—"}</span></Td>
                       <Td>{f.po}</Td>
                       <Td>{f.a}</Td>
                       <Td><span style={{ color: f.e > 0 ? "#ff6982" : undefined }}>{f.e}</span></Td>
@@ -3441,7 +3443,7 @@ function ProbablesTab({
           <button onClick={submit} disabled={saving || sending} style={{ ...btnPrimaryStyle, opacity: (saving || sending) ? 0.6 : 1, cursor: (saving || sending) ? "not-allowed" : "pointer" }}>
             {sending ? "通知送信中…" : saving ? "保存中…" : "登録する →"}
           </button>
-          <p style={{ fontSize: 10.5, color: "#6E778A", margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", margin: 0, lineHeight: 1.6 }}>
             同じ日付に登録済みの予告先発があれば置き換えます。成績アプリの「日程」タブに表示されます。
           </p>
         </div>
@@ -3456,19 +3458,19 @@ function ProbablesTab({
           </div>
         </div>
         {probables.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 24 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 24 }}>
             予告先発がありません。左から登録してください。
           </p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {sorted.map((p, i) => (
-              <li key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid #262E40" }}>
+              <li key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid #38383A" }}>
                 <div style={{ minWidth: 60 }}>
                   <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B" }}>{formatDateShort(p.date)}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700 }}>⚾ {p.memberName}{p.opponent && <span style={{ fontWeight: 400, color: "#98A1B2", fontSize: 12, marginLeft: 8 }}>vs {p.opponent}</span>}</div>
-                  {p.note && <div style={{ fontSize: 11.5, color: "#98A1B2", marginTop: 2 }}>{p.note}</div>}
+                  <div style={{ fontWeight: 700 }}>⚾ {p.memberName}{p.opponent && <span style={{ fontWeight: 400, color: "rgba(235,235,245,0.60)", fontSize: 12, marginLeft: 8 }}>vs {p.opponent}</span>}</div>
+                  {p.note && <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginTop: 2 }}>{p.note}</div>}
                 </div>
                 <button onClick={() => remove(p)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button>
               </li>
@@ -3580,8 +3582,8 @@ function NotifyTab({
             <button onClick={() => post(false)} disabled={busy} style={{ ...btnSubStyle, flex: 1 }}>投稿のみ（通知なし）</button>
             <button onClick={() => notifyOnly()} disabled={busy} style={{ ...btnSubStyle, flex: 1 }}>通知のみ（投稿なし）</button>
           </div>
-          {last && <div style={{ fontSize: 12, color: "#C6CDDA", padding: "8px 10px", background: "#151B29" }}>{last}</div>}
-          <p style={{ fontSize: 10.5, color: "#6E778A", margin: 0, lineHeight: 1.7 }}>
+          {last && <div style={{ fontSize: 12, color: "rgba(235,235,245,0.75)", padding: "8px 10px", background: "#1C1C1E" }}>{last}</div>}
+          <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", margin: 0, lineHeight: 1.7 }}>
             投稿は成績アプリの「お知らせ」タブに表示されます（直近5件＋それ以前は展開表示）。<br />
             通知が届くのは「通知をオンにする」を押したメンバーのみ。iPhoneはホーム画面追加後にオンが必要（iOS 16.4+）。送信には Vercel の VAPID_PRIVATE_KEY が必要です。
           </p>
@@ -3613,18 +3615,18 @@ function NotifyTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄"}</button>
         </div>
         {sorted.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 18 }}>まだお知らせはありません。</p>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 18 }}>まだお知らせはありません。</p>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {sorted.map((a, i) => (
-              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 4px", borderTop: i === 0 ? "none" : "1px solid #262E40" }}>
+              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 4px", borderTop: i === 0 ? "none" : "1px solid #38383A" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#98A1B2" }}>{formatDateShort(a.date)}</span>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(235,235,245,0.60)" }}>{formatDateShort(a.date)}</span>
                     <span style={{ fontSize: 10, color: "#E5B84B", background: "#22201a", padding: "1px 7px" }}>{a.category}</span>
                   </div>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{a.title}</div>
-                  {a.body && <div style={{ fontSize: 11.5, color: "#98A1B2", marginTop: 2 }}>{a.body}</div>}
+                  {a.body && <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginTop: 2 }}>{a.body}</div>}
                 </div>
                 <button onClick={() => remove(a)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer", flexShrink: 0 }}>×</button>
               </li>
@@ -3697,7 +3699,7 @@ function LinkTab({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <div>
           <H3>アカウントと名簿の連携</H3>
-          <p style={{ fontSize: 12.5, color: "#98A1B2", lineHeight: 1.8, margin: 0 }}>
+          <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: 0 }}>
             ログインアカウント（本名）を、あなたが事前に登録した<strong style={{ color: "#fff" }}>名簿メンバー</strong>に紐付けます。連携すると、そのメンバーの<strong style={{ color: "#67e088" }}>打撃・投球などの成績がマイページに表示</strong>され、本人が表示名を編集できるようになります。ここから<strong style={{ color: "#fff" }}>名前の変更</strong>も可能です（パスワードは扱いません）。
           </p>
         </div>
@@ -3705,7 +3707,7 @@ function LinkTab({
       </div>
 
       {approved.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "#98A1B2" }}>
+        <div style={{ ...cardStyle, textAlign: "center", padding: "40px 20px", color: "rgba(235,235,245,0.60)" }}>
           承認済みのアカウントがありません。「アカウント」タブで承認すると、ここで連携できます。
         </div>
       ) : (
@@ -3745,22 +3747,22 @@ function LinkRow({
 
   const selStyle: React.CSSProperties = {
     width: "100%", padding: "9px 10px", marginTop: 6,
-    background: "#1E2536", border: "1px solid #262E40",
+    background: "#2C2C2E", border: "1px solid #38383A",
     color: "#fff", fontSize: 14,
   };
 
   return (
-    <section style={{ ...cardStyle, border: linkedMember ? "1px solid #104826" : "1px solid #262E40" }}>
+    <section style={{ ...cardStyle, border: linkedMember ? "1px solid #104826" : "1px solid #38383A" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{acc.name || "（無名）"}</span>
-        <span style={{ fontSize: 10.5, color: "#6E778A", border: "1px solid #262E40", padding: "1px 7px" }}>ログイン名</span>
+        <span style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", border: "1px solid #38383A", padding: "1px 7px" }}>ログイン名</span>
         {linkedMember
           ? <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#67e088" }}>連携済み</span>
-          : <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#6E778A" }}>未連携</span>}
+          : <span style={{ marginLeft: "auto", fontSize: 11.5, color: "rgba(235,235,245,0.30)" }}>未連携</span>}
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <label style={{ display: "block", fontSize: 11, color: "#98A1B2" }}>連携先の名簿メンバー</label>
+        <label style={{ display: "block", fontSize: 11, color: "rgba(235,235,245,0.60)" }}>連携先の名簿メンバー</label>
         <select
           value={acc.memberId}
           disabled={saving}
@@ -3780,19 +3782,19 @@ function LinkRow({
       </div>
 
       {linkedMember && (
-        <div style={{ marginTop: 12, borderTop: "1px solid #262E40", paddingTop: 12 }}>
-          <label style={{ display: "block", fontSize: 11, color: "#98A1B2" }}>名簿の表示名（成績に表示される名前）</label>
+        <div style={{ marginTop: 12, borderTop: "1px solid #38383A", paddingTop: 12 }}>
+          <label style={{ display: "block", fontSize: 11, color: "rgba(235,235,245,0.60)" }}>名簿の表示名（成績に表示される名前）</label>
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
             <input
               value={nameEdit}
               onChange={e => setNameEdit(e.target.value)}
               maxLength={40}
-              style={{ flex: 1, padding: "9px 10px", background: "#1E2536", border: "1px solid #262E40", color: "#fff", fontSize: 14 }}
+              style={{ flex: 1, padding: "9px 10px", background: "#2C2C2E", border: "1px solid #38383A", color: "#fff", fontSize: 14 }}
             />
             <button
               onClick={() => onRename(linkedMember, nameEdit)}
               disabled={saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name}
-              style={{ padding: "9px 14px", background: "#E5B84B", color: "#0a0e1a", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? "not-allowed" : "pointer", opacity: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? 0.5 : 1, whiteSpace: "nowrap" }}
+              style={{ padding: "9px 14px", background: "#E5B84B", color: "#000000", border: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, cursor: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? "not-allowed" : "pointer", opacity: (saving || nameEdit.trim() === "" || nameEdit.trim() === linkedMember.name) ? 0.5 : 1, whiteSpace: "nowrap" }}
             >
               名前を変更
             </button>
@@ -3867,7 +3869,7 @@ function AccountsApprovalTab({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <div>
           <H3>メンバーアカウント</H3>
-          <p style={{ fontSize: 12.5, color: "#98A1B2", lineHeight: 1.8, margin: 0 }}>
+          <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: 0 }}>
             成績アプリに登録したメンバーの一覧です。登録できるのは<strong style={{ color: "#fff" }}>名簿にカナが登録済みの人だけ</strong>なので、承認作業は不要です。ログインは各自の<strong style={{ color: "#E5B84B" }}>ユーザーID＋パスワード</strong>で行います。
           </p>
         </div>
@@ -3880,7 +3882,7 @@ function AccountsApprovalTab({
           承認待ち（{pendingList.length}）
         </div>
         {pendingList.length === 0 ? (
-          <div style={{ ...cardStyle, textAlign: "center", padding: "32px 20px", color: "#98A1B2" }}>
+          <div style={{ ...cardStyle, textAlign: "center", padding: "32px 20px", color: "rgba(235,235,245,0.60)" }}>
             {loading ? "確認中…" : "承認待ちの新規登録はありません。"}
           </div>
         ) : (
@@ -3889,7 +3891,7 @@ function AccountsApprovalTab({
               <section key={a.id || a._row} style={{ ...cardStyle, border: "1px solid #5b4c1f", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 140 }}>
                   <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17 }}>{a.name || "（無名）"}</div>
-                  <div style={{ fontSize: 11.5, color: "#98A1B2", marginTop: 3 }}>申請：{a.createdAt ? a.createdAt.slice(0, 16) : "—"}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginTop: 3 }}>申請：{a.createdAt ? a.createdAt.slice(0, 16) : "—"}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => act(a, "approve")} disabled={saving}
@@ -3918,7 +3920,7 @@ function AccountsApprovalTab({
               <section key={a.id || a._row} style={{ ...cardStyle, border: "1px solid #785b2f", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 150 }}>
                   <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17 }}>{a.name || "（無名）"}</div>
-                  <div style={{ fontSize: 11.5, color: "#98A1B2", marginTop: 3 }}>
+                  <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginTop: 3 }}>
                     現在のID：{a.userId || "—"} ／ パスワードを忘れたため申請中
                   </div>
                 </div>
@@ -3932,7 +3934,7 @@ function AccountsApprovalTab({
               </section>
             ))}
           </div>
-          <p style={{ fontSize: 11.5, color: "#6E778A", lineHeight: 1.8, margin: "10px 2px 0" }}>
+          <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.30)", lineHeight: 1.8, margin: "10px 2px 0" }}>
             ※ リセットすると、その人のアカウントが削除され「新規登録」からやり直せるようになります（新しいユーザーIDが発行されます）。本人にご連絡ください。
           </p>
         </div>
@@ -3940,29 +3942,29 @@ function AccountsApprovalTab({
 
       {/* 登録済み */}
       <div>
-        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#C6CDDA", marginBottom: 10, letterSpacing: "0.06em" }}>
+        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(235,235,245,0.75)", marginBottom: 10, letterSpacing: "0.06em" }}>
           登録済み（{approvedList.length}）
         </div>
         {approvedList.length === 0 ? (
-          <div style={{ ...cardStyle, textAlign: "center", padding: "24px 20px", color: "#6E778A", fontSize: 13 }}>
+          <div style={{ ...cardStyle, textAlign: "center", padding: "24px 20px", color: "rgba(235,235,245,0.30)", fontSize: 13 }}>
             まだ登録されたアカウントはありません。
           </div>
         ) : (
           <div style={{ ...cardStyle, padding: "6px 4px" }}>
             {approvedList.map((a, i) => (
-              <div key={a.id || a._row} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderTop: i === 0 ? "none" : "1px solid #262E40", flexWrap: "wrap" }}>
+              <div key={a.id || a._row} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 12px", borderTop: i === 0 ? "none" : "1px solid #38383A", flexWrap: "wrap" }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#1a9f3a", flexShrink: 0 }} />
                 <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, flex: 1, minWidth: 110 }}>{a.name}</span>
                 <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, fontWeight: 700, color: "#E5B84B", letterSpacing: "0.08em" }}>
                   {a.userId || "—"}
                 </span>
-                <span style={{ fontSize: 11, color: "#6E778A" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
+                <span style={{ fontSize: 11, color: "rgba(235,235,245,0.30)" }}>{a.createdAt ? a.createdAt.slice(0, 10) : ""}</span>
                 <button onClick={() => resetOne(a)} disabled={saving}
                   style={{ padding: "6px 12px", background: "transparent", color: "#ffb84a", border: "1px solid #785b2f", borderRadius: 8, fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
                   リセット
                 </button>
                 <button onClick={() => revoke(a)} disabled={saving}
-                  style={{ padding: "6px 12px", background: "transparent", color: "#98A1B2", border: "1px solid #262E40", borderRadius: 8, fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                  style={{ padding: "6px 12px", background: "transparent", color: "rgba(235,235,245,0.60)", border: "1px solid #38383A", borderRadius: 8, fontSize: 11.5, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1 }}>
                   無効化
                 </button>
               </div>
@@ -3976,7 +3978,7 @@ function AccountsApprovalTab({
         <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 13, color: "#ff6982", marginBottom: 8 }}>
           ⚠️ 全アカウントのリセット
         </div>
-        <p style={{ fontSize: 12, color: "#98A1B2", lineHeight: 1.8, margin: "0 0 12px" }}>
+        <p style={{ fontSize: 12, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 12px" }}>
           登録済みのアカウントを<strong style={{ color: "#fff" }}>すべて削除</strong>します。全員がログインできなくなり、各自で新規登録をやり直してもらう必要があります（名簿・成績データは消えません）。
         </p>
         <button
@@ -4036,7 +4038,7 @@ function PendingApprovalTab({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <div>
           <H3>承認待ち（アプリからの記録）</H3>
-          <p style={{ fontSize: 12.5, color: "#98A1B2", lineHeight: 1.8, margin: 0 }}>
+          <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: 0 }}>
             メンバーが成績アプリのスコアラーから送った打撃・投球です。内容を確認・編集してから<strong style={{ color: "#67e088" }}>承認</strong>すると本成績に反映されます。<strong style={{ color: "#ff6982" }}>却下</strong>すると破棄されます。
           </p>
         </div>
@@ -4044,7 +4046,7 @@ function PendingApprovalTab({
       </div>
 
       {sorted.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "44px 20px", color: "#98A1B2" }}>
+        <div style={{ ...cardStyle, textAlign: "center", padding: "44px 20px", color: "rgba(235,235,245,0.60)" }}>
           {loading ? "確認中…" : "承認待ちの記録はありません。"}
         </div>
       ) : (
@@ -4089,32 +4091,32 @@ function PendingCard({
   return (
     <section style={{ ...cardStyle, border: "1px solid #51441e" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ padding: "3px 9px", fontSize: 11, fontWeight: 800, fontFamily: "var(--font-zen),sans-serif", color: "#0a0e1a", background: isPitch ? "#7fb3ff" : "#67e088" }}>
+        <span style={{ padding: "3px 9px", fontSize: 11, fontWeight: 800, fontFamily: "var(--font-zen),sans-serif", color: "#000000", background: isPitch ? "#7fb3ff" : "#67e088" }}>
           {isPitch ? "⚾ 投球" : "🏏 打撃"}
         </span>
         <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16 }}>{p.memberName || "（無名）"}</span>
-        <span style={{ marginLeft: "auto", fontSize: 11.5, color: "#98A1B2" }}>{formatDateShort(p.date)}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11.5, color: "rgba(235,235,245,0.60)" }}>{formatDateShort(p.date)}</span>
       </div>
-      <div style={{ fontSize: 12, color: "#98A1B2", marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: "rgba(235,235,245,0.60)", marginBottom: 12 }}>
         対戦：{p.opponent || "（未入力）"}{p.createdAt ? ` ・ 送信 ${p.createdAt.slice(5, 16)}` : ""}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(78px, 1fr))", gap: 8 }}>
         {fields.map(([k, label]) => (
           <div key={k}>
-            <label style={{ display: "block", fontSize: 10.5, color: "#98A1B2", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</label>
+            <label style={{ display: "block", fontSize: 10.5, color: "rgba(235,235,245,0.60)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</label>
             <input
               type="number" inputMode="numeric" min={0}
               value={d[k] ? String(d[k]) : ""}
               onChange={e => set(k, e.target.value)}
               placeholder="0"
-              style={{ width: "100%", padding: "8px 6px", background: "#1E2536", border: "1px solid #262E40", color: "#fff", fontSize: 15, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif" }}
+              style={{ width: "100%", padding: "8px 6px", background: "#2C2C2E", border: "1px solid #38383A", color: "#fff", fontSize: 15, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif" }}
             />
           </div>
         ))}
       </div>
       {isPitch && (
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "#98A1B2", textAlign: "right" }}>投球回 = {ipLabel}</div>
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "rgba(235,235,245,0.60)", textAlign: "right" }}>投球回 = {ipLabel}</div>
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
@@ -4185,7 +4187,7 @@ function MaintenanceTab({
             <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: isOn ? "#ff6982" : "#67e088" }}>
               {loading ? "確認中…" : isOn ? "メンテナンス中" : "通常公開中"}
             </div>
-            <div style={{ fontSize: 11.5, color: "#98A1B2", marginTop: 2 }}>
+            <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginTop: 2 }}>
               {isOn ? "メンバーにはメンテナンス画面が表示されています。" : "メンバーは成績アプリを通常どおり閲覧できます。"}
             </div>
           </div>
@@ -4224,7 +4226,7 @@ function MaintenanceTab({
 
       <section style={cardStyle}>
         <H3>仕組み・注意</H3>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "#98A1B2", lineHeight: 1.9 }}>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.9 }}>
           <li>「メンテナンスにする」を押すと、メンバーが成績アプリを開いた時に<strong style={{ color: "#fff" }}>メンテナンス中のポップアップ</strong>が表示され、中身は見られなくなります。</li>
           <li>「通常に戻す」を押すと解除され、いつもどおり閲覧できます。</li>
           <li>メンバー側は<strong style={{ color: "#fff" }}>アプリを開き直す／更新ボタン</strong>を押すと最新の状態（メンテ中／解除）が反映されます。</li>
@@ -4283,7 +4285,7 @@ function MigrationCard({
   return (
     <section style={{ ...cardStyle, border: "1px solid #265540" }}>
       <H3>データ移行（スプレッドシート → Supabase）</H3>
-      <p style={{ fontSize: 12.5, color: "#98A1B2", lineHeight: 1.9, margin: "0 0 14px" }}>
+      <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.9, margin: "0 0 14px" }}>
         今スプレッドシートにあるデータを、そのまま Supabase にコピーします。<strong style={{ color: "#fff" }}>スプレッドシート側は一切変更しません</strong>（読み取るだけ）。
         移行後は自動的に Supabase から読み書きするようになり、「応答が遅くタイムアウトしました」は出なくなります。
         何度実行しても重複しません。
@@ -4314,7 +4316,7 @@ function MigrationCard({
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", fontSize: 12.5, borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #262E40" }}>
+              <tr style={{ borderBottom: "1px solid #38383A" }}>
                 <Th>データ</Th>
                 <Th>スプレッドシート</Th>
                 <Th>Supabase</Th>
@@ -4325,7 +4327,7 @@ function MigrationCard({
               {check.map(r => {
                 const same = r.sheetCount !== null && r.sheetCount === r.dbCount;
                 return (
-                  <tr key={r.sheet} style={{ borderBottom: "1px solid #262E40" }}>
+                  <tr key={r.sheet} style={{ borderBottom: "1px solid #38383A" }}>
                     <Td>{r.sheet}</Td>
                     <Td>{r.sheetCount ?? "—"}</Td>
                     <Td>{r.dbCount ?? "—"}</Td>
@@ -4334,7 +4336,7 @@ function MigrationCard({
                         ? <span style={{ color: "#ffb84a", fontSize: 11 }}>{r.error.slice(0, 40)}</span>
                         : same
                           ? <span style={{ color: "#67e088" }}>一致</span>
-                          : <span style={{ color: "#6E778A" }}>未移行</span>}
+                          : <span style={{ color: "rgba(235,235,245,0.30)" }}>未移行</span>}
                     </Td>
                   </tr>
                 );
@@ -4433,7 +4435,7 @@ function ReceiptTab({ members }: { members: Member[] }) {
             </div>
           </div>
           <button onClick={print} style={{ ...btnPrimaryStyle, marginTop: 4 }}>🖨 PDFで保存 / 印刷 →</button>
-          <p style={{ fontSize: 10.5, color: "#6E778A", margin: 0, lineHeight: 1.7 }}>
+          <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", margin: 0, lineHeight: 1.7 }}>
             ボタンを押すと印刷画面が開きます。送信先で「PDFに保存」を選べばPDFになります。<br />
             iPhone: 印刷 →（プレビューを長押し/共有）→「ファイルに保存」。<br />
             ¥50,000以上は収入印紙が必要です（少額の会費・グラウンド代では不要）。
@@ -4585,16 +4587,16 @@ function StatsTab({
       <section style={cardStyle}>
         <H3>打率ランキング（1打席以上）</H3>
         {loading ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 16 }}>読み込み中…</p>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 16 }}>読み込み中…</p>
         ) : ranking.length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 16 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 16 }}>
             打席記録がまだありません。「打席記録」タブから登録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>順位</Th>
                   <Th>選手</Th>
                   <Th>試合</Th>
@@ -4608,9 +4610,9 @@ function StatsTab({
               </thead>
               <tbody>
                 {ranking.map((s, i) => (
-                  <tr key={s.m.id} style={{ borderBottom: "1px solid #262E40" }}>
+                  <tr key={s.m.id} style={{ borderBottom: "1px solid #38383A" }}>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: i < 3 ? "#E5B84B" : "#98A1B2" }}>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: i < 3 ? "#E5B84B" : "rgba(235,235,245,0.60)" }}>
                         {i + 1}
                       </span>
                     </Td>
@@ -4627,7 +4629,7 @@ function StatsTab({
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>{avg3(s.avg)}</span>
                     </Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#C6CDDA" }}>{avg3(s.obp)}</span>
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(235,235,245,0.75)" }}>{avg3(s.obp)}</span>
                     </Td>
                   </tr>
                 ))}
@@ -4641,14 +4643,14 @@ function StatsTab({
       <section style={cardStyle}>
         <H3>出席率（出席＋遅刻 / 記録のあった日）</H3>
         {stats.filter(s => s.m.active && s.recordedDays > 0).length === 0 ? (
-          <p style={{ color: "#98A1B2", fontSize: 12, textAlign: "center", padding: 16 }}>
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 12, textAlign: "center", padding: 16 }}>
             出欠の記録がまだありません。「出欠確認」タブから記録してください。
           </p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #262E40" }}>
+                <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>選手</Th>
                   <Th>出席</Th>
                   <Th>遅刻</Th>
@@ -4662,7 +4664,7 @@ function StatsTab({
                   .filter(s => s.m.active && s.recordedDays > 0)
                   .sort((a, b) => b.attRate - a.attRate)
                   .map(s => (
-                    <tr key={s.m.id} style={{ borderBottom: "1px solid #262E40" }}>
+                    <tr key={s.m.id} style={{ borderBottom: "1px solid #38383A" }}>
                       <Td>
                         <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", marginRight: 8 }}>#{s.m.jerseyNumber || "—"}</span>
                         <strong>{s.m.name}</strong>
@@ -4689,11 +4691,11 @@ function StatsTab({
 
 function SummaryStat({ label, v, unit }: { label: string; v: number; unit?: string }) {
   return (
-    <div style={{ background: "#151B29", border: "1px solid #262E40", padding: "14px 16px" }}>
-      <div style={{ fontSize: 10, color: "#98A1B2", letterSpacing: "0.16em", textTransform: "uppercase" }}>{label}</div>
+    <div style={{ background: "#1C1C1E", border: "1px solid #38383A", padding: "14px 16px" }}>
+      <div style={{ fontSize: 10, color: "rgba(235,235,245,0.60)", letterSpacing: "0.16em", textTransform: "uppercase" }}>{label}</div>
       <div style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#fff", marginTop: 2 }}>
         <span style={{ fontSize: 26, fontWeight: 700 }}>{v}</span>
-        {unit && <span style={{ marginLeft: 5, fontSize: 11, color: "#6E778A" }}>{unit}</span>}
+        {unit && <span style={{ marginLeft: 5, fontSize: 11, color: "rgba(235,235,245,0.30)" }}>{unit}</span>}
       </div>
     </div>
   );
