@@ -308,6 +308,8 @@ const pageBgStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: 20,
+  paddingTop: "max(env(safe-area-inset-top), 20px)",
+  paddingBottom: "max(env(safe-area-inset-bottom), 20px)",
 };
 
 /* ── デザイントークン（iOS風のシンプルさ × チームカラー）──────── */
@@ -1341,7 +1343,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       {/* ── ヘッダー ── */}
-      <header className="stx-headline" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "0.5px solid #38383A", position: "sticky", top: 0, zIndex: 20 }}>
+      <header className="stx-headline" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "0.5px solid #38383A", position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 60, gap: 14 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
@@ -1425,7 +1427,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
 
       {/* ── 本文 ── */}
-      <main className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 16, paddingBottom: 120, position: "relative" }}>
+      <main className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 16, paddingBottom: "calc(120px + env(safe-area-inset-bottom))", position: "relative" }}>
         {loading ? (
           <p style={{ textAlign: "center", color: "rgba(235,235,245,0.60)", padding: 48, fontSize: 14 }}>読み込み中…</p>
         ) : tab === "news" ? (
@@ -1454,7 +1456,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         background: "rgba(0,0,0,0.80)",
         backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)",
         borderTop: "0.5px solid #38383A",
-        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 10px)",
+        paddingLeft: "env(safe-area-inset-left)",
+        paddingRight: "env(safe-area-inset-right)",
       }}>
         <div style={{ display: "flex", maxWidth: 560, margin: "0 auto" }}>
           {([

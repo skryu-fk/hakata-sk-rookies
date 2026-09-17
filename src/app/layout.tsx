@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
@@ -23,6 +23,19 @@ const rocknRoll = RocknRoll_One({
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://hakata-sk-rookies-v2y8.vercel.app";
+
+/**
+ * viewport-fit=cover を指定すると、画面の端いっぱいまで描画される代わりに
+ * env(safe-area-inset-*) が実際の値（ホームインジケーターの高さ等）を返すようになる。
+ * これが無いと env() が常に 0 になり、画面下のタブバーが
+ * iPhone のホームインジケーター（下の細い横棒）と重なってしまう。
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
