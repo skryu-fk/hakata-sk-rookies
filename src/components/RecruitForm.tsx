@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "";
 const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
@@ -36,13 +36,18 @@ function FField({ label, name, type = "text", required, placeholder, min, max }:
   );
 }
 
-function FSelect({ label, name, required, defaultValue = "", options }:
-  { label: string; name: string; required?: boolean; defaultValue?: string; options: { value: string; label: string }[] }) {
+function FSelect({ label, name, required, defaultValue = "", options, value, onChange }:
+  { label: string; name: string; required?: boolean; defaultValue?: string; options: { value: string; label: string }[];
+    value?: string; onChange?: (v: string) => void }) {
   const [foc, setFoc] = useState(false);
+  // value を渡された時は親が値を管理する（controlled）。それ以外は従来どおり defaultValue。
+  const valueProps = value !== undefined
+    ? { value, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => onChange?.(e.target.value) }
+    : { defaultValue };
   return (
     <div>
       <FLabel required={required}>{label}</FLabel>
-      <select name={name} required={required} defaultValue={defaultValue}
+      <select name={name} required={required} {...valueProps}
         style={{
           ...inp, cursor: "pointer",
           borderColor: foc ? "#d10024" : "#d8d4cb",
@@ -81,6 +86,22 @@ function FSubmit({ children, disabled }: { children: React.ReactNode; disabled?:
 export default function RecruitForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  // ご相談内容。これによって表示する入力項目を切り替える。
+  const [inquiry, setInquiry] = useState("メンバー応募");
+
+  // スポンサー募集ページなどから「?inquiry=sponsor」付きで来た場合は、
+  // ご相談内容をあらかじめ選択しておく（毎回選び直す手間をなくす）。
+  // 初期描画はサーバーと同じ既定値にし、表示後に切り替えることで表示ズレを防ぐ。
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("inquiry");
+    const map: Record<string, string> = { sponsor: "スポンサー", match: "対戦・リーグ" };
+    const value = q ? map[q] : undefined;
+    if (value) setInquiry(value);
+  }, []);
+
+  // 年齢・野球経験はメンバー応募のときだけ聞く（お店の方などには不要なため）
+  const isMember = inquiry === "メンバー応募";
+  const isSponsor = inquiry === "スポンサー";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,8 +132,13 @@ export default function RecruitForm() {
   if (status === "success") return (
     <div style={{ background: "#0b1e3f", padding: "64px 48px", textAlign: "center" }}>
       <div style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 16 }}>THANK YOU</div>
-      <p style={{ fontFamily: "var(--font-zen), sans-serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 12 }}>ご応募ありがとうございました。</p>
-      <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.85 }}>内容を確認のうえ、3日以内にご返信します。<br />グラウンドでお会いしましょう。</p>
+      <p style={{ fontFamily: "var(--font-zen), sans-serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 12 }}>
+        {isMember ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
+      </p>
+      <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.85 }}>
+        内容を確認のうえ、3日以内にご返信します。<br />
+        {isMember ? "グラウンドでお会いしましょう。" : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
+      </p>
     </div>
   );
 
@@ -125,27 +151,40 @@ export default function RecruitForm() {
       </div>
 
       <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: 20 }}>
-        <FField label="お名前 / ニックネーム" name="name" required placeholder="例：田中 太郎" />
-        <FField label="メールアドレス" name="email" type="email" required placeholder="example@mail.com" />
-        <FField label="年齢" name="age" type="number" required placeholder="例：22" min={10} max={60} />
-        <FSelect label="野球経験" name="experience" required options={[
-          { value: "未経験",      label: "完全に未経験" },
-          { value: "少し",        label: "学生時代に少しだけ" },
-          { value: "経験あり",    label: "中学・高校で経験あり" },
-          { value: "ブランクあり",label: "経験あるけどブランク長め" },
-          { value: "現役",        label: "今もどこかでプレー中" },
-        ]} />
-        <FSelect label="ご相談内容" name="inquiry_type" defaultValue="メンバー応募" options={[
+        {/* まず相談内容を選んでもらい、それに合わせて下の項目を出し分ける */}
+        <FSelect label="ご相談内容" name="inquiry_type" value={inquiry} onChange={setInquiry} options={[
           { value: "メンバー応募",     label: "メンバーとして応募したい" },
           { value: "対戦・リーグ",     label: "練習試合・リーグのご相談" },
           { value: "スポンサー",       label: "スポンサーの相談をしたい" },
           { value: "道具支援",         label: "道具を譲りたい・支援したい" },
           { value: "質問",             label: "質問・その他" },
         ]} />
+        {isSponsor && (
+          <FField label="会社名・店舗名" name="company" placeholder="例：〇〇商店（個人の方は空欄でOK）" />
+        )}
+        <FField
+          label={isSponsor ? "ご担当者名" : "お名前 / ニックネーム"}
+          name="name" required placeholder="例：田中 太郎"
+        />
+        <FField label="メールアドレス" name="email" type="email" required placeholder="example@mail.com" />
+        {isMember && (
+          <>
+            <FField label="年齢" name="age" type="number" required placeholder="例：22" min={10} max={60} />
+            <FSelect label="野球経験" name="experience" required options={[
+              { value: "未経験",      label: "完全に未経験" },
+              { value: "少し",        label: "学生時代に少しだけ" },
+              { value: "経験あり",    label: "中学・高校で経験あり" },
+              { value: "ブランクあり",label: "経験あるけどブランク長め" },
+              { value: "現役",        label: "今もどこかでプレー中" },
+            ]} />
+          </>
+        )}
         <div>
           <FLabel>メッセージ</FLabel>
           <textarea name="message" rows={5}
-            placeholder="意気込み・聞きたいこと・自己紹介など、自由にどうぞ。"
+            placeholder={isSponsor
+              ? "ご希望のプラン（個人応援・サポーター・パートナー・公式パートナー）や、ご質問などをご記入ください。"
+              : "意気込み・聞きたいこと・自己紹介など、自由にどうぞ。"}
             style={{ ...inp, resize: "vertical", height: 120 }} />
         </div>
         <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" style={{ display: "none" }} />
