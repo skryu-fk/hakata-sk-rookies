@@ -8,6 +8,7 @@
  */
 import { readSession, readCookie, MEMBER_COOKIE } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
+import { parseOptions } from "@/lib/polls";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
   if (deadline && new Date().toISOString().slice(0, 10) > deadline) {
     return Response.json({ ok: false, error: "この投票は締切を過ぎています。" }, { status: 400 });
   }
-  const options = (poll.data[2] ?? "").split("\n").map(s => s.trim()).filter(Boolean);
+  const options = parseOptions(poll.data[2] ?? "").map(o => o.label);
   if (!options.includes(choice)) {
     return Response.json({ ok: false, error: "選択肢が不正です。" }, { status: 400 });
   }

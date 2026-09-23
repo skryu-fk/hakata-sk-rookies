@@ -35,7 +35,8 @@ const COLUMNS: Record<string, string[]> = {
   blog: ["date", "category", "title", "excerpt", "content", "slug"],
   subscriptions: ["endpoint", "p256dh", "auth", "label", "created_at_text"],
   evaluations: ["id", "member_id", "member_name", "date", "batting", "running", "fielding", "pitching", "teamwork", "comment", "created_at_text"],
-  polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text"],
+  // image は後から足した列。並びを崩さないよう末尾に置いている。
+  polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text", "image"],
   poll_votes: ["id", "poll_id", "member_id", "member_name", "choice", "created_at_text"],
 };
 
@@ -187,4 +188,40 @@ export async function replaceAll(sheet: string, rows: string[][]): Promise<numbe
     if (error) throw new Error(error.message);
   }
   return rows.length;
+}
+
+/* ── 画像アップロード（Supabase Storage） ───────────────────────
+ * 投票に添付する画像を置く場所。バケットは初回アップロード時に
+ * 自動で作るので、管理画面から使う前に手作業で用意する必要はない。
+ * 読み取りは公開（アプリから <img> で表示するため）、
+ * 書き込みはサーバー側のサービスロール経由だけに限られる。          */
+const BUCKET = "poll-images";
+let bucketReady = false;
+
+async function ensureBucket(): Promise<void> {
+  if (bucketReady) return;
+  const { data } = await db().storage.getBucket(BUCKET);
+  if (!data) {
+    const { error } = await db().storage.createBucket(BUCKET, {
+      public: true,
+      fileSizeLimit: 6 * 1024 * 1024,
+      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
+    });
+    // 同時に2つアップロードすると「既にある」で失敗しうるが、それは問題ない
+    if (error && !/exist/i.test(error.message)) throw new Error(error.message);
+  }
+  bucketReady = true;
+}
+
+/** 画像を保存して、表示用のURLを返す */
+export async function uploadImage(file: File): Promise<string> {
+  await ensureBucket();
+  const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
+  const { error } = await db().storage.from(BUCKET).upload(path, file, {
+    contentType: file.type || "image/jpeg",
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+  return db().storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }

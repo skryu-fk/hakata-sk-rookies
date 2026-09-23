@@ -20,6 +20,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
+import { parseOptions, serializeOptions, type PollOption } from "@/lib/polls";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -47,8 +48,8 @@ type EvaluationRow = {
 
 /** 管理者が作る投票と、その回答 */
 type PollRow = {
-  id: string; question: string; options: string[]; note: string;
-  status: string; deadline: string; createdAt: string; _row: number;
+  id: string; question: string; options: PollOption[]; note: string;
+  status: string; deadline: string; createdAt: string; image: string; _row: number;
 };
 type PollVoteRow = { id: string; pollId: string; memberId: string; memberName: string; choice: string; _row: number };
 
@@ -549,6 +550,28 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     }
   }, [pw]);
 
+  /** 画像をアップロードして、表示用のURLを受け取る（投票の添付画像用） */
+  const uploadImage = useCallback(async (file: File): Promise<string | null> => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: { "x-admin-password": pw },   // FormData なので Content-Type は付けない
+        body: fd,
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        showToast(false, data?.error ?? "画像のアップロードに失敗しました。");
+        return null;
+      }
+      return String(data.url);
+    } catch {
+      showToast(false, "ネットワークエラーが発生しました。");
+      return null;
+    }
+  }, [pw]);
+
   /**
    * 同じタイミングで要求されたシートを1リクエストにまとめて取得する。
    *
@@ -925,12 +948,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       setPolls(rows.map(r => ({
         id: r.data[0] ?? "",
         question: r.data[1] ?? "",
-        // 選択肢は1行1つで保存している
-        options: (r.data[2] ?? "").split("\n").map(o => o.trim()).filter(Boolean),
+        options: parseOptions(r.data[2] ?? ""),
         note: r.data[3] ?? "",
         status: r.data[4] ?? "open",
         deadline: (r.data[5] ?? "").slice(0, 10),
         createdAt: r.data[6] ?? "",
+        image: r.data[7] ?? "",
         _row: r.rowIndex,
       })));
     });
@@ -1296,6 +1319,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             saving={saving}
             api={api}
             reload={loadPolls}
+            uploadImage={uploadImage}
             showToast={showToast}
           />
         )}
@@ -4201,9 +4225,53 @@ function EvaluationTab({
   );
 }
 
+/* ── 画像を1枚選ぶ小さな部品（投票の添付用） ─────────────── */
+function ImagePick({ value, onChange, uploadImage, label }: {
+  value: string;
+  onChange: (url: string) => void;
+  uploadImage: (file: File) => Promise<string | null>;
+  label: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";           // 同じファイルを選び直せるようにする
+    if (!f) return;
+    setBusy(true);
+    const url = await uploadImage(f);
+    setBusy(false);
+    if (url) onChange(url);
+  }
+
+  if (value) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Supabase Storage 上の画像。外部URLのため next/image は使わない */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={value} alt="" style={{ width: 62, height: 46, objectFit: "cover", borderRadius: 8, border: "1px solid #38383A" }} />
+        <button onClick={() => onChange("")} style={{ ...btnSubStyle, padding: "6px 12px" }}>画像を外す</button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <button
+        onClick={() => ref.current?.click()}
+        disabled={busy}
+        style={{ ...btnSubStyle, padding: "7px 12px", opacity: busy ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}
+      >
+        {busy ? "アップロード中…" : label}
+      </button>
+      <input ref={ref} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+    </>
+  );
+}
+
 /* ── 投票タブ（管理者が投票を作る → アプリに自動で出る） ───────── */
 function PollsTab({
-  polls, pollVotes, members, loading, saving, api, reload, showToast,
+  polls, pollVotes, members, loading, saving, api, reload, uploadImage, showToast,
 }: {
   polls: PollRow[];
   pollVotes: PollVoteRow[];
@@ -4212,12 +4280,14 @@ function PollsTab({
   saving: boolean;
   api: <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }) => Promise<T | null>;
   reload: () => void;
+  uploadImage: (file: File) => Promise<string | null>;
   showToast: (ok: boolean, text: string) => void;
 }) {
   const [question, setQuestion] = useState("");
   const [note, setNote] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [options, setOptions] = useState<string[]>(["", ""]);
+  const [image, setImage] = useState("");
+  const [options, setOptions] = useState<PollOption[]>([{ label: "" }, { label: "" }]);
   const [notify, setNotify] = useState(true);
   const [openId, setOpenId] = useState<string>("");
 
@@ -4242,30 +4312,33 @@ function PollsTab({
     [polls]
   );
 
-  function setOption(i: number, v: string) {
-    setOptions(prev => prev.map((o, k) => (k === i ? v : o)));
+  function patchOption(i: number, patch: Partial<PollOption>) {
+    setOptions(prev => prev.map((o, k) => (k === i ? { ...o, ...patch } : o)));
   }
   function addOption() {
-    setOptions(prev => (prev.length >= 8 ? prev : [...prev, ""]));
+    setOptions(prev => (prev.length >= 8 ? prev : [...prev, { label: "" }]));
   }
   function removeOption(i: number) {
     setOptions(prev => (prev.length <= 2 ? prev : prev.filter((_, k) => k !== i)));
   }
   function resetForm() {
-    setQuestion(""); setNote(""); setDeadline(""); setOptions(["", ""]); setNotify(true);
+    setQuestion(""); setNote(""); setDeadline(""); setImage("");
+    setOptions([{ label: "" }, { label: "" }]); setNotify(true);
   }
 
   async function createPoll() {
     const q = question.trim();
-    const opts = options.map(o => o.trim()).filter(Boolean);
+    const opts = options.map(o => ({ ...o, label: o.label.trim() })).filter(o => o.label);
     if (!q) { showToast(false, "質問を入力してください。"); return; }
     if (opts.length < 2) { showToast(false, "選択肢は2つ以上必要です。"); return; }
-    if (new Set(opts).size !== opts.length) { showToast(false, "同じ選択肢が重複しています。"); return; }
+    if (new Set(opts.map(o => o.label)).size !== opts.length) {
+      showToast(false, "同じ選択肢が重複しています。"); return;
+    }
 
     const id = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const createdAt = new Date().toISOString().slice(0, 19).replace("T", " ");
-    // polls 列: [id, question, options, note, status, deadline, createdAt]
-    const row = [id, q, opts.join("\n"), note.trim(), "open", deadline, createdAt];
+    // polls 列: [id, question, options, note, status, deadline, createdAt, image]
+    const row = [id, q, serializeOptions(opts), note.trim(), "open", deadline, createdAt, image];
     const ok = await api("/api/admin/append", { sheet: "polls", row });
     if (!ok) return;
 
@@ -4279,14 +4352,14 @@ function PollsTab({
       }, { silent: true });
       showToast(true, sent ? `投票を公開し、通知を${sent.sent}件送信しました。` : "投票を公開しました（通知の送信には失敗しました）。");
     } else {
-      showToast(true, "投票を公開しました。アプリのお知らせに出ます。");
+      showToast(true, "投票を公開しました。アプリの投票タブに出ます。");
     }
     resetForm();
     reload();
   }
 
   async function setStatus(p: PollRow, status: "open" | "closed") {
-    const row = [p.id, p.question, p.options.join("\n"), p.note, status, p.deadline, p.createdAt];
+    const row = [p.id, p.question, serializeOptions(p.options), p.note, status, p.deadline, p.createdAt, p.image];
     const ok = await api("/api/admin/update", { sheet: "polls", rowIndex: p._row, row });
     if (!ok) return;
     showToast(true, status === "closed" ? "投票を締め切りました。" : "投票を再開しました。");
@@ -4312,8 +4385,8 @@ function PollsTab({
       <section style={cardStyle}>
         <H3>投票を作る</H3>
         <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 16px" }}>
-          公開すると、アプリの「お知らせ」の一番上に自動で表示され、メンバーがその場で投票できます。
-          誰が何に入れたかは全員に見えます。
+          公開すると、アプリの「投票」タブに自動で表示され、メンバーがその場で投票できます。
+          誰が何に入れたかは全員に見えます。質問にも選択肢にも画像を付けられます。
         </p>
 
         <div style={{ marginBottom: 14 }}>
@@ -4328,35 +4401,50 @@ function PollsTab({
         </div>
 
         <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>質問に付ける画像（任意）</label>
+          <ImagePick value={image} onChange={setImage} uploadImage={uploadImage} label="＋ 画像を選ぶ" />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>選択肢（2〜8個）</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {options.map((o, i) => (
-              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, color: "#E5B84B", width: 18, flexShrink: 0 }}>{i + 1}</span>
-                <input
-                  value={o}
-                  onChange={e => setOption(i, e.target.value)}
-                  placeholder={i === 0 ? "例：土曜の午前" : i === 1 ? "例：日曜の午後" : "選択肢"}
-                  maxLength={60}
-                  style={inputStyle}
-                />
-                <button
-                  onClick={() => removeOption(i)}
-                  disabled={options.length <= 2}
-                  title="この選択肢を消す"
-                  style={{
-                    ...btnSubStyle, padding: "8px 11px", flexShrink: 0,
-                    opacity: options.length <= 2 ? 0.3 : 1,
-                    cursor: options.length <= 2 ? "not-allowed" : "pointer",
-                  }}
-                >
-                  ✕
-                </button>
+              <div key={i} style={{ background: "#141418", border: "1px solid #38383A", borderRadius: 10, padding: 11 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, color: "#E5B84B", width: 18, flexShrink: 0 }}>{i + 1}</span>
+                  <input
+                    value={o.label}
+                    onChange={e => patchOption(i, { label: e.target.value })}
+                    placeholder={i === 0 ? "例：土曜の午前" : i === 1 ? "例：日曜の午後" : "選択肢"}
+                    maxLength={60}
+                    style={inputStyle}
+                  />
+                  <button
+                    onClick={() => removeOption(i)}
+                    disabled={options.length <= 2}
+                    title="この選択肢を消す"
+                    style={{
+                      ...btnSubStyle, padding: "8px 11px", flexShrink: 0,
+                      opacity: options.length <= 2 ? 0.3 : 1,
+                      cursor: options.length <= 2 ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ marginTop: 9, paddingLeft: 26 }}>
+                  <ImagePick
+                    value={o.image ?? ""}
+                    onChange={url => patchOption(i, { image: url || undefined })}
+                    uploadImage={uploadImage}
+                    label="＋ この選択肢に画像"
+                  />
+                </div>
               </div>
             ))}
           </div>
           {options.length < 8 && (
-            <button onClick={addOption} style={{ ...btnSubStyle, marginTop: 8 }}>＋ 選択肢を追加</button>
+            <button onClick={addOption} style={{ ...btnSubStyle, marginTop: 10 }}>＋ 選択肢を追加</button>
           )}
         </div>
 
@@ -4425,16 +4513,24 @@ function PollsTab({
                       {p.note}{p.note && p.deadline ? "／" : ""}{p.deadline ? `締切 ${p.deadline}` : ""}
                     </p>
                   )}
+                  {p.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.image} alt="" style={{ marginTop: 10, width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8 }} />
+                  )}
 
                   {/* 選択肢ごとの結果 */}
                   <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
                     {p.options.map(opt => {
-                      const got = votes.filter(v => v.choice === opt);
+                      const got = votes.filter(v => v.choice === opt.label);
                       const pct = total > 0 ? (got.length / total) * 100 : 0;
                       return (
-                        <div key={opt}>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 13.5, flex: 1 }}>{opt}</span>
+                        <div key={opt.label}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            {opt.image && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={opt.image} alt="" style={{ width: 40, height: 30, objectFit: "cover", borderRadius: 5, flexShrink: 0 }} />
+                            )}
+                            <span style={{ fontSize: 13.5, flex: 1 }}>{opt.label}</span>
                             <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#E5B84B" }}>
                               {got.length}票{total > 0 ? ` ・ ${Math.round(pct)}%` : ""}
                             </span>

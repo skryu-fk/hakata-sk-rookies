@@ -15,7 +15,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
-import PollCard, { isPollLive, type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
+import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
+import { parseOptions, isPollLive } from "@/lib/polls";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -952,7 +953,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "news" | "stats" | "ai" | "schedule" | "mypage";
+type Tab = "news" | "polls" | "stats" | "ai" | "schedule" | "mypage";
 type StatKind = "batting" | "pitching" | "catching" | "fielding";
 type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string; jerseyNumber: string; position: string; joinedDate: string };
 const MEMBER_POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"];
@@ -1087,12 +1088,12 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       setPolls(rowsOf("polls").map(r => ({
         id: r.data[0] ?? "",
         question: r.data[1] ?? "",
-        // 選択肢は1行1つで保存されている
-        options: (r.data[2] ?? "").split(/\r?\n/).map(o => o.trim()).filter(Boolean),
+        options: parseOptions(r.data[2] ?? ""),
         note: r.data[3] ?? "",
         status: r.data[4] ?? "open",
         deadline: (r.data[5] ?? "").slice(0, 10),
         createdAt: r.data[6] ?? "",
+        image: r.data[7] ?? "",
       })));
       setPollVotes(rowsOf("poll_votes").map(r => ({
         pollId: r.data[1] ?? "",
@@ -1481,7 +1482,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       {/* ── 画面タイトル（iOSのLarge Title）＋ 絞り込み ── */}
       <div className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 6, position: "relative", zIndex: 1 }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", margin: "8px 0 16px", lineHeight: 1.15 }}>
-          {tab === "news" ? "お知らせ" : tab === "stats" ? "成績" : tab === "ai" ? "AI解析" : tab === "schedule" ? "日程" : "マイページ"}
+          {tab === "news" ? "お知らせ" : tab === "polls" ? "投票" : tab === "stats" ? "成績" : tab === "ai" ? "AI解析" : tab === "schedule" ? "日程" : "マイページ"}
         </h1>
 
         {tab === "stats" && (
@@ -1514,7 +1515,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         {loading ? (
           <p style={{ textAlign: "center", color: "rgba(235,235,245,0.60)", padding: 48, fontSize: 14 }}>読み込み中…</p>
         ) : tab === "news" ? (
-          <NewsView announcements={announcements} polls={polls} pollVotes={pollVotes} me={me} onVote={castVote} />
+          <NewsView announcements={announcements} />
+        ) : tab === "polls" ? (
+          <PollsView polls={polls} pollVotes={pollVotes} me={me} onVote={castVote} />
         ) : tab === "schedule" ? (
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         ) : tab === "ai" ? (
@@ -1544,7 +1547,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       }}>
         <div style={{ display: "flex", maxWidth: 560, margin: "0 auto" }}>
           {([
-            ["news", "📣", "お知らせ", unansweredCount > 0 ? unansweredCount : announcements.length],
+            ["news", "📣", "お知らせ", announcements.length],
+            ["polls", "🗳", "投票", unansweredCount],
             ["stats", "⚾", "成績", -1],
             ["ai", "🧠", "AI解析", -1],
             ["schedule", "📅", "日程", scheduleCount],
@@ -1562,8 +1566,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
                   color: on ? "#E5B84B" : "rgba(235,235,245,0.45)",
                 }}
               >
-                <span style={{ fontSize: 22, lineHeight: 1, filter: on ? "none" : "grayscale(1)", opacity: on ? 1 : 0.75 }}>{icon}</span>
-                <span style={{ fontSize: 10.5, fontWeight: on ? 600 : 500, letterSpacing: "0.01em" }}>{label}</span>
+                <span style={{ fontSize: 20, lineHeight: 1, filter: on ? "none" : "grayscale(1)", opacity: on ? 1 : 0.75 }}>{icon}</span>
+                <span style={{ fontSize: 9.5, fontWeight: on ? 600 : 500, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>{label}</span>
                 {badge > 0 && (
                   <span style={{
                     position: "absolute", top: 4, left: "calc(50% + 8px)",
@@ -2110,13 +2114,64 @@ function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; 
   );
 }
 
-function NewsView({ announcements, polls, pollVotes, me, onVote }: {
-  announcements: AnnouncementRow[];
+/* ── 投票タブ（管理者が作った投票がここに自動で並ぶ） ──────────── */
+function PollsView({ polls, pollVotes, me, onVote }: {
   polls: PollRow[];
   pollVotes: PollVoteRow[];
   me: string;
   onVote: (pollId: string, choice: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
+  // 受付中を上に。終了したものは結果を見られるよう下に残す。
+  const today = new Date().toISOString().slice(0, 10);
+  const all = useMemo(
+    () => polls
+      .filter(p => p.question && p.options.length > 0)
+      .map(p => ({ p, live: isPollLive(p, today) }))
+      .sort((a, b) => (a.live === b.live ? b.p.createdAt.localeCompare(a.p.createdAt) : a.live ? -1 : 1)),
+    [polls, today]
+  );
+  const open = all.filter(x => x.live);
+  const done = all.filter(x => !x.live);
+
+  return (
+    <div>
+      {open.length === 0 && done.length === 0 ? (
+        <section style={cardStyle}>
+          <p style={emptyMsg}>
+            いまは投票がありません。<br />
+            運営が投票を作ると、ここに自動で表示されます。
+          </p>
+        </section>
+      ) : (
+        <>
+          {open.length > 0 && <H sub="OPEN">受付中の投票（{open.length}）</H>}
+          {open.map(({ p }) => (
+            <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
+          ))}
+
+          {open.length === 0 && (
+            <section style={cardStyle}>
+              <p style={emptyMsg}>受付中の投票はありません。<br />過去の結果は下から見られます。</p>
+            </section>
+          )}
+
+          {done.length > 0 && (
+            <details style={{ marginTop: open.length > 0 ? 8 : 0 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12.5, color: "rgba(235,235,245,0.45)", padding: "6px 2px", marginBottom: 10 }}>
+                終了した投票の結果を見る（{done.length}件）
+              </summary>
+              {done.map(({ p }) => (
+                <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
+              ))}
+            </details>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
   const [showAll, setShowAll] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
 
@@ -2128,34 +2183,8 @@ function NewsView({ announcements, polls, pollVotes, me, onVote }: {
   const shown = showAll ? sorted : sorted.slice(0, RECENT);
   const hasMore = sorted.length > RECENT;
 
-  // 受付中を上に。終了したものは結果を見られるよう下に残す。
-  const today = new Date().toISOString().slice(0, 10);
-  const livePolls = polls
-    .filter(p => p.question && p.options.length > 0)
-    .map(p => ({ p, live: isPollLive(p, today) }))
-    .sort((a, b) => (a.live === b.live ? b.p.createdAt.localeCompare(a.p.createdAt) : a.live ? -1 : 1));
-  const open = livePolls.filter(x => x.live);
-  const done = livePolls.filter(x => !x.live);
-
   return (
     <div>
-      {/* 投票（受付中）── 管理者が作ると自動でここに出る */}
-      {open.map(({ p }) => (
-        <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
-      ))}
-      {done.length > 0 && (
-        <details style={{ marginBottom: 14 }}>
-          <summary style={{ cursor: "pointer", fontSize: 12.5, color: "rgba(235,235,245,0.45)", padding: "4px 2px" }}>
-            終了した投票の結果を見る（{done.length}件）
-          </summary>
-          <div style={{ marginTop: 10 }}>
-            {done.map(({ p }) => (
-              <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
-            ))}
-          </div>
-        </details>
-      )}
-
       {/* バージョン / 更新情報 */}
       <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
