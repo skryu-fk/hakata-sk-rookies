@@ -15,6 +15,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
+import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
@@ -950,7 +951,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 }
 
 /* ── ダッシュボード ───────────────────────────────────── */
-type Tab = "news" | "stats" | "schedule" | "mypage";
+type Tab = "news" | "stats" | "ai" | "schedule" | "mypage";
 type StatKind = "batting" | "pitching" | "catching" | "fielding";
 type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string; jerseyNumber: string; position: string; joinedDate: string };
 const MEMBER_POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"];
@@ -1436,7 +1437,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       {/* ── 画面タイトル（iOSのLarge Title）＋ 絞り込み ── */}
       <div className="max-w-[720px] mx-auto px-4" style={{ paddingTop: 6, position: "relative", zIndex: 1 }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", margin: "8px 0 16px", lineHeight: 1.15 }}>
-          {tab === "news" ? "お知らせ" : tab === "stats" ? "成績" : tab === "schedule" ? "日程" : "マイページ"}
+          {tab === "news" ? "お知らせ" : tab === "stats" ? "成績" : tab === "ai" ? "AI解析" : tab === "schedule" ? "日程" : "マイページ"}
         </h1>
 
         {tab === "stats" && (
@@ -1472,11 +1473,10 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           <NewsView announcements={announcements} />
         ) : tab === "schedule" ? (
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
+        ) : tab === "ai" ? (
+          <FormCheckView />
         ) : tab === "mypage" ? (
-          <>
-            <MyPageView profile={profile} onReload={loadProfile} analysis={myAnalysis} />
-            <div style={{ marginTop: 22 }}><FormCheckView /></div>
-          </>
+          <MyPageView profile={profile} onReload={loadProfile} analysis={myAnalysis} />
         ) : statKind === "batting" ? (
           <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
         ) : statKind === "pitching" ? (
@@ -1502,6 +1502,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           {([
             ["news", "📣", "お知らせ", announcements.length],
             ["stats", "⚾", "成績", -1],
+            ["ai", "🧠", "AI解析", -1],
             ["schedule", "📅", "日程", scheduleCount],
             ["mypage", "👤", "マイページ", -1],
           ] as [Tab, string, string, number][]).map(([key, icon, label, badge]) => {
@@ -1537,27 +1538,247 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-/* ── SKドッパミンAI（大規模アップデートのため一時停止中）──────── */
+/* ── SKドッパミンAI（フォーム解析・端末内で処理） ────────────── */
+function gradeOf(s: number) {
+  return s >= 85 ? "S" : s >= 72 ? "A" : s >= 58 ? "B" : s >= 42 ? "C" : "D";
+}
+function scoreColor(s: number) {
+  return s >= 72 ? "#30D158" : s >= 50 ? "#E5B84B" : "#FF453A";
+}
+
+function downloadDataUrl(dataUrl: string, filename: string) {
+  try {
+    const a = document.createElement("a");
+    a.href = dataUrl; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch { /* 端末によっては保存できないため、長押し保存を案内する */ }
+}
+
 function FormCheckView() {
+  const [kind, setKind] = useState<Kind>("batting");
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<FormResult | null>(null);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function reset() { setResult(null); setError(""); setProgress(0); }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    reset();
+    setBusy(true);
+    try {
+      const r = await analyzeForm(f, kind, p => setProgress(p));
+      setResult(r);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "解析できませんでした。");
+    } finally {
+      setBusy(false);
+      setProgress(0);
+    }
+  }
+
+  const confLabel = { high: "信頼度 高", medium: "信頼度 中", low: "信頼度 低" };
+  const confColor = { high: "#30D158", medium: "#E5B84B", low: "#FF453A" };
+
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto" }}>
-      <div style={{ ...uiCard, textAlign: "center", padding: "44px 26px" }}>
-        <div style={{ fontSize: 46, lineHeight: 1 }}>🚧</div>
-        <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 19, marginTop: 14 }}>
-          SKドッパミンAIは準備中です
-        </div>
-        <p style={{ fontSize: 13.5, color: UI.sub, lineHeight: 1.9, margin: "12px 0 0" }}>
-          解析の精度を大きく上げるため、大規模なアップデートを進めています。
-          <br />準備ができ次第、このタブから使えるようになります。
-        </p>
-        <div style={{ marginTop: 20, padding: "11px 14px", background: UI.goldDim, border: `1px solid #4c4127`, borderRadius: 12, fontSize: 12, color: UI.sub, lineHeight: 1.8 }}>
-          再開したらアプリのお知らせでご案内します。
-        </div>
+    <div>
+      {/* 種目の切替 */}
+      <IosLabel>解析する動き</IosLabel>
+      <div style={{ marginBottom: 22 }}>
+        <SegControl
+          items={[["batting", "打撃フォーム"], ["pitching", "投球フォーム"]]}
+          value={kind}
+          onChange={k => { setKind(k as Kind); reset(); }}
+        />
       </div>
+
+      {/* 撮影と読み込み */}
+      {!result && (
+        <>
+          <IosGroup style={{ padding: 18 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 40, lineHeight: 1 }}>🎥</div>
+              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 18, marginTop: 12 }}>
+                {kind === "batting" ? "スイングを解析します" : "投球フォームを解析します"}
+              </div>
+              <p style={{ fontSize: 13, color: UI.sub, lineHeight: 1.9, margin: "10px 0 0" }}>
+                動画はこの端末の中だけで解析され、<br />どこにも送信されません。
+              </p>
+            </div>
+
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+              style={{
+                ...uiPrimary, marginTop: 18,
+                background: busy ? "#3A3A3C" : UI.gold,
+                cursor: busy ? "not-allowed" : "pointer",
+              }}
+            >
+              {busy ? "解析中…" : "動画を選ぶ"}
+            </button>
+            <input ref={fileRef} type="file" accept="video/*" onChange={onFile} style={{ display: "none" }} />
+
+            {busy && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ height: 6, background: "#2C2C2E", borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.round(progress * 100)}%`, height: "100%", background: UI.gold, transition: "width .3s" }} />
+                </div>
+                <p style={{ fontSize: 12, color: UI.sub, textAlign: "center", marginTop: 8 }}>
+                  {progress < 0.4 ? "コマを読み込んでいます…" : progress < 0.92 ? "骨格を解析しています…" : "採点しています…"}
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ marginTop: 14, padding: "12px 14px", background: "#2A1418", border: "1px solid rgba(255,69,58,0.4)", borderRadius: 10, color: UI.danger, fontSize: 12.5, lineHeight: 1.8 }}>
+                {error}
+              </div>
+            )}
+          </IosGroup>
+
+          <IosLabel>うまく解析するコツ</IosLabel>
+          <IosGroup style={{ padding: "6px 0" }}>
+            {[
+              ["📐", "横から撮る", "正面ではなく、体の横（一塁側・三塁側）から撮ると精度が上がります。"],
+              ["🧍", "全身を入れる", "頭からつま先まで画面に収まるように。足が切れると判定できません。"],
+              ["⏱", "1〜10秒", "構えから振り切りまでが入る長さで。長すぎる動画は先頭10秒を使います。"],
+              ["💡", "明るい場所で", "暗い場合も自動補正しますが、明るいほど正確です。"],
+            ].map(([icon, title, desc], i) => (
+              <div key={title} style={{ display: "flex", gap: 12, padding: "12px 14px", borderTop: i === 0 ? "none" : "0.5px solid #38383A" }}>
+                <span style={{ fontSize: 19, flexShrink: 0 }}>{icon}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{title}</div>
+                  <div style={{ fontSize: 12.5, color: UI.sub, lineHeight: 1.7, marginTop: 2 }}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </IosGroup>
+        </>
+      )}
+
+      {/* 結果 */}
+      {result && (
+        <>
+          <IosGroup style={{ padding: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{ textAlign: "center", flexShrink: 0 }}>
+                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 52, fontWeight: 700, lineHeight: 1, color: scoreColor(result.overall) }}>
+                  {result.overall}
+                </div>
+                <div style={{ fontSize: 11, color: UI.faint, marginTop: 2 }}>/ 100</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 30, fontWeight: 700, color: scoreColor(result.overall) }}>
+                    {gradeOf(result.overall)}
+                  </span>
+                  <span style={{ fontSize: 11, color: confColor[result.confidence], border: `1px solid ${confColor[result.confidence]}`, borderRadius: 999, padding: "2px 9px" }}>
+                    {confLabel[result.confidence]}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12.5, color: UI.sub, marginTop: 6, lineHeight: 1.7 }}>
+                  {result.framesAnalyzed}コマ解析 ／ {result.durationSec.toFixed(1)}秒
+                </div>
+              </div>
+            </div>
+
+            {result.hitterType && (
+              <div style={{ marginTop: 16, padding: "14px 16px", background: UI.goldDim, border: "1px solid rgba(229,184,75,0.35)", borderRadius: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 22 }}>{result.hitterType.emoji}</span>
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, color: UI.gold }}>{result.hitterType.label}</span>
+                </div>
+                <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.75)", lineHeight: 1.8, margin: "8px 0 0" }}>{result.hitterType.desc}</p>
+              </div>
+            )}
+          </IosGroup>
+
+          <IosLabel>項目別の評価</IosLabel>
+          <IosGroup style={{ padding: "4px 0" }}>
+            {result.metrics.map((m, i) => (
+              <div key={m.key} style={{ padding: "13px 15px", borderTop: i === 0 ? "none" : "0.5px solid #38383A" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 600, flex: 1 }}>{m.label}</span>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 20, fontWeight: 700, color: scoreColor(m.score) }}>{m.score}</span>
+                </div>
+                <div style={{ height: 5, background: "#2C2C2E", borderRadius: 999, overflow: "hidden", margin: "8px 0 7px" }}>
+                  <div style={{ width: `${m.score}%`, height: "100%", background: scoreColor(m.score) }} />
+                </div>
+                {m.measured && <div style={{ fontSize: 11, color: UI.faint }}>実測：{m.measured}</div>}
+                <div style={{ fontSize: 12.5, color: UI.sub, lineHeight: 1.75, marginTop: 5 }}>{m.comment}</div>
+              </div>
+            ))}
+          </IosGroup>
+
+          {result.keyframes.length > 0 && (
+            <>
+              <IosLabel>動作の流れ（タップで保存）</IosLabel>
+              <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8, marginBottom: 22, WebkitOverflowScrolling: "touch" }}>
+                {result.keyframes.map((k, i) => (
+                  <button
+                    key={k.phase + i}
+                    onClick={() => downloadDataUrl(k.dataUrl, `SKドッパミンAI_${kind}_${i + 1}_${k.label}.jpg`)}
+                    style={{ flexShrink: 0, width: 132, background: "#1C1C1E", border: "none", borderRadius: 12, overflow: "hidden", padding: 0, cursor: "pointer" }}
+                  >
+                    {/* 解析結果の静止画（dataURL）。next/image は不要なため img を使う */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={k.dataUrl} alt={k.label} style={{ width: "100%", display: "block" }} />
+                    <div style={{ fontSize: 11.5, fontWeight: 600, color: UI.gold, padding: "8px 6px" }}>{k.label}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {result.strengths.length > 0 && (
+            <>
+              <IosLabel>良かった点</IosLabel>
+              <IosGroup style={{ padding: "4px 0" }}>
+                {result.strengths.map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, padding: "12px 15px", borderTop: i === 0 ? "none" : "0.5px solid #38383A" }}>
+                    <span style={{ color: UI.ok, flexShrink: 0 }}>✓</span>
+                    <span style={{ fontSize: 13.5, lineHeight: 1.8 }}>{s}</span>
+                  </div>
+                ))}
+              </IosGroup>
+            </>
+          )}
+
+          <IosLabel>もっと良くするには</IosLabel>
+          <IosGroup style={{ padding: "4px 0" }}>
+            {result.tips.map((t, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, padding: "12px 15px", borderTop: i === 0 ? "none" : "0.5px solid #38383A" }}>
+                <span style={{ color: UI.gold, flexShrink: 0 }}>▸</span>
+                <span style={{ fontSize: 13.5, lineHeight: 1.8, color: "rgba(235,235,245,0.85)" }}>{t}</span>
+              </div>
+            ))}
+          </IosGroup>
+
+          {result.notes.length > 0 && (
+            <IosGroup style={{ padding: "12px 15px" }}>
+              {result.notes.map((n, i) => (
+                <p key={i} style={{ fontSize: 11.5, color: UI.faint, lineHeight: 1.8, margin: i === 0 ? 0 : "8px 0 0" }}>{n}</p>
+              ))}
+            </IosGroup>
+          )}
+
+          <p style={{ fontSize: 11, color: UI.faint, lineHeight: 1.75, padding: "0 4px", margin: "-12px 0 18px" }}>
+            点数は一般的な指導内容をもとにした目安です。撮影の角度や明るさでも数値は変わります。絶対的な評価ではなく、前回との比較や課題の発見に使ってください。
+          </p>
+
+          <button onClick={reset} style={{ ...uiPrimary, background: "#2C2C2E", color: "#fff" }}>
+            別の動画を解析する
+          </button>
+        </>
+      )}
     </div>
   );
 }
-
 
 /* ── 通知のオン/オフ バー ───────────────────────────────── */
 function NotifyBar() {

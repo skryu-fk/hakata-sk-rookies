@@ -13,7 +13,7 @@ import type { PoseLandmarker as PoseLandmarkerType } from "@mediapipe/tasks-visi
 
 export type Kind = "batting" | "pitching";
 export type LM = { x: number; y: number; z: number; visibility?: number };
-export type Metric = { key: string; label: string; score: number; comment: string };
+export type Metric = { key: string; label: string; score: number; comment: string; measured?: string };
 export type KeyFrame = { label: string; phase: string; dataUrl: string };
 export type HitterType = { emoji: string; label: string; desc: string };
 export type FormResult = {
@@ -27,6 +27,7 @@ export type FormResult = {
   keyframes: KeyFrame[];       // 構え〜フォロースルーまでの連続コマ
   framesAnalyzed: number;
   durationSec: number;
+  confidence: "high" | "medium" | "low"; // 解析の信頼度（骨格の取得品質から算出）
   lowLight: boolean;       // 暗い映像（精度が落ちる）
   brightness: number;      // 平均輝度 0〜255（目安）
   notes: string[];         // 精度に関する注意（暗い・フレーム少 など）
@@ -45,6 +46,8 @@ const CONNECTIONS: [number, number][] = [
 // ── 幾何ヘルパ ──
 const mid = (a: LM, b: LM): LM => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
 const dist2 = (a: LM, b: LM) => Math.hypot(a.x - b.x, a.y - b.y);
+// 世界座標(メートル)での3D距離。カメラ位置に左右されない計測に使う。
+const dist3 = (a: LM, b: LM) => Math.hypot(a.x - b.x, a.y - b.y, (a.z ?? 0) - (b.z ?? 0));
 const lineAngleDeg = (a: LM, b: LM) => Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
 const std = (xs: number[]) => {
   if (xs.length < 2) return 0;
@@ -322,118 +325,190 @@ export async function analyzeForm(
     : "🌙 やや暗い映像です。明るさを自動補正して解析しています。明るい場所ほど精度が高くなります。");
   if (fewFrames) notes.push("⚠ 解析できたコマが少なめのため、数値は参考値です（横から・全身・なるべくブレずに撮ると精度UP）。");
 
-  // ── スイング/リリースの瞬間＋動きの強さを「画像の動き」から検出（ブラーでも効く） ──
-  const { idx: impactShotIdx, intensity: motionIntensity } = motionPeakIndex(shots);
-  const impactT = shots[impactShotIdx].t;
-  let peakIdx = 0; { let bd = Infinity; for (let i = 0; i < frames.length; i++) { const d = Math.abs(frames[i].t - impactT); if (d < bd) { bd = d; peakIdx = i; } } }
-  onProgress?.(0.95);
+  /* ════════════════════════════════════════════════════════════
+   * 解析コア
+   *
+   * 角度・距離はすべて MediaPipe の「世界座標(worldLandmarks)」で計算する。
+   * 世界座標は「腰の中心を原点としたメートル単位の3D座標」なので、
+   * カメラの位置・距離・画角が変わっても同じ動きなら同じ数値になる。
+   * （従来は画像上の2D座標で角度を出していたため、撮る位置で結果が変わっていた）
+   * ════════════════════════════════════════════════════════════ */
 
-  // ── 解析用のセットアップ〜インパクト区間 ──
-  const start = frames[0], impact = frames[peakIdx];
-  const shAngle = (f: Frame) => lineAngleDeg(f.lm[L_SH], f.lm[R_SH]);
-  const hipAngle = (f: Frame) => lineAngleDeg(f.lm[L_HIP], f.lm[R_HIP]);
-  const bodyH = Math.max(0.05, dist2(mid(start.lm[L_SH], start.lm[R_SH]), mid(start.lm[L_AN], start.lm[R_AN])));
+  const KEY_PTS = [L_SH, R_SH, L_HIP, R_HIP, L_EL, R_EL, L_WR, R_WR, L_KN, R_KN, L_AN, R_AN];
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0);
+  const median = (xs: number[]) => {
+    if (!xs.length) return 0;
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
 
-  // 頭(鼻)の横ブレ（正規化x・スムージング後）— 小さいほど軸が安定
-  const noseXs = sma(frames.map(f => f.lm[NOSE].x));
-  const headSway = std(noseXs) / bodyH; // 体長で正規化
+  // 骨格がどれだけ確実に取れているか（0〜1）。低いときは数値を断定しない。
+  const detectQuality = avg(frames.map(f => avg(KEY_PTS.map(i => f.lm[i]?.visibility ?? 0))));
 
-  // 重心（腰中点）の横移動量（スムージング後）
-  const hipXs = sma(frames.map(f => mid(f.lm[L_HIP], f.lm[R_HIP]).x));
-  const hipTravel = (Math.max(...hipXs) - Math.min(...hipXs)) / bodyH;
+  // 体格の基準（メートル）。点数を身長差に左右されないよう正規化に使う。
+  const shoulderW = Math.max(0.12, median(frames.map(f => dist3(f.world[L_SH], f.world[R_SH]))));
+  const legLen = Math.max(0.25, median(frames.map(f =>
+    (dist3(f.world[L_HIP], f.world[L_AN]) + dist3(f.world[R_HIP], f.world[R_AN])) / 2)));
+  const armLen = Math.max(0.20, median(frames.map(f => dist3(f.world[L_SH], f.world[L_WR]))));
 
-  // 肩の回転量（セットアップ→区間内の最大変化、度）— 横向き映像で有効
-  let shoulderRot = 0;
-  for (const f of frames) shoulderRot = Math.max(shoulderRot, Math.abs(shAngle(f) - shAngle(start)));
-  // 肩幅の変化（正面向き→横向きで肩幅が変化＝奥行き回転を捉える）
-  const shW = frames.map(f => dist2(f.lm[L_SH], f.lm[R_SH]));
-  const widthRange = shW.length ? (Math.max(...shW) - Math.min(...shW)) / bodyH : 0;
-  // 回転の総合指標：肩角度変化 / 肩幅変化 / スイングの激しさ の最大。
-  // ブレてAIが骨格を取れない最速の瞬間も「画像の動きの強さ」で補完する。
-  const rotComposite = Math.max(shoulderRot, widthRange * 230, motionIntensity * 200);
+  // 水平面での体の向き（方位角）。左右の点を結ぶ線の x-z 平面上の角度。
+  const azimuth = (a: LM, b: LM) => Math.atan2((b.z ?? 0) - (a.z ?? 0), b.x - a.x) * 180 / Math.PI;
+  // 角度差を -180〜180 に収める
+  const angDiff = (a: number, b: number) => { let d = a - b; while (d > 180) d -= 360; while (d < -180) d += 360; return d; };
 
-  // ステップ幅（足首間隔の最大、体長比）
-  let strideMax = 0;
-  for (const f of frames) strideMax = Math.max(strideMax, Math.abs(f.lm[L_AN].x - f.lm[R_AN].x) / bodyH);
+  const shoulderAz = frames.map(f => azimuth(f.world[R_SH], f.world[L_SH]));
+  const hipAz = frames.map(f => azimuth(f.world[R_HIP], f.world[L_HIP]));
 
-  // フォロースルー（ピーク後の手の移動量、体長比）
-  let follow = 0;
-  for (let i = peakIdx + 1; i < frames.length; i++) follow += dist2(frames[i].lm[WR], frames[i - 1].lm[WR]);
-  follow = follow / bodyH;
+  /* ── インパクト/リリースの瞬間を「手首の速さ」から求める ──
+   * 世界座標なので、カメラが揺れても手の動きだけを見られる。
+   * 最速の瞬間＝インパクト（打撃）／リリース（投球）。
+   * ブレて骨格が取れない瞬間に備え、取れなければ画像の動き量で補う。   */
+  const wristSpeed: number[] = frames.map((f, i) => {
+    if (i === 0) return 0;
+    const dt = Math.max(1e-3, f.t - frames[i - 1].t);
+    return dist3(f.world[WR], frames[i - 1].world[WR]) / dt; // m/s
+  });
+  const speedSm = sma(wristSpeed, 1);
+  let peakIdx = 0;
+  for (let i = 1; i < speedSm.length; i++) if (speedSm[i] > speedSm[peakIdx]) peakIdx = i;
+  const peakSpeed = speedSm[peakIdx] ?? 0;
 
-  // 「体の開き」のタイミング（肩がどれだけ早く開くか）：序盤フレームの肩回転割合
-  const early = frames[Math.min(frames.length - 1, Math.max(1, Math.round(peakIdx * 0.4)))];
-  const earlyOpenRatio = shoulderRot > 1 ? Math.abs(shAngle(early) - shAngle(start)) / shoulderRot : 0;
+  // 画像の動きからも推定し、手首が取れていない場合の保険にする
+  const { idx: motionShotIdx, intensity: motionIntensity } = motionPeakIndex(shots);
+  const motionT = shots[motionShotIdx].t;
+  // 手首の速さが極端に小さい＝手が追えていないので、画像の動きを採用
+  if (peakSpeed < 0.8 || detectQuality < 0.45) {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < frames.length; i++) { const d = Math.abs(frames[i].t - motionT); if (d < bd) { bd = d; best = i; } }
+    peakIdx = best;
+  }
+  const impactT = frames[peakIdx]?.t ?? motionT;
 
-  // リリース/インパクトの手の高さ（肩基準。上ほど y 小）
-  const shY = mid(impact.lm[L_SH], impact.lm[R_SH]).y;
-  const handAboveShoulder = (shY - impact.lm[WR].y) / bodyH; // +で肩より上
+  /* ── 解析する区間（スイング/投球動作の前後だけ） ──
+   * 動画全体を見ると、歩いて構えに入る場面などが混ざって数値が狂う。   */
+  const WINDOW_SEC = 0.75;
+  const inWin = (i: number) => Math.abs(frames[i].t - impactT) <= WINDOW_SEC;
+  let winIdx = frames.map((_, i) => i).filter(inWin);
+  if (winIdx.length < 3) winIdx = frames.map((_, i) => i); // 区間が取れなければ全体
+  const setupIdx = winIdx[0];
+  const win = <T,>(arr: T[]) => winIdx.map(i => arr[i]);
 
-  // 各指標：甘め＆下限ありで採点（普通のフォームはB〜A帯に入るよう調整）。
-  // good=良かった点 / tip=具体的な改善アドバイス（コツ・ドリル）。
-  const FLOOR = 48;
-  const sc = (v: number) => Math.round(clamp(v, FLOOR, 100));
+  /* ── 指標の計算（すべて世界座標ベース） ── */
+
+  // 体の回転量：構えからの肩の向きの変化（度）
+  const rotationDeg = Math.max(...win(shoulderAz).map(a => Math.abs(angDiff(a, shoulderAz[setupIdx]))));
+
+  // 捻転差（Xファクター）：肩と腰のねじれの最大値（度）。大きいほど力が溜まる。
+  const separationDeg = Math.max(...winIdx.map(i => Math.abs(angDiff(shoulderAz[i], hipAz[i]))));
+
+  // 頭のブレ：腰の中心から見た頭の横ズレのばらつき（肩幅比）。小さいほど軸が安定。
+  const headSway = std(win(frames).map(f => f.world[NOSE].x)) / shoulderW;
+
+  // ステップ幅：両足首の間隔（脚の長さ比）
+  const strideRatio = Math.max(...win(frames).map(f => dist3(f.world[L_AN], f.world[R_AN]))) / legLen;
+
+  // フォロースルー：インパクト後の手の移動距離（腕の長さ比）
+  let followPath = 0;
+  for (let i = peakIdx + 1; i < frames.length; i++) followPath += dist3(frames[i].world[WR], frames[i - 1].world[WR]);
+  const followRatio = followPath / armLen;
+
+  // 開きの早さ：インパクトまでの前半で、肩がどれだけ回ってしまっているか
+  const midI = winIdx[Math.max(0, Math.floor(winIdx.indexOf(peakIdx) * 0.45))] ?? setupIdx;
+  const earlyOpenRatio = rotationDeg > 3
+    ? clamp(Math.abs(angDiff(shoulderAz[midI], shoulderAz[setupIdx])) / rotationDeg, 0, 1)
+    : 0;
+
+  /* ── 採点 ──
+   * 下駄を履かせず、測定値をそのまま決められた基準で点数化する。
+   * 基準値は一般的な指導内容をもとにした目安（絶対的な正解ではない）。   */
+  const up = (v: number, lo: number, ideal: number) => clamp(Math.round(((v - lo) / (ideal - lo)) * 100), 0, 100);
+  const down = (v: number, good: number, bad: number) => clamp(Math.round(((bad - v) / (bad - good)) * 100), 0, 100);
+  const band = (v: number, ideal: number, tol: number) => clamp(Math.round(100 - (Math.abs(v - ideal) / tol) * 100), 0, 100);
+
   const firstLine = (s: string) => s.split("。")[0] + "。";
-  type Def = { key: string; label: string; score: number; good: string; tip: string };
+  type Def = { key: string; label: string; score: number; measured: string; good: string; tip: string };
   let defs: Def[];
+
   if (kind === "batting") {
-    const rotTip = "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。";
     defs = [
-      { key: "axis", label: "軸の安定（頭のブレ）", score: sc(104 - headSway * 320),
-        good: "頭の位置が安定していて、ブレない良い軸です。",
+      { key: "axis", label: "軸の安定（頭のブレ）", score: down(headSway, 0.10, 0.60),
+        measured: `頭のブレ 肩幅の${(headSway * 100).toFixed(0)}%`,
+        good: "頭の位置が最後まで動かず、非常に安定した軸で振れています。",
         tip: "スイング中に頭が動いています。アゴを軽く引き、目線をインパクト位置に最後まで残す意識を。鏡の前でゆっくり素振りし、頭が左右に流れないか確認すると効果的です。" },
-      // 回転は「大きいほど良い」。角度・肩幅・スイングの激しさ（ブレた瞬間も）から総合評価。
-      { key: "rotation", label: "体の回転", score: sc(42 + clamp(rotComposite, 0, 70) * 0.85),
-        good: "骨盤からしっかり回転できていて、力が伝わるスイングです。", tip: rotTip },
-      // 踏み込みは「しっかり踏み出すほど良い」（広い・大きいほど高評価）
-      { key: "stride", label: "踏み込み（ステップ）", score: sc(52 + clamp(strideMax, 0, 0.6) * 80),
-        good: "前足へしっかり踏み込めていて、下半身主導のスイングです。",
-        tip: "踏み込みが小さめです。軸足に体重を乗せてから、ピッチャー方向へ大きく一歩踏み込むと力が伝わります。同じ幅で踏める素振りを繰り返しましょう。" },
-      // 重心は「突っ込みすぎだけ減点」（適度な体重移動はOK）
-      { key: "weight", label: "重心の安定", score: sc(96 - clamp(hipTravel - 0.22, 0, 0.5) * 120),
-        good: "重心が安定し、突っ込みもなく良いバランスです。",
-        tip: "上体が前に突っ込み気味です。軸足で粘り、頭をボールの後ろに残したまま回転すると安定します。“我慢して引きつける”意識を持ちましょう。" },
-      { key: "follow", label: "フォロースルー", score: sc(56 + follow * 60),
+      { key: "rotation", label: "体の回転", score: up(rotationDeg, 20, 80),
+        measured: `肩の回転 ${rotationDeg.toFixed(0)}°`,
+        good: "骨盤から大きく回転できていて、力がしっかり伝わるスイングです。",
+        tip: "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。" },
+      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 5, 40),
+        measured: `肩と腰のねじれ ${separationDeg.toFixed(0)}°`,
+        good: "肩と腰のねじれが大きく、パワーを溜められています。",
+        tip: "肩と腰が一緒に回っていて「ため」が作れていません。下半身を先に回し、上半身を我慢して遅れて出すと打球が強くなります。腰から動き出す素振りを繰り返しましょう。" },
+      { key: "stride", label: "踏み込み（ステップ）", score: band(strideRatio, 0.90, 0.55),
+        measured: `足幅 脚の長さの${(strideRatio * 100).toFixed(0)}%`,
+        good: "前足へちょうど良い幅で踏み込めていて、下半身主導のスイングです。",
+        tip: "踏み込み幅が最適から外れています。広すぎると回転できず、狭すぎると力が伝わりません。軸足に乗ってから、自分が一番回りやすい幅を素振りで探しましょう。" },
+      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.8, 3.5),
+        measured: `振り抜き 腕の長さの${followRatio.toFixed(1)}倍`,
         good: "最後までしっかり振り切れていて、理想的なフィニッシュです。",
         tip: "振り切りが小さめです。インパクトで止めず、両手が肩の高さまで来るイメージで大きく振り抜きましょう。フィニッシュまで一気に振る素振りを。" },
     ];
   } else {
-    const strideTip = strideMax < 0.55
-      ? "歩幅が狭めです。身長の6〜7割を目安に、もう一歩ホーム方向へ踏み出すと球威が増します。"
-      : "踏み込みがやや大きく、リリースが安定しにくいです。体重を乗せ切れる幅まで少し詰めましょう。";
     defs = [
-      { key: "balance", label: "軸足バランス", score: sc(104 - headSway * 320),
-        good: "軸足で立った時の頭の軸が安定しています。",
+      { key: "balance", label: "軸の安定（頭のブレ）", score: down(headSway, 0.12, 0.65),
+        measured: `頭のブレ 肩幅の${(headSway * 100).toFixed(0)}%`,
+        good: "軸足で立った時から着地まで、頭の位置が安定しています。",
         tip: "立ち上がりで上体が揺れています。軸足一本で2秒静止できるバランス練習を。お腹に力を入れ、頭の真下に軸足を置く意識で。" },
-      { key: "stride", label: "ステップ幅", score: sc(100 - Math.abs(strideMax - 0.65) * 105),
-        good: "良いステップ幅で、下半身をしっかり使えています。", tip: strideTip },
-      { key: "open", label: "開きの早さ", score: sc(102 - earlyOpenRatio * 88),
+      { key: "stride", label: "ステップ幅", score: band(strideRatio, 1.05, 0.55),
+        measured: `歩幅 脚の長さの${(strideRatio * 100).toFixed(0)}%`,
+        good: "良いステップ幅で、下半身をしっかり使えています。",
+        tip: "歩幅が最適から外れています。狭いと球威が出ず、広すぎるとリリースが安定しません。体重を乗せ切れる幅を探しましょう。" },
+      { key: "open", label: "開きの早さ", score: down(earlyOpenRatio, 0.25, 0.75),
+        measured: `前半での開き ${(earlyOpenRatio * 100).toFixed(0)}%`,
         good: "体の開きを我慢できていて、力の伝わるフォームです。",
         tip: "体（胸・肩）の開きが早いです。グラブ側の肩を打者へ向けたまま我慢し、最後に一気に開くと球速・制球が上がります。タオルシャドーで開きを抑える練習を。" },
-      { key: "release", label: "リリースの高さ", score: sc(100 - Math.abs(handAboveShoulder - 0.2) * 115),
-        good: "リリースポイントが高く、角度のある良い腕の振りです。",
-        tip: "リリースが低めです。肘を肩より上げ、頭の近くで離すイメージで。肩・肩甲骨の柔軟性を上げると改善します。" },
-      { key: "follow", label: "フォロースルー", score: sc(56 + follow * 58),
+      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 5, 35),
+        measured: `肩と腰のねじれ ${separationDeg.toFixed(0)}°`,
+        good: "下半身と上半身の時間差が作れていて、球に力が乗ります。",
+        tip: "肩と腰が同時に回っています。踏み出した足が着いてから上半身を回すと、球速が上がります。ゆっくりしたシャドーピッチングで順番を体に入れましょう。" },
+      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.8, 3.2),
+        measured: `振り抜き 腕の長さの${followRatio.toFixed(1)}倍`,
         good: "腕を最後までしっかり振り切れています。",
         tip: "振り切りが小さめです。リリース後も腕を振り抜き、グラブ側の膝の外まで手を持っていくと、肩肘の負担も減り球威も出ます。" },
     ];
   }
 
-  const metrics: Metric[] = defs.map(d => ({ key: d.key, label: d.label, score: d.score, comment: d.score >= 68 ? d.good : firstLine(d.tip) }));
+  /* ── 信頼度 ──
+   * 骨格の取得品質・解析できたコマ数・区間が取れたかで決める。
+   * 低いときは数値を断定せず、その旨をはっきり伝える。   */
+  const confidence: "high" | "medium" | "low" =
+    detectQuality >= 0.75 && frames.length >= 18 && winIdx.length >= 6 ? "high"
+    : detectQuality >= 0.55 && frames.length >= 10 ? "medium" : "low";
+
+  const metrics: Metric[] = defs.map(d => ({
+    key: d.key, label: d.label, score: d.score, measured: d.measured,
+    comment: d.score >= 70 ? d.good : firstLine(d.tip),
+  }));
   const scoreOf = (k: string) => defs.find(d => d.key === k)?.score ?? 0;
-  // 総合点（各指標の平均）
   const overall = Math.round(defs.reduce((s, d) => s + d.score, 0) / defs.length);
 
-  // ── 打者タイプ判定（打撃のみ）：回転・振り切り・スイングの激しさから ──
+  if (confidence === "low") {
+    notes.push("⚠ 骨格をうまく検出できていないため、点数の精度は低めです。横から・全身が入るように・明るい場所で撮り直すと大きく改善します。");
+  } else if (confidence === "medium") {
+    notes.push("ℹ️ おおむね検出できています。全身がはっきり映るように撮ると、さらに精度が上がります。");
+  }
+
+  // ── 打者タイプ判定（打撃のみ）── 回転・捻転差・振り切り・軸から判定する
   let hitterType: HitterType | null = null;
   if (kind === "batting") {
-    const rotS = scoreOf("rotation"), followS = scoreOf("follow"), axisS = scoreOf("axis");
-    const power = (rotS + followS) / 2 + motionIntensity * 70; // パワー指標
-    if (overall < 52) {
+    const rotS = scoreOf("rotation"), followS = scoreOf("follow"), axisS = scoreOf("axis"), sepS = scoreOf("separation");
+    const power = (rotS + followS + sepS) / 3;
+    if (confidence === "low") {
+      hitterType = { emoji: "❓", label: "判定できません", desc: "骨格がうまく取れませんでした。横から全身が入るように撮り直すと判定できます。" };
+    } else if (overall < 45) {
       hitterType = { emoji: "🌱", label: "発展途上タイプ", desc: "まずは基礎フォームを固める段階。下のポイントを1つずつ試そう。続ければ必ず伸びます！" };
-    } else if (rotS >= 75 && followS >= 70 && power >= 88) {
-      hitterType = { emoji: "💣", label: "長距離（パワー）タイプ", desc: "大きな回転と振り切りでボールを遠くへ飛ばすスラッガータイプ。長打が武器です！" };
-    } else if (axisS >= 70 && rotS >= 55) {
+    } else if (power >= 72 && rotS >= 65) {
+      hitterType = { emoji: "💣", label: "長距離（パワー）タイプ", desc: "大きな回転とためでボールを遠くへ飛ばすスラッガータイプ。長打が武器です！" };
+    } else if (axisS >= 70 && rotS >= 45) {
       hitterType = { emoji: "🎯", label: "中距離（ミート）タイプ", desc: "軸が安定したコンパクトなスイング。確実にミートして広角に打ち分けるタイプ。" };
     } else {
       hitterType = { emoji: "⚙️", label: "バランス改善タイプ", desc: "持ち味はこれから。軸と回転を整えると一気に伸びます。下のポイントを重点的に。" };
@@ -441,11 +516,10 @@ export async function analyzeForm(
   }
 
   // 良かった点（高スコア）と 改善アドバイス（低スコア・具体的）
-  const strengths = defs.filter(d => d.score >= 76).sort((a, b) => b.score - a.score).slice(0, 3).map(d => d.good);
-  const tips = defs.filter(d => d.score < 70).sort((a, b) => a.score - b.score).slice(0, 4).map(d => d.tip);
+  const strengths = defs.filter(d => d.score >= 72).sort((a, b) => b.score - a.score).slice(0, 3).map(d => d.good);
+  const tips = defs.filter(d => d.score < 65).sort((a, b) => a.score - b.score).slice(0, 4).map(d => d.tip);
   if (tips.length === 0) tips.push("大きな弱点は見当たりません。今のフォームを維持しつつ、さらにスイング/球のキレを磨いていきましょう！");
   if (strengths.length === 0) strengths.push("まずは反復で“同じ動き”を固めることから。続けるほど数値は必ず伸びます。");
-
   // ── キーフレーム連続コマ（取り込んだ“全コマ”から＝ブレた瞬間も表示する） ──
   const sS = shots[0].t, sE = shots[shots.length - 1].t, pT = impactT;
   const isBat = kind === "batting";
@@ -483,7 +557,7 @@ export async function analyzeForm(
   onProgress?.(1);
 
   return {
-    kind, overall, hitterType,
+    kind, overall, hitterType, confidence,
     metrics, strengths, tips, keyframeDataUrl, keyframes,
     framesAnalyzed: frames.length, durationSec: duration,
     lowLight, brightness: Math.round(brightness), notes,
