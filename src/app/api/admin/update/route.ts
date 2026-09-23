@@ -27,7 +27,11 @@ export async function POST(request: Request) {
   if (sheetErr) return sheetErr;
 
   const rowIndex = Number(body.rowIndex);
-  if (!Number.isFinite(rowIndex) || rowIndex < 2) {
+  // 行の識別子は 1 から始まる（Supabase の row_id）。
+  // スプレッドシート時代は 1 行目がヘッダだったため 2 以上を必須にしていたが、
+  // その名残で「各テーブルの 1 行目だけ編集・削除できない」不具合になっていた。
+  // シート側を使う場合のヘッダ保護は Apps Script 側で行っている。
+  if (!Number.isFinite(rowIndex) || rowIndex < 1) {
     return Response.json({ ok: false, error: "rowIndex が不正です。" }, { status: 400 });
   }
   if (!Array.isArray(body.row) || body.row.length === 0 || body.row.length > 16) {
