@@ -33,6 +33,8 @@ export const ALLOWED_SHEETS = new Set([
   "pending",
   // メンバー個人アカウント（本名+パスワードハッシュ・承認制）
   "accounts",
+  // 選手評価（管理者のみ・項目別5段階＋コメント）
+  "evaluations",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";

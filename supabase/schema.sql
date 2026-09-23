@@ -121,12 +121,20 @@ create table if not exists subscriptions (
   endpoint text, p256dh text, auth text, label text, created_at_text text
 );
 
+create table if not exists evaluations (
+  row_id bigint generated always as identity primary key,
+  id text, member_id text, member_name text, date text,
+  batting text, running text, fielding text, pitching text, teamwork text,
+  comment text, created_at_text text
+);
+
 -- よく絞り込む列にインデックス（件数が増えても速いまま）
 create index if not exists idx_batting_member on batting (member_id);
 create index if not exists idx_pitching_member on pitching (member_id);
 create index if not exists idx_attendance_date on attendance (date);
 create index if not exists idx_accounts_user_id on accounts (user_id);
 create index if not exists idx_accounts_member_id on accounts (member_id);
+create index if not exists idx_evaluations_member on evaluations (member_id);
 
 -- セキュリティ: RLSを有効化し、ポリシーは作らない。
 -- → 公開(anon)キーでは一切読み書きできず、サーバー側のサービスロールキー経由のみ許可される。
@@ -136,7 +144,7 @@ begin
   foreach t in array array[
     'members','attendance','batting','pitching','catching','fielding','practices',
     'participants','probables','announcements','settings','pending','accounts',
-    'lineups','games','payments','news','tweets','blog','subscriptions'
+    'lineups','games','payments','news','tweets','blog','subscriptions','evaluations'
   ] loop
     execute format('alter table %I enable row level security', t);
   end loop;

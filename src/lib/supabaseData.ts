@@ -34,6 +34,7 @@ const COLUMNS: Record<string, string[]> = {
   tweets: ["date", "text", "url"],
   blog: ["date", "category", "title", "excerpt", "content", "slug"],
   subscriptions: ["endpoint", "p256dh", "auth", "label", "created_at_text"],
+  evaluations: ["id", "member_id", "member_name", "date", "batting", "running", "fielding", "pitching", "teamwork", "comment", "created_at_text"],
 };
 
 export const SUPABASE_TABLES = Object.keys(COLUMNS);

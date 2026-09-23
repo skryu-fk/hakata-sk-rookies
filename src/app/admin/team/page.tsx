@@ -30,12 +30,36 @@ function isKatakanaName(name: string): boolean {
 
 const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
 // メンバー個人アカウント（パスワードハッシュはサーバ側のみ。ここには持たない）
 type AccountRow = { id: string; name: string; status: string; createdAt: string; memberId: string; userId: string; _row: number };
+
+/** 選手評価（管理者のみ閲覧）。各項目は1〜5の5段階。 */
+type EvaluationRow = {
+  id: string; memberId: string; memberName: string; date: string;
+  batting: number; running: number; fielding: number; pitching: number; teamwork: number;
+  comment: string; createdAt: string; _row: number;
+};
+
+/** 評価項目。key は evaluations シートの列名と対応する。 */
+const EVAL_CATEGORIES = [
+  { key: "batting", label: "打撃", hint: "ミート・パワー・選球眼" },
+  { key: "running", label: "走塁", hint: "スピード・判断・盗塁" },
+  { key: "fielding", label: "守備", hint: "捕球・送球・範囲" },
+  { key: "pitching", label: "投球", hint: "球速・制球・変化球" },
+  { key: "teamwork", label: "チームワーク", hint: "声・協調性・練習態度" },
+] as const;
+
+type EvalKey = (typeof EVAL_CATEGORIES)[number]["key"];
+
+/** 評価値を 0〜5 の整数に丸める（0 は未評価扱い） */
+function num5(v: string | undefined): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n : 0;
+}
 
 type Member = {
   id: string;
@@ -456,6 +480,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [evaluations, setEvaluations] = useState<EvaluationRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
@@ -825,6 +850,25 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     });
   }, [listCached]);
 
+  const loadEvaluations = useCallback(async () => {
+    await listCached("evaluations", rows => {
+      setEvaluations(rows.map(r => ({
+        id: r.data[0] ?? "",
+        memberId: r.data[1] ?? "",
+        memberName: r.data[2] ?? "",
+        date: normalizeDate(r.data[3] ?? ""),
+        batting: num5(r.data[4]),
+        running: num5(r.data[5]),
+        fielding: num5(r.data[6]),
+        pitching: num5(r.data[7]),
+        teamwork: num5(r.data[8]),
+        comment: r.data[9] ?? "",
+        createdAt: r.data[10] ?? "",
+        _row: r.rowIndex,
+      })));
+    });
+  }, [listCached]);
+
   const loadAccounts = useCallback(async () => {
     const cachedAcc = readCache<AccountRow[]>("admin_accounts");
     if (cachedAcc) setAccounts(cachedAcc);
@@ -859,6 +903,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
   useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
   useEffect(() => { if (tab === "accounts") loadAccounts(); }, [tab, loadAccounts]);
+  useEffect(() => { if (tab === "evaluation") loadEvaluations(); }, [tab, loadEvaluations]);
   useEffect(() => {
     if (tab === "link") {
       loadAccounts();
@@ -915,6 +960,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         const groups: { key: string; label: string; items: [Tab, string, number | undefined, boolean][] }[] = [
           { key: "team", label: "チーム", items: [
             ["members", "名簿", members.length, false],
+            ["evaluation", "選手評価", evaluations.length, false],
             ["attendance", "練習出欠", attendance.length, false],
             ["payments", "集金", payments.length, false],
             ["receipt", "領収書", undefined, false],
@@ -1136,6 +1182,17 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             saving={saving}
             api={api}
             reload={loadAccounts}
+            showToast={showToast}
+          />
+        )}
+        {tab === "evaluation" && (
+          <EvaluationTab
+            members={members}
+            evaluations={evaluations}
+            loading={!!loading.evaluations}
+            saving={saving}
+            api={api}
+            reload={loadEvaluations}
             showToast={showToast}
           />
         )}
@@ -3651,6 +3708,305 @@ const presetBtnStyle: React.CSSProperties = {
 // ────────────────────────────────────────────────────────
 // 承認待ちタブ（スコアラーがアプリから送った記録を編集・承認・却下）
 // ────────────────────────────────────────────────────────
+/* ── 選手評価タブ（管理者のみ） ───────────────────────────
+ * 項目ごとに5段階＋コメントで記録する。同じ選手・同じ日付で保存し直すと
+ * 上書きになり、日付を変えれば履歴として積み重なる。
+ */
+function Stars({ value, onChange, readOnly, size = 26 }: {
+  value: number; onChange?: (v: number) => void; readOnly?: boolean; size?: number;
+}) {
+  return (
+    <span style={{ display: "inline-flex", gap: 2 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <button
+          key={i}
+          type="button"
+          disabled={readOnly}
+          onClick={() => onChange?.(value === i ? 0 : i)}
+          aria-label={`${i}`}
+          style={{
+            background: "none", border: "none", padding: 0, lineHeight: 1,
+            fontSize: size, cursor: readOnly ? "default" : "pointer",
+            color: i <= value ? "#E5B84B" : "rgba(235,235,245,0.20)",
+          }}
+        >★</button>
+      ))}
+    </span>
+  );
+}
+
+/** 評価の平均（未評価の項目は除いて平均する） */
+function evalAverage(e: EvaluationRow): number {
+  const vals = EVAL_CATEGORIES.map(c => e[c.key as EvalKey] as number).filter(v => v > 0);
+  if (vals.length === 0) return 0;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function EvaluationTab({
+  members, evaluations, loading, saving, api, reload, showToast,
+}: {
+  members: Member[];
+  evaluations: EvaluationRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [date, setDate] = useState<string>(todayIso());
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [comment, setComment] = useState("");
+
+  const activeMembers = useMemo(() => members.filter(m => m.active), [members]);
+
+  // 選手ごとの最新評価
+  const latestByMember = useMemo(() => {
+    const map = new Map<string, EvaluationRow>();
+    [...evaluations].sort((a, b) => a.date.localeCompare(b.date)).forEach(e => {
+      if (e.memberId) map.set(e.memberId, e);
+    });
+    return map;
+  }, [evaluations]);
+
+  const selected = activeMembers.find(m => m.id === selectedId) ?? null;
+  const history = useMemo(
+    () => evaluations.filter(e => e.memberId === selectedId).sort((a, b) => b.date.localeCompare(a.date)),
+    [evaluations, selectedId],
+  );
+
+  /** 選手を選ぶと、その日付の既存評価（なければ最新）をフォームに読み込む */
+  function pick(m: Member) {
+    setSelectedId(m.id);
+    const latest = latestByMember.get(m.id);
+    const d = todayIso();
+    setDate(d);
+    const sameDay = evaluations.find(e => e.memberId === m.id && e.date === d);
+    const src = sameDay ?? latest;
+    if (src) {
+      setScores(Object.fromEntries(EVAL_CATEGORIES.map(c => [c.key, src[c.key as EvalKey] as number])));
+      setComment(sameDay ? sameDay.comment : "");
+    } else {
+      setScores({});
+      setComment("");
+    }
+  }
+
+  // 日付を変えたら、その日の記録があれば読み込む
+  useEffect(() => {
+    if (!selectedId) return;
+    const sameDay = evaluations.find(e => e.memberId === selectedId && e.date === date);
+    if (sameDay) {
+      setScores(Object.fromEntries(EVAL_CATEGORIES.map(c => [c.key, sameDay[c.key as EvalKey] as number])));
+      setComment(sameDay.comment);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, selectedId]);
+
+  async function save() {
+    if (!selected) return;
+    const anyScore = EVAL_CATEGORIES.some(c => (scores[c.key] ?? 0) > 0);
+    if (!anyScore && !comment.trim()) {
+      showToast(false, "星かコメントのどちらかは入力してください。");
+      return;
+    }
+    const existing = evaluations.find(e => e.memberId === selected.id && e.date === date);
+    const row = [
+      existing?.id || genId("ev"),
+      selected.id,
+      selected.name,
+      date,
+      String(scores.batting ?? 0),
+      String(scores.running ?? 0),
+      String(scores.fielding ?? 0),
+      String(scores.pitching ?? 0),
+      String(scores.teamwork ?? 0),
+      comment.trim(),
+      existing?.createdAt || new Date().toISOString().slice(0, 19).replace("T", " "),
+    ];
+    const ok = existing
+      ? await api("/api/admin/update", { sheet: "evaluations", rowIndex: existing._row, row })
+      : await api("/api/admin/append", { sheet: "evaluations", row });
+    if (ok) {
+      showToast(true, `${selected.name} の評価を保存しました（${formatDateJp(date)}）。`);
+      reload();
+    }
+  }
+
+  async function removeEval(e: EvaluationRow) {
+    if (typeof window !== "undefined" && !window.confirm(`${e.memberName} の ${formatDateJp(e.date)} の評価を削除しますか？`)) return;
+    const ok = await api("/api/admin/delete", { sheet: "evaluations", rowIndex: e._row });
+    if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <H3>選手評価</H3>
+          <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: 0 }}>
+            選手ごとに項目別5段階で記録します。<strong style={{ color: "#fff" }}>この内容はメンバーには一切表示されません</strong>（管理者専用）。
+            日付を変えて保存すれば、成長の記録として履歴が残ります。
+          </p>
+        </div>
+        <button onClick={reload} style={{ ...btnSubStyle, whiteSpace: "nowrap" }}>{loading ? "..." : "🔄 再読み込み"}</button>
+      </div>
+
+      <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,340px)_1fr]">
+        {/* 選手一覧 */}
+        <section style={{ ...cardStyle, padding: "8px 6px" }}>
+          {activeMembers.length === 0 ? (
+            <p style={{ textAlign: "center", padding: 28, color: "rgba(235,235,245,0.60)", fontSize: 13 }}>
+              名簿にメンバーがいません。
+            </p>
+          ) : activeMembers.map((m, i) => {
+            const latest = latestByMember.get(m.id);
+            const avg = latest ? evalAverage(latest) : 0;
+            const on = selectedId === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => pick(m)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "11px 12px", background: on ? "rgba(229,184,75,0.14)" : "transparent",
+                  border: "none", borderTop: i === 0 ? "none" : "1px solid #38383A",
+                  borderLeft: on ? "3px solid #E5B84B" : "3px solid transparent",
+                  cursor: "pointer", textAlign: "left", color: "#fff",
+                }}
+              >
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, fontWeight: 700, color: "#E5B84B", width: 34, flexShrink: 0 }}>
+                  {m.jerseyNumber ? `#${m.jerseyNumber}` : "—"}
+                </span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {m.name}
+                </span>
+                {latest ? (
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <Stars value={Math.round(avg)} readOnly size={13} />
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#E5B84B" }}>{avg.toFixed(1)}</span>
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", flexShrink: 0 }}>未評価</span>
+                )}
+              </button>
+            );
+          })}
+        </section>
+
+        {/* 評価入力 */}
+        {!selected ? (
+          <section style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 260 }}>
+            <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13.5, textAlign: "center", lineHeight: 1.9 }}>
+              左の一覧から選手を選んでください。<br />
+              項目ごとに星をつけて保存できます。
+            </p>
+          </section>
+        ) : (
+          <div>
+            <section style={cardStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#E5B84B" }}>
+                  {selected.jerseyNumber ? `#${selected.jerseyNumber}` : "—"}
+                </span>
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 20, fontWeight: 900 }}>{selected.name}</span>
+                <span style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)" }}>{selected.position || "ポジション未定"}</span>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                  <label style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)" }}>評価日</label>
+                  <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: "auto", padding: "8px 10px", fontSize: 14 }} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {EVAL_CATEGORIES.map((c, i) => (
+                  <div key={c.key} style={{
+                    display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                    padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid #38383A",
+                  }}>
+                    <div style={{ minWidth: 130 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 700 }}>{c.label}</div>
+                      <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 2 }}>{c.hint}</div>
+                    </div>
+                    <Stars value={scores[c.key] ?? 0} onChange={v => setScores(p => ({ ...p, [c.key]: v }))} />
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: (scores[c.key] ?? 0) > 0 ? "#E5B84B" : "rgba(235,235,245,0.30)", marginLeft: "auto" }}>
+                      {(scores[c.key] ?? 0) > 0 ? `${scores[c.key]} / 5` : "未評価"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <label style={labelStyle}>コメント・課題・伸ばしたい点</label>
+                <textarea
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  rows={4}
+                  placeholder="例：ミートは安定してきた。次は引っ張り一辺倒にならないよう、逆方向への打球を意識してもらう。"
+                  style={{ ...inputStyle, resize: "vertical" } as React.CSSProperties}
+                  maxLength={1000}
+                />
+              </div>
+
+              <button
+                onClick={save}
+                disabled={saving}
+                style={{
+                  marginTop: 16, width: "100%", padding: 14, background: saving ? "#3A3A3C" : "#E5B84B",
+                  color: "#10131C", border: "none", borderRadius: 10,
+                  fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 15,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}
+              >
+                {saving ? "保存中…" : "この内容で保存する"}
+              </button>
+            </section>
+
+            {/* 履歴 */}
+            <section style={{ ...cardStyle, marginTop: 16 }}>
+              <H3>{selected.name} の評価履歴</H3>
+              {history.length === 0 ? (
+                <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13, padding: "10px 0" }}>まだ評価がありません。</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {history.map(e => (
+                    <div key={e.id || e._row} style={{ background: "#2C2C2E", borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>{formatDateJp(e.date)}</span>
+                        <Stars value={Math.round(evalAverage(e))} readOnly size={14} />
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, color: "#E5B84B" }}>{evalAverage(e).toFixed(1)}</span>
+                        <button
+                          onClick={() => removeEval(e)}
+                          disabled={saving}
+                          style={{ marginLeft: "auto", padding: "4px 10px", background: "transparent", color: "#FF453A", border: "1px solid rgba(255,69,58,0.45)", borderRadius: 7, fontSize: 11, cursor: saving ? "not-allowed" : "pointer" }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
+                        {EVAL_CATEGORIES.map(c => {
+                          const v = e[c.key as EvalKey] as number;
+                          return (
+                            <span key={c.key} style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)" }}>
+                              {c.label} <strong style={{ color: v > 0 ? "#fff" : "rgba(235,235,245,0.30)", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }}>{v > 0 ? v : "—"}</strong>
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {e.comment && (
+                        <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.75)", lineHeight: 1.8, marginTop: 8, whiteSpace: "pre-wrap" }}>{e.comment}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LinkTab({
   accounts, members, saving, api, reloadAccounts, reloadMembers, showToast,
 }: {
