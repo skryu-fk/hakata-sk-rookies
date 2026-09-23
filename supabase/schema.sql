@@ -129,15 +129,15 @@ create table if not exists evaluations (
 );
 
 -- 投票（管理者が作った質問）と、その回答
--- options は選択肢のJSON（[{"label":"赤","image":"https://..."}]）。
--- 画像対応より前に作った投票は改行区切りの文字列だが、そのまま読める。
+-- options には選択肢と添付画像をまとめてJSONで入れる:
+--   {"image":"https://...","options":[{"label":"赤","image":"https://..."}]}
+-- 列を増やさないので、このテーブルさえあれば画像付きの投票も動く。
+-- 古い投票（改行区切りの文字列）もそのまま読める。
 create table if not exists polls (
   row_id bigint generated always as identity primary key,
   id text, question text, options text, note text,
   status text, deadline text, created_at_text text
 );
--- 質問そのものに付ける画像（あとから追加した列）
-alter table polls add column if not exists image text;
 
 create table if not exists poll_votes (
   row_id bigint generated always as identity primary key,

@@ -16,7 +16,7 @@ import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
-import { parseOptions, isPollLive } from "@/lib/polls";
+import { parsePoll, isPollLive } from "@/lib/polls";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -1088,12 +1088,12 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       setPolls(rowsOf("polls").map(r => ({
         id: r.data[0] ?? "",
         question: r.data[1] ?? "",
-        options: parseOptions(r.data[2] ?? ""),
+        options: parsePoll(r.data[2] ?? "").options,
         note: r.data[3] ?? "",
         status: r.data[4] ?? "open",
         deadline: (r.data[5] ?? "").slice(0, 10),
         createdAt: r.data[6] ?? "",
-        image: r.data[7] ?? "",
+        image: parsePoll(r.data[2] ?? "").image,
       })));
       setPollVotes(rowsOf("poll_votes").map(r => ({
         pollId: r.data[1] ?? "",

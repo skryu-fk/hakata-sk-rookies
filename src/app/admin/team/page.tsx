@@ -20,7 +20,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
-import { parseOptions, serializeOptions, type PollOption } from "@/lib/polls";
+import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -948,12 +948,12 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       setPolls(rows.map(r => ({
         id: r.data[0] ?? "",
         question: r.data[1] ?? "",
-        options: parseOptions(r.data[2] ?? ""),
+        options: parsePoll(r.data[2] ?? "").options,
         note: r.data[3] ?? "",
         status: r.data[4] ?? "open",
         deadline: (r.data[5] ?? "").slice(0, 10),
         createdAt: r.data[6] ?? "",
-        image: r.data[7] ?? "",
+        image: parsePoll(r.data[2] ?? "").image,
         _row: r.rowIndex,
       })));
     });
@@ -4337,8 +4337,9 @@ function PollsTab({
 
     const id = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const createdAt = new Date().toISOString().slice(0, 19).replace("T", " ");
-    // polls 列: [id, question, options, note, status, deadline, createdAt, image]
-    const row = [id, q, serializeOptions(opts), note.trim(), "open", deadline, createdAt, image];
+    // polls 列: [id, question, options, note, status, deadline, createdAt]
+    // 画像は options の中に入れる（列を増やすと ALTER TABLE が必要になるため）
+    const row = [id, q, serializePoll(opts, image), note.trim(), "open", deadline, createdAt];
     const ok = await api("/api/admin/append", { sheet: "polls", row });
     if (!ok) return;
 
@@ -4359,7 +4360,7 @@ function PollsTab({
   }
 
   async function setStatus(p: PollRow, status: "open" | "closed") {
-    const row = [p.id, p.question, serializeOptions(p.options), p.note, status, p.deadline, p.createdAt, p.image];
+    const row = [p.id, p.question, serializePoll(p.options, p.image), p.note, status, p.deadline, p.createdAt];
     const ok = await api("/api/admin/update", { sheet: "polls", rowIndex: p._row, row });
     if (!ok) return;
     showToast(true, status === "closed" ? "投票を締め切りました。" : "投票を再開しました。");

@@ -35,8 +35,8 @@ const COLUMNS: Record<string, string[]> = {
   blog: ["date", "category", "title", "excerpt", "content", "slug"],
   subscriptions: ["endpoint", "p256dh", "auth", "label", "created_at_text"],
   evaluations: ["id", "member_id", "member_name", "date", "batting", "running", "fielding", "pitching", "teamwork", "comment", "created_at_text"],
-  // image は後から足した列。並びを崩さないよう末尾に置いている。
-  polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text", "image"],
+  // 選択肢と添付画像は options 列に JSON でまとめて入れる（列を増やさないため）
+  polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text"],
   poll_votes: ["id", "poll_id", "member_id", "member_name", "choice", "created_at_text"],
 };
 
@@ -86,6 +86,30 @@ async function listRows(sheet: string) {
   const { data, error } = await db().from(sheet).select("*").order("row_id", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(r => toRow(sheet, r as Record<string, unknown>));
+}
+
+/**
+ * データベースのエラーを、読んで対処できる日本語にする。
+ * 「データベースエラー: ...」と英語のまま出しても何をすればいいか分からないため。
+ */
+function explainDbError(message: string): string {
+  const m = message || "";
+  const table = /relation "([^"]+)" does not exist/i.exec(m)?.[1];
+  if (table) {
+    return `「${table}」テーブルがまだありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。（詳細: ${m}）`;
+  }
+  const col = /column "?([\w.]+)"? .*does not exist/i.exec(m)?.[1]
+    ?? /Could not find the '([^']+)' column/i.exec(m)?.[1];
+  if (col) {
+    return `テーブルに「${col}」列がありません。Supabase の SQL Editor で supabase/schema.sql を実行し直してください。（詳細: ${m}）`;
+  }
+  if (/duplicate key|already exists/i.test(m)) {
+    return `同じデータが既に登録されています。（詳細: ${m}）`;
+  }
+  if (/permission denied|row-level security|JWT|api key/i.test(m)) {
+    return `データベースに接続できませんでした。Vercel の環境変数（SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY）をご確認ください。（詳細: ${m}）`;
+  }
+  return `データベースエラー: ${m}`;
 }
 
 /**
@@ -169,7 +193,7 @@ export async function callSupabase(payload: Record<string, unknown>): Promise<Da
     return { ok: false, status: 400, error: "unknown op" };
   } catch (e) {
     console.error("[supabase] error:", e);
-    return { ok: false, status: 502, error: `データベースエラー: ${(e as Error).message}` };
+    return { ok: false, status: 502, error: explainDbError((e as Error).message) };
   }
 }
 
