@@ -63,6 +63,29 @@ const sma = (xs: number[], w = 1) => xs.map((_, i) => {
   for (let k = -w; k <= w; k++) { const j = i + k; if (j >= 0 && j < xs.length) { s += xs[j]; c++; } }
   return s / c;
 });
+// 角度の移動平均。角度は -180 と 180 が同じ向きなので、そのまま平均すると
+// 0度付近に化ける。sin/cos に直して平均し、角度へ戻す。
+const smaAngle = (deg: number[], w = 1) => deg.map((_, i) => {
+  let sx = 0, sy = 0;
+  for (let k = -w; k <= w; k++) {
+    const j = i + k;
+    if (j >= 0 && j < deg.length) { const r = deg[j] * Math.PI / 180; sx += Math.cos(r); sy += Math.sin(r); }
+  }
+  return Math.atan2(sy, sx) * 180 / Math.PI;
+});
+/**
+ * 外れ値に強い最大値（上位1割を捨てた最大値）。
+ * 骨格推定は1コマだけ大きく外れることがあり、素の Math.max だと
+ * その1コマに引っ張られる。しかもコマ数が多い動画ほど外れ値を引きやすく、
+ * 「同じ動きなのに端末によって点数が変わる」原因になるため、ここで抑える。
+ */
+const robustMax = (xs: number[]) => {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => b - a);
+  // コマが少ないときに上位を捨てると、山を取りこぼして低く出てしまう。
+  if (s.length < 8) return s[0];
+  return s[clamp(Math.round(s.length * 0.1), 1, s.length - 1)];
+};
 
 type Frame = { t: number; lm: LM[]; world: LM[] };
 
@@ -127,7 +150,9 @@ function brightenSource(src: HTMLCanvasElement, gain: number, contrast: number):
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve) => {
     let done = false;
-    const finish = () => { if (done) return; done = true; video.removeEventListener("seeked", finish); requestAnimationFrame(() => resolve()); };
+    // requestAnimationFrame はアプリを裏に回した時など“画面が描かれない状態”では
+    // 一切発火しない。ここで rAF を待つと解析が永久に止まるため、タイマーで進める。
+    const finish = () => { if (done) return; done = true; video.removeEventListener("seeked", finish); setTimeout(resolve, 0); };
     video.addEventListener("seeked", finish);
     try { video.currentTime = Math.max(0, Math.min(t, (video.duration || 0) - 0.001)); } catch { finish(); }
     setTimeout(finish, 400);
@@ -152,6 +177,16 @@ function waitDecoded(video: HTMLVideoElement): Promise<void> {
   });
 }
 
+/** 今表示されているコマを静止画として取り込む */
+function pushShot(video: HTMLVideoElement, shots: Shot[]): void {
+  if (shots.length >= MAX_SHOTS) return;
+  const vw = video.videoWidth || SHOT_W, vh = video.videoHeight || Math.round(SHOT_W * 1.6);
+  const w = SHOT_W, h = Math.max(1, Math.round(vh * (SHOT_W / vw)));
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  if (ctx) { try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t: video.currentTime, cv }); } catch { /* noop */ } }
+}
+
 /**
  * コマ取得：動画を“再生しながら”静止コマを取る（requestVideoFrameCallback）。
  * 常にデコード済みフレームが得られる＝真っ黒コマにならず確実に検出できる。
@@ -159,14 +194,7 @@ function waitDecoded(video: HTMLVideoElement): Promise<void> {
  */
 async function grabShots(video: HTMLVideoElement, duration: number, onProgress?: (p: number) => void): Promise<Shot[]> {
   const shots: Shot[] = [];
-  const draw = () => {
-    if (shots.length >= MAX_SHOTS) return;
-    const vw = video.videoWidth || SHOT_W, vh = video.videoHeight || Math.round(SHOT_W * 1.6);
-    const w = SHOT_W, h = Math.max(1, Math.round(vh * (SHOT_W / vw)));
-    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
-    const ctx = cv.getContext("2d");
-    if (ctx) { try { ctx.drawImage(video, 0, 0, w, h); shots.push({ t: video.currentTime, cv }); } catch { /* noop */ } }
-  };
+  const draw = () => pushShot(video, shots);
   const rv = video as RVFC;
   const interval = Math.max(0.02, duration / TARGET_SHOTS);
   if (typeof rv.requestVideoFrameCallback === "function") {
@@ -190,6 +218,9 @@ async function grabShots(video: HTMLVideoElement, duration: number, onProgress?:
       try { video.currentTime = 0; video.playbackRate = clamp(duration / 6, 1, 2); } catch { /* noop */ }
       Promise.resolve(video.play()).catch(() => { /* 再生不可なら下のシークへ */ });
       rv.requestVideoFrameCallback!(onFrame);
+      // 画面が描かれない状態では requestVideoFrameCallback が発火しない。
+      // 一定時間たっても1コマも取れていなければ、待たずにシーク取り込みへ切り替える。
+      setTimeout(() => { if (shots.length === 0) finish(); }, 2500);
       setTimeout(finish, 11500);
     });
   }
@@ -236,6 +267,31 @@ function motionPeakIndex(shots: Shot[]): { idx: number; intensity: number } {
   return { idx: peak, intensity };
 }
 
+/**
+ * スイング/投球の瞬間の前後だけ、コマを細かく取り直す。
+ *
+ * 動画全体を均等に取り込むだけだと、0.2秒ほどで終わるスイングが2〜3コマしか
+ * 残らず、回転量や「ため」を正しく測れない（速さの山を1コマ跨いで見逃す）。
+ * いちばん動いた瞬間の前後 ±REFINE_SPAN 秒を 1/30 秒間隔で取り直して補う。
+ */
+const REFINE_SPAN = 0.5;   // 前後何秒を取り直すか
+const REFINE_STEP = 1 / 30; // 取り直す間隔（多くの動画の実フレーム間隔）
+async function refineShots(video: HTMLVideoElement, shots: Shot[], centerT: number, duration: number): Promise<void> {
+  const from = Math.max(0, centerT - REFINE_SPAN), to = Math.min(duration, centerT + REFINE_SPAN);
+  const startMs = Date.now();
+  const added: Shot[] = [];
+  for (let t = from; t <= to; t += REFINE_STEP) {
+    if (Date.now() - startMs > 7000 || shots.length + added.length >= MAX_SHOTS) break;
+    // すでに近い時刻のコマがあるなら取り直さない
+    if (shots.some(s => Math.abs(s.t - t) < REFINE_STEP * 0.6)) continue;
+    await seekTo(video, t);
+    await waitDecoded(video);
+    pushShot(video, added);
+  }
+  shots.push(...added);
+  shots.sort((a, b) => a.t - b.t);
+}
+
 /** 動画ファイルを解析して結果を返す。onProgress(0..1) で進捗を通知。 */
 export async function analyzeForm(
   file: File,
@@ -268,6 +324,17 @@ export async function analyzeForm(
     throw new Error("動画をうまく読み込めませんでした。1〜10秒の別の動画でお試しください。");
   }
 
+  // ── 1.5) 動きの山の前後を細かく取り直す ──
+  // スイングは0.2秒ほどで終わる。均等取り込みのままでは2〜3コマしか残らず、
+  // 回転量やためを測れない。先に「いちばん動いた瞬間」を見つけて密に取り直す。
+  // 注意: 動きの山は「取り直す前（コマ間隔が均一なうち）」に求めること。
+  // 取り直したあとの配列は間隔がバラバラで、隣のコマとの画像差分は
+  // 間隔が広いところほど大きく出る＝山の位置を誤って判定してしまう。
+  const coarsePeak = motionPeakIndex(shots);
+  const motionT = shots[coarsePeak.idx].t;
+  const motionIntensity = coarsePeak.intensity;
+  await refineShots(video, shots, motionT, duration);
+
   // ── 2) 明るさ（実フレームから3点測定）→ 自動補正ゲイン ──
   const briSamples: number[] = [];
   for (const r of [0.2, 0.5, 0.8]) {
@@ -280,12 +347,22 @@ export async function analyzeForm(
   onProgress?.(0.40);
 
   // ── 3) 検出（IMAGEモード＝状態を持たない＝同じ画像なら必ず同じ結果） ──
-  // 全体から均等に最大 DET_MAX コマを選んで検出（重さを一定に・結果も安定）。
+  // 検出するコマ数は DET_MAX 本に固定する（端末の負荷を一定に保つため）。
+  // ただし均等に配るのではなく、動きの山の前後（＝実際のスイング/投球）へ
+  // 優先的に割り当てる。ここが密でないと角度も速さも測れないため。
   const det = new Map<number, { lm: LM[]; world: LM[] }>();
   const DET_MAX = 40;
-  const stepDet = shots.length > DET_MAX ? shots.length / DET_MAX : 1;
-  const detIdxs: number[] = [];
-  for (let k = 0; k < Math.min(shots.length, DET_MAX); k++) detIdxs.push(Math.min(shots.length - 1, Math.round(k * stepDet)));
+  const WINDOW_MAX = 30; // うちスイング区間に割り当てる上限
+  const pickEven = (src: number[], n: number): number[] => {
+    if (src.length <= n) return src;
+    const st = src.length / n;
+    return Array.from(new Set(Array.from({ length: n }, (_, k) => src[Math.min(src.length - 1, Math.round(k * st))])));
+  };
+  const inSwing = shots.map((_, i) => i).filter(i => Math.abs(shots[i].t - motionT) <= REFINE_SPAN);
+  const outSwing = shots.map((_, i) => i).filter(i => Math.abs(shots[i].t - motionT) > REFINE_SPAN);
+  const nearIdxs = pickEven(inSwing, WINDOW_MAX);
+  const farIdxs = pickEven(outSwing, Math.max(0, DET_MAX - nearIdxs.length));
+  const detIdxs = [...new Set([...nearIdxs, ...farIdxs])].sort((a, b) => a - b);
   for (let n = 0; n < detIdxs.length; n++) {
     const idx = detIdxs[n];
     const src = brightenSource(shots[idx].cv, gain, contrast);
@@ -356,8 +433,10 @@ export async function analyzeForm(
   // 角度差を -180〜180 に収める
   const angDiff = (a: number, b: number) => { let d = a - b; while (d > 180) d -= 360; while (d < -180) d += 360; return d; };
 
-  const shoulderAz = frames.map(f => azimuth(f.world[R_SH], f.world[L_SH]));
-  const hipAz = frames.map(f => azimuth(f.world[R_HIP], f.world[L_HIP]));
+  // 速い動きはブレて z 座標が乱れ、向きが1コマだけ大きく飛ぶことがある。
+  // 前後のコマと均して、実際の動きだけを残す。
+  const shoulderAz = smaAngle(frames.map(f => azimuth(f.world[R_SH], f.world[L_SH])), 1);
+  const hipAz = smaAngle(frames.map(f => azimuth(f.world[R_HIP], f.world[L_HIP])), 1);
 
   /* ── インパクト/リリースの瞬間を「手首の速さ」から求める ──
    * 世界座標なので、カメラが揺れても手の動きだけを見られる。
@@ -373,10 +452,7 @@ export async function analyzeForm(
   for (let i = 1; i < speedSm.length; i++) if (speedSm[i] > speedSm[peakIdx]) peakIdx = i;
   const peakSpeed = speedSm[peakIdx] ?? 0;
 
-  // 画像の動きからも推定し、手首が取れていない場合の保険にする
-  const { idx: motionShotIdx, intensity: motionIntensity } = motionPeakIndex(shots);
-  const motionT = shots[motionShotIdx].t;
-  // 手首の速さが極端に小さい＝手が追えていないので、画像の動きを採用
+  // 手首の速さが極端に小さい＝手が追えていないので、画像の動き（motionT）を採用
   if (peakSpeed < 0.8 || detectQuality < 0.45) {
     let best = 0, bd = Infinity;
     for (let i = 0; i < frames.length; i++) { const d = Math.abs(frames[i].t - motionT); if (d < bd) { bd = d; best = i; } }
@@ -386,34 +462,61 @@ export async function analyzeForm(
 
   /* ── 解析する区間（スイング/投球動作の前後だけ） ──
    * 動画全体を見ると、歩いて構えに入る場面などが混ざって数値が狂う。   */
-  const WINDOW_SEC = 0.75;
-  const inWin = (i: number) => Math.abs(frames[i].t - impactT) <= WINDOW_SEC;
-  let winIdx = frames.map((_, i) => i).filter(inWin);
-  if (winIdx.length < 3) winIdx = frames.map((_, i) => i); // 区間が取れなければ全体
-  const setupIdx = winIdx[0];
-  const win = <T,>(arr: T[]) => winIdx.map(i => arr[i]);
+  // 区切りは「インパクトから何秒か」で決める。コマ番号で区切ると、
+  // コマ数や取り込み間隔が違うだけで見る範囲がずれ、同じ動きでも数値が変わる。
+  // 項目ごとに、本来見るべき局面だけを切り出す。
+  const range = (fromSec: number, toSec: number): number[] => {
+    const out = frames.map((_, i) => i)
+      .filter(i => frames[i].t - impactT >= fromSec && frames[i].t - impactT <= toSec);
+    return out.length >= 3 ? out : frames.map((_, i) => i); // 取れなければ全体で代用
+  };
+  const nearestFrame = (offsetSec: number) => {
+    let b = 0, bd = Infinity;
+    for (let i = 0; i < frames.length; i++) {
+      const d = Math.abs(frames[i].t - (impactT + offsetSec));
+      if (d < bd) { bd = d; b = i; }
+    }
+    return b;
+  };
+  const swingIdx = range(-0.55, 0.45);   // 動作そのもの
+  const setupIdx = nearestFrame(-0.55);  // 構え（基準の向き）
+  const winIdx = swingIdx;               // 信頼度の判定に使う
+
+  // スイング区間のコマ間隔。「ためが最大の瞬間」は一瞬しかないため、
+  // ここが粗いとその瞬間を取りこぼし、数値が実際より低く出る。
+  // 数字を取り繕わず、粗いときは信頼度を下げて伝える。
+  const swingGaps: number[] = [];
+  for (let k = 1; k < swingIdx.length; k++) swingGaps.push(frames[swingIdx[k]].t - frames[swingIdx[k - 1]].t);
+  const swingStep = swingGaps.length ? median(swingGaps) : 1;
 
   /* ── 指標の計算（すべて世界座標ベース） ── */
 
   // 体の回転量：構えからの肩の向きの変化（度）
-  const rotationDeg = Math.max(...win(shoulderAz).map(a => Math.abs(angDiff(a, shoulderAz[setupIdx]))));
+  const rotationDeg = robustMax(swingIdx.map(i => Math.abs(angDiff(shoulderAz[i], shoulderAz[setupIdx]))));
 
-  // 捻転差（Xファクター）：肩と腰のねじれの最大値（度）。大きいほど力が溜まる。
-  const separationDeg = Math.max(...winIdx.map(i => Math.abs(angDiff(shoulderAz[i], hipAz[i]))));
+  // 捻転差（Xファクター）：肩と腰のねじれ（度）。大きいほど力が溜まる。
+  // 見るのは「ためが最大になる、踏み込んでから振り出すまで」。
+  // 振り抜いたあとまで含めると、ただ肩が先行しただけの角度を拾ってしまう。
+  const separationDeg = robustMax(range(-0.45, 0.15).map(i => Math.abs(angDiff(shoulderAz[i], hipAz[i]))));
 
-  // 頭のブレ：腰の中心から見た頭の横ズレのばらつき（肩幅比）。小さいほど軸が安定。
-  const headSway = std(win(frames).map(f => f.world[NOSE].x)) / shoulderW;
+  // 頭のブレ：腰の中心から見た頭の横ズレ（肩幅比）。小さいほど軸が安定。
+  // インパクトまでで見る（振り抜いたあと頭が動くのは当たり前のため）。
+  const headIdx = range(-0.60, 0.10);
+  const headMid = median(headIdx.map(i => frames[i].world[NOSE].x));
+  const headSway = robustMax(headIdx.map(i => Math.abs(frames[i].world[NOSE].x - headMid))) / shoulderW;
 
   // ステップ幅：両足首の間隔（脚の長さ比）
-  const strideRatio = Math.max(...win(frames).map(f => dist3(f.world[L_AN], f.world[R_AN]))) / legLen;
+  const strideRatio = robustMax(range(-0.40, 0.20).map(i => dist3(frames[i].world[L_AN], frames[i].world[R_AN]))) / legLen;
 
-  // フォロースルー：インパクト後の手の移動距離（腕の長さ比）
-  let followPath = 0;
-  for (let i = peakIdx + 1; i < frames.length; i++) followPath += dist3(frames[i].world[WR], frames[i - 1].world[WR]);
-  const followRatio = followPath / armLen;
+  // フォロースルー：インパクト後 0.6 秒のあいだに、手がどこまで運ばれたか（腕の長さ比）。
+  // 移動距離を足し算するとコマ数が多いほど長くなるため、インパクト時の手の位置から
+  // いちばん遠ざかった距離で測る。時間で区切らないと、振り終わったあとの
+  // 歩き出しや構え直しまで「振り抜き」として数えてしまう。
+  const followRatio = robustMax(
+    range(0.02, 0.60).map(i => dist3(frames[i].world[WR], frames[peakIdx].world[WR]) / armLen));
 
   // 開きの早さ：インパクトまでの前半で、肩がどれだけ回ってしまっているか
-  const midI = winIdx[Math.max(0, Math.floor(winIdx.indexOf(peakIdx) * 0.45))] ?? setupIdx;
+  const midI = nearestFrame(-0.25);
   const earlyOpenRatio = rotationDeg > 3
     ? clamp(Math.abs(angDiff(shoulderAz[midI], shoulderAz[setupIdx])) / rotationDeg, 0, 1)
     : 0;
@@ -423,7 +526,10 @@ export async function analyzeForm(
    * 基準値は一般的な指導内容をもとにした目安（絶対的な正解ではない）。   */
   const up = (v: number, lo: number, ideal: number) => clamp(Math.round(((v - lo) / (ideal - lo)) * 100), 0, 100);
   const down = (v: number, good: number, bad: number) => clamp(Math.round(((bad - v) / (bad - good)) * 100), 0, 100);
-  const band = (v: number, ideal: number, tol: number) => clamp(Math.round(100 - (Math.abs(v - ideal) / tol) * 100), 0, 100);
+  // 「この範囲ならどこでも満点、外れるほど下がる」。踏み込み幅のように
+  // 正解が一点ではなく幅がある項目に使う（広い構えも狭い構えも正解になりうる）。
+  const plateau = (v: number, lo: number, hi: number, tol: number) =>
+    v >= lo && v <= hi ? 100 : clamp(Math.round(100 - ((v < lo ? lo - v : v - hi) / tol) * 100), 0, 100);
 
   const firstLine = (s: string) => s.split("。")[0] + "。";
   type Def = { key: string; label: string; score: number; measured: string; good: string; tip: string };
@@ -431,34 +537,34 @@ export async function analyzeForm(
 
   if (kind === "batting") {
     defs = [
-      { key: "axis", label: "軸の安定（頭のブレ）", score: down(headSway, 0.10, 0.60),
+      { key: "axis", label: "軸の安定（頭のブレ）", score: down(headSway, 0.25, 1.10),
         measured: `頭のブレ 肩幅の${(headSway * 100).toFixed(0)}%`,
         good: "頭の位置が最後まで動かず、非常に安定した軸で振れています。",
         tip: "スイング中に頭が動いています。アゴを軽く引き、目線をインパクト位置に最後まで残す意識を。鏡の前でゆっくり素振りし、頭が左右に流れないか確認すると効果的です。" },
-      { key: "rotation", label: "体の回転", score: up(rotationDeg, 20, 80),
+      { key: "rotation", label: "体の回転", score: up(rotationDeg, 30, 160),
         measured: `肩の回転 ${rotationDeg.toFixed(0)}°`,
         good: "骨盤から大きく回転できていて、力がしっかり伝わるスイングです。",
         tip: "回転が小さめです。手だけで振らず、後ろの腰（骨盤）を投手方向へしっかり回す意識を。ティー打撃で『おへそをピッチャーへ向ける』感覚を作りましょう。" },
-      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 5, 40),
+      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 8, 40),
         measured: `肩と腰のねじれ ${separationDeg.toFixed(0)}°`,
         good: "肩と腰のねじれが大きく、パワーを溜められています。",
         tip: "肩と腰が一緒に回っていて「ため」が作れていません。下半身を先に回し、上半身を我慢して遅れて出すと打球が強くなります。腰から動き出す素振りを繰り返しましょう。" },
-      { key: "stride", label: "踏み込み（ステップ）", score: band(strideRatio, 0.90, 0.55),
+      { key: "stride", label: "踏み込み（ステップ）", score: plateau(strideRatio, 0.75, 1.30, 0.35),
         measured: `足幅 脚の長さの${(strideRatio * 100).toFixed(0)}%`,
         good: "前足へちょうど良い幅で踏み込めていて、下半身主導のスイングです。",
         tip: "踏み込み幅が最適から外れています。広すぎると回転できず、狭すぎると力が伝わりません。軸足に乗ってから、自分が一番回りやすい幅を素振りで探しましょう。" },
-      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.8, 3.5),
-        measured: `振り抜き 腕の長さの${followRatio.toFixed(1)}倍`,
+      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.35, 1.30),
+        measured: `インパクト後の手の移動 腕の長さの${followRatio.toFixed(1)}倍`,
         good: "最後までしっかり振り切れていて、理想的なフィニッシュです。",
         tip: "振り切りが小さめです。インパクトで止めず、両手が肩の高さまで来るイメージで大きく振り抜きましょう。フィニッシュまで一気に振る素振りを。" },
     ];
   } else {
     defs = [
-      { key: "balance", label: "軸の安定（頭のブレ）", score: down(headSway, 0.12, 0.65),
+      { key: "balance", label: "軸の安定（頭のブレ）", score: down(headSway, 0.25, 1.05),
         measured: `頭のブレ 肩幅の${(headSway * 100).toFixed(0)}%`,
         good: "軸足で立った時から着地まで、頭の位置が安定しています。",
         tip: "立ち上がりで上体が揺れています。軸足一本で2秒静止できるバランス練習を。お腹に力を入れ、頭の真下に軸足を置く意識で。" },
-      { key: "stride", label: "ステップ幅", score: band(strideRatio, 1.05, 0.55),
+      { key: "stride", label: "ステップ幅", score: plateau(strideRatio, 0.85, 1.40, 0.35),
         measured: `歩幅 脚の長さの${(strideRatio * 100).toFixed(0)}%`,
         good: "良いステップ幅で、下半身をしっかり使えています。",
         tip: "歩幅が最適から外れています。狭いと球威が出ず、広すぎるとリリースが安定しません。体重を乗せ切れる幅を探しましょう。" },
@@ -466,12 +572,12 @@ export async function analyzeForm(
         measured: `前半での開き ${(earlyOpenRatio * 100).toFixed(0)}%`,
         good: "体の開きを我慢できていて、力の伝わるフォームです。",
         tip: "体（胸・肩）の開きが早いです。グラブ側の肩を打者へ向けたまま我慢し、最後に一気に開くと球速・制球が上がります。タオルシャドーで開きを抑える練習を。" },
-      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 5, 35),
+      { key: "separation", label: "捻転差（ため）", score: up(separationDeg, 8, 38),
         measured: `肩と腰のねじれ ${separationDeg.toFixed(0)}°`,
         good: "下半身と上半身の時間差が作れていて、球に力が乗ります。",
         tip: "肩と腰が同時に回っています。踏み出した足が着いてから上半身を回すと、球速が上がります。ゆっくりしたシャドーピッチングで順番を体に入れましょう。" },
-      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.8, 3.2),
-        measured: `振り抜き 腕の長さの${followRatio.toFixed(1)}倍`,
+      { key: "follow", label: "フォロースルー", score: up(followRatio, 0.35, 1.25),
+        measured: `リリース後の手の移動 腕の長さの${followRatio.toFixed(1)}倍`,
         good: "腕を最後までしっかり振り切れています。",
         tip: "振り切りが小さめです。リリース後も腕を振り抜き、グラブ側の膝の外まで手を持っていくと、肩肘の負担も減り球威も出ます。" },
     ];
@@ -481,8 +587,8 @@ export async function analyzeForm(
    * 骨格の取得品質・解析できたコマ数・区間が取れたかで決める。
    * 低いときは数値を断定せず、その旨をはっきり伝える。   */
   const confidence: "high" | "medium" | "low" =
-    detectQuality >= 0.75 && frames.length >= 18 && winIdx.length >= 6 ? "high"
-    : detectQuality >= 0.55 && frames.length >= 10 ? "medium" : "low";
+    detectQuality >= 0.75 && frames.length >= 18 && winIdx.length >= 12 && swingStep <= 0.07 ? "high"
+    : detectQuality >= 0.55 && frames.length >= 10 && swingStep <= 0.16 ? "medium" : "low";
 
   const metrics: Metric[] = defs.map(d => ({
     key: d.key, label: d.label, score: d.score, measured: d.measured,
@@ -495,6 +601,9 @@ export async function analyzeForm(
     notes.push("⚠ 骨格をうまく検出できていないため、点数の精度は低めです。横から・全身が入るように・明るい場所で撮り直すと大きく改善します。");
   } else if (confidence === "medium") {
     notes.push("ℹ️ おおむね検出できています。全身がはっきり映るように撮ると、さらに精度が上がります。");
+  }
+  if (swingStep > 0.07) {
+    notes.push("⚠ スイングの一瞬を捉えたコマが少なめです。とくに「ため（捻転差）」は実際より低めに出ている可能性があります。");
   }
 
   // ── 打者タイプ判定（打撃のみ）── 回転・捻転差・振り切り・軸から判定する
