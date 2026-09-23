@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
+import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
@@ -1238,6 +1239,42 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
     return false;
   }, [me, loadAll]);
 
+  /** 自分の成績分析（SKドッパミンAI）。外部APIは使わず端末内で計算する。 */
+  const myAnalysis = useMemo<PlayerAnalysis | null>(() => {
+    if (!me || members.length === 0) return null;
+    const sum = <T,>(rows: T[], pick: (r: T) => number) => rows.reduce((acc, r) => acc + pick(r), 0);
+    const practiceDates = new Set(attendance.map(a => a.date).filter(Boolean));
+    const inputs: PlayerInput[] = members.filter(m => m.active).map(m => {
+      const b = batting.filter(r => r.memberId === m.id);
+      const p2 = pitching.filter(r => r.memberId === m.id);
+      const c = catching.filter(r => r.memberId === m.id);
+      const f = fielding.filter(r => r.memberId === m.id);
+      const a = attendance.filter(r => r.memberId === m.id);
+      return {
+        id: m.id, name: m.name, position: m.position,
+        batting: b.length ? {
+          games: b.length, ab: sum(b, x => x.atBats), h: sum(b, x => x.hits),
+          doubles: sum(b, x => x.doubles), triples: sum(b, x => x.triples), hr: sum(b, x => x.hr),
+          rbi: sum(b, x => x.rbi), bb: sum(b, x => x.bb), so: sum(b, x => x.so),
+          hbp: sum(b, x => x.hbp), sb: sum(b, x => x.sb), cs: sum(b, x => x.cs),
+        } : undefined,
+        pitching: p2.length ? {
+          appearances: p2.length, ipOuts: sum(p2, x => x.ipOuts), hits: sum(p2, x => x.hits),
+          runs: sum(p2, x => x.runs), er: sum(p2, x => x.er), so: sum(p2, x => x.so),
+          bb: sum(p2, x => x.bb), hbp: sum(p2, x => x.hbp),
+        } : undefined,
+        catching: c.length ? { games: c.length, sba: sum(c, x => x.sba), cs: sum(c, x => x.cs) } : undefined,
+        fielding: f.length ? { games: f.length, po: sum(f, x => x.po), a: sum(f, x => x.a), e: sum(f, x => x.e) } : undefined,
+        attendance: practiceDates.size > 0
+          ? { attended: a.filter(x => x.status === "出席" || x.status === "遅刻").length, total: practiceDates.size }
+          : undefined,
+      };
+    });
+    const mine = inputs.find(i => i.id === me);
+    if (!mine) return null;
+    return analyzePlayer(mine, buildTeamBaseline(inputs));
+  }, [me, members, batting, pitching, catching, fielding, attendance]);
+
   const scopeLabel = scope === TOTAL_SCOPE
     ? "通算"
     : (() => { const g = games.find(g => g.key === scope); return g ? `${mdLabel(g.date)} ${g.opponent || "試合"}` : "通算"; })();
@@ -1437,7 +1474,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         ) : tab === "mypage" ? (
           <>
-            <MyPageView profile={profile} onReload={loadProfile} />
+            <MyPageView profile={profile} onReload={loadProfile} analysis={myAnalysis} />
             <div style={{ marginTop: 22 }}><FormCheckView /></div>
           </>
         ) : statKind === "batting" ? (
@@ -1637,7 +1674,67 @@ function fmtAnnDate(d: string): string {
 }
 
 /* ── お知らせビュー ───────────────────────────────────── */
-function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: () => void }) {
+/** 自分の成績分析（SKドッパミンAI）。マイページに表示する。 */
+function MyAnalysisCard({ analysis }: { analysis: PlayerAnalysis }) {
+  const relColor = analysis.reliability === "high" ? "#30D158" : analysis.reliability === "medium" ? "#E5B84B" : "rgba(235,235,245,0.45)";
+  const relLabel = analysis.reliability === "high" ? "信頼度 高" : analysis.reliability === "medium" ? "信頼度 中" : "信頼度 低";
+  return (
+    <div style={{ background: "#1C1C1E", borderRadius: 12, padding: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 10 }}>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 17 }}>🧠 あなたの分析</span>
+        <span style={{ fontSize: 11, color: relColor, border: `1px solid ${relColor}`, borderRadius: 999, padding: "2px 9px" }}>{relLabel}</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: "#E5B84B", marginBottom: 6 }}>{analysis.type}</div>
+      <p style={{ fontSize: 14, lineHeight: 1.85, margin: "0 0 4px" }}>{analysis.headline}</p>
+      <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, margin: "0 0 16px" }}>{analysis.reliabilityNote}</p>
+
+      {analysis.metrics.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(86px, 1fr))", gap: 8, marginBottom: 16 }}>
+          {analysis.metrics.map(m => (
+            <div key={m.label} style={{ background: "#2C2C2E", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+              <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.60)", marginBottom: 4 }}>{m.label}</div>
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 19, fontWeight: 700, lineHeight: 1 }}>{m.value}</div>
+              {m.vsTeam && <div style={{ fontSize: 9.5, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>{m.vsTeam}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {([["強み", analysis.strengths, "#30D158"], ["課題", analysis.issues, "#E5B84B"]] as const).map(([title, list, color]) => (
+        list.length === 0 ? null : (
+          <div key={title} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 8 }}>{title}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {list.map(it => (
+                <div key={it.title} style={{ background: "#2C2C2E", borderRadius: 10, padding: "11px 13px" }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>{it.title}</div>
+                  <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.75)", lineHeight: 1.75, marginTop: 4 }}>{it.detail}</div>
+                  {it.evidence && <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 5 }}>{it.evidence}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      ))}
+
+      {analysis.drills.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#E5B84B", marginBottom: 8 }}>おすすめの練習メニュー</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {analysis.drills.map(d => (
+              <div style={{ background: "#2C2C2E", borderRadius: 10, padding: "11px 13px" }} key={d.title}>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{d.title}</div>
+                <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.75)", lineHeight: 1.75, marginTop: 4 }}>{d.detail}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; onReload: () => void; analysis: PlayerAnalysis | null }) {
   // 本人が変更できるのは「ニックネーム」と「ポジション」だけ。
   // 名前は名簿との照合に使うため、背番号・加入日はチーム管理情報のため変更不可。
   const [nickname, setNickname] = useState("");
@@ -1735,6 +1832,8 @@ function MyPageView({ profile, onReload }: { profile: Profile | null; onReload: 
           </div>
         )}
       </div>
+
+      {analysis && <MyAnalysisCard analysis={analysis} />}
 
       <div style={{ ...box, padding: "14px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
         <span style={{ fontSize: 16 }}>🔒</span>

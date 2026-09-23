@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
+import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -850,6 +851,47 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     });
   }, [listCached]);
 
+  /**
+   * 選手分析（SKドッパミンAI）の入力を、読み込み済みの記録から組み立てる。
+   * 外部APIは使わず、すべてこの端末内の計算で完結する。
+   */
+  const analyses = useMemo(() => {
+    const sum = <T,>(rows: T[], pick: (r: T) => number) => rows.reduce((s, r) => s + pick(r), 0);
+    const practiceDates = new Set(attendance.map(a => a.date).filter(Boolean));
+    const inputs: PlayerInput[] = members.filter(m => m.active).map(m => {
+      const b = batting.filter(r => r.memberId === m.id);
+      const p = pitching.filter(r => r.memberId === m.id);
+      const c = catching.filter(r => r.memberId === m.id);
+      const f = fielding.filter(r => r.memberId === m.id);
+      const a = attendance.filter(r => r.memberId === m.id);
+      return {
+        id: m.id,
+        name: m.name,
+        position: m.position,
+        batting: b.length ? {
+          games: b.length, ab: sum(b, x => x.atBats), h: sum(b, x => x.hits),
+          doubles: sum(b, x => x.doubles), triples: sum(b, x => x.triples), hr: sum(b, x => x.hr),
+          rbi: sum(b, x => x.rbi), bb: sum(b, x => x.bb), so: sum(b, x => x.so),
+          hbp: sum(b, x => x.hbp), sb: sum(b, x => x.sb), cs: sum(b, x => x.cs),
+        } : undefined,
+        pitching: p.length ? {
+          appearances: p.length, ipOuts: sum(p, x => x.ipOuts), hits: sum(p, x => x.hits),
+          runs: sum(p, x => x.runs), er: sum(p, x => x.er), so: sum(p, x => x.so),
+          bb: sum(p, x => x.bb), hbp: sum(p, x => x.hbp),
+        } : undefined,
+        catching: c.length ? { games: c.length, sba: sum(c, x => x.sba), cs: sum(c, x => x.cs) } : undefined,
+        fielding: f.length ? { games: f.length, po: sum(f, x => x.po), a: sum(f, x => x.a), e: sum(f, x => x.e) } : undefined,
+        attendance: practiceDates.size > 0
+          ? { attended: a.filter(x => x.status === "出席" || x.status === "遅刻").length, total: practiceDates.size }
+          : undefined,
+      };
+    });
+    const baseline = buildTeamBaseline(inputs);
+    const map = new Map<string, PlayerAnalysis>();
+    inputs.forEach(i => map.set(i.id, analyzePlayer(i, baseline)));
+    return map;
+  }, [members, batting, pitching, catching, fielding, attendance]);
+
   const loadEvaluations = useCallback(async () => {
     await listCached("evaluations", rows => {
       setEvaluations(rows.map(r => ({
@@ -903,7 +945,18 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
   useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
   useEffect(() => { if (tab === "accounts") loadAccounts(); }, [tab, loadAccounts]);
-  useEffect(() => { if (tab === "evaluation") loadEvaluations(); }, [tab, loadEvaluations]);
+  useEffect(() => {
+    if (tab === "evaluation") {
+      loadEvaluations();
+      // 分析に必要な記録をまとめて用意する
+      if (batting.length === 0) loadBatting();
+      if (pitching.length === 0) loadPitching();
+      if (catching.length === 0) loadCatching();
+      if (fielding.length === 0) loadFielding();
+      if (attendance.length === 0) loadAttendance();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, loadEvaluations]);
   useEffect(() => {
     if (tab === "link") {
       loadAccounts();
@@ -1189,6 +1242,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           <EvaluationTab
             members={members}
             evaluations={evaluations}
+            analyses={analyses}
             loading={!!loading.evaluations}
             saving={saving}
             api={api}
@@ -3743,10 +3797,11 @@ function evalAverage(e: EvaluationRow): number {
 }
 
 function EvaluationTab({
-  members, evaluations, loading, saving, api, reload, showToast,
+  members, evaluations, analyses, loading, saving, api, reload, showToast,
 }: {
   members: Member[];
   evaluations: EvaluationRow[];
+  analyses: Map<string, PlayerAnalysis>;
   loading: boolean;
   saving: boolean;
   api: <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }) => Promise<T | null>;
@@ -3904,6 +3959,96 @@ function EvaluationTab({
           </section>
         ) : (
           <div>
+            {/* SKドッパミンAI による分析 */}
+            {(() => {
+              const an = analyses.get(selected.id);
+              if (!an) return null;
+              const relColor = an.reliability === "high" ? "#30D158" : an.reliability === "medium" ? "#E5B84B" : "rgba(235,235,245,0.60)";
+              const relLabel = an.reliability === "high" ? "信頼度 高" : an.reliability === "medium" ? "信頼度 中" : "信頼度 低";
+              const hasSuggestion = EVAL_CATEGORIES.some(c => an.ratingSuggestion[c.key as EvalKey] > 0);
+              return (
+                <section style={{ ...cardStyle, marginBottom: 16, border: "1px solid rgba(229,184,75,0.35)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                    <H3>🧠 SKドッパミンAI の分析</H3>
+                    <span style={{ fontSize: 11, color: relColor, border: `1px solid ${relColor}`, borderRadius: 999, padding: "2px 10px", marginBottom: 12 }}>
+                      {relLabel}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginBottom: 12 }}>{an.type}</span>
+                  </div>
+                  <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.85, margin: "0 0 6px" }}>{an.headline}</p>
+                  <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, margin: "0 0 16px" }}>{an.reliabilityNote}</p>
+
+                  {an.metrics.length > 0 && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 16 }}>
+                      {an.metrics.map(m => (
+                        <div key={m.label} style={{ background: "#2C2C2E", borderRadius: 8, padding: "9px 11px" }}>
+                          <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.60)" }}>{m.label}</div>
+                          <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 19, fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{m.value}</div>
+                          {m.vsTeam && <div style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 2 }}>{m.vsTeam}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(an.strengths.length > 0 || an.issues.length > 0) && (
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-2" style={{ marginBottom: 14 }}>
+                      {[["強み", an.strengths, "#30D158"], ["課題", an.issues, "#ffb84a"]].map(([title, list, color]) => {
+                        const items = list as typeof an.strengths;
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={title as string}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: color as string, marginBottom: 8 }}>{title as string}</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {items.map(it => (
+                                <div key={it.title} style={{ background: "#2C2C2E", borderRadius: 8, padding: "10px 12px" }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700 }}>{it.title}</div>
+                                  <div style={{ fontSize: 12, color: "rgba(235,235,245,0.75)", lineHeight: 1.75, marginTop: 4 }}>{it.detail}</div>
+                                  {it.evidence && <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 5 }}>{it.evidence}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {an.drills.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "#E5B84B", marginBottom: 8 }}>おすすめの練習メニュー</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {an.drills.map(d => (
+                          <div key={d.title} style={{ background: "#2C2C2E", borderRadius: 8, padding: "10px 12px" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{d.title}</div>
+                            <div style={{ fontSize: 12, color: "rgba(235,235,245,0.75)", lineHeight: 1.75, marginTop: 4 }}>{d.detail}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {hasSuggestion && (
+                    <button
+                      onClick={() => {
+                        setScores(p => {
+                          const next = { ...p };
+                          EVAL_CATEGORIES.forEach(c => {
+                            const v = an.ratingSuggestion[c.key as EvalKey];
+                            if (v > 0) next[c.key] = v;
+                          });
+                          return next;
+                        });
+                        showToast(true, "AIの目安を★に反映しました。内容を確認して調整してください。");
+                      }}
+                      style={{ width: "100%", padding: "11px", background: "rgba(229,184,75,0.16)", color: "#E5B84B", border: "1px solid rgba(229,184,75,0.55)", borderRadius: 9, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                    >
+                      ★ AIの目安を下の評価に反映する
+                    </button>
+                  )}
+                </section>
+              );
+            })()}
+
             <section style={cardStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
                 <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#E5B84B" }}>
