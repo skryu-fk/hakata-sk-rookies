@@ -15,6 +15,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
+import PollCard, { isPollLive, type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -968,6 +969,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
+  const [polls, setPolls] = useState<PollRow[]>([]);
+  const [pollVotes, setPollVotes] = useState<PollVoteRow[]>([]);
   const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
   const [me, setMe] = useState<string>("");  // 自分の memberId（localStorage 記憶）
   const [loading, setLoading] = useState(true);
@@ -1081,6 +1084,22 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         status: r.data[3] ?? "",
         note: r.data[4] ?? "",
       })));
+      setPolls(rowsOf("polls").map(r => ({
+        id: r.data[0] ?? "",
+        question: r.data[1] ?? "",
+        // 選択肢は1行1つで保存されている
+        options: (r.data[2] ?? "").split(/\r?\n/).map(o => o.trim()).filter(Boolean),
+        note: r.data[3] ?? "",
+        status: r.data[4] ?? "open",
+        deadline: (r.data[5] ?? "").slice(0, 10),
+        createdAt: r.data[6] ?? "",
+      })));
+      setPollVotes(rowsOf("poll_votes").map(r => ({
+        pollId: r.data[1] ?? "",
+        memberId: r.data[2] ?? "",
+        memberName: r.data[3] ?? "",
+        choice: r.data[4] ?? "",
+      })));
       const setts = rowsOf("settings").map(r => ({
         key: r.data[0] ?? "",
         value: r.data[1] ?? "",
@@ -1097,6 +1116,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       const map = await fetchSheets([
         "members", "batting", "pitching", "catching", "fielding",
         "practices", "probables", "announcements", "participants", "settings", "attendance",
+        "polls", "poll_votes",
       ]);
       // 取得できた時だけ反映（失敗時はキャッシュ表示を保つ）
       if (Object.keys(map).length > 0) {
@@ -1239,6 +1259,30 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
     if (res?.ok) { await loadAll(); return true; }
     return false;
   }, [me, loadAll]);
+
+  // 管理者が作った投票への回答。誰として投票するかはサーバー側が
+  // ログイン情報から決めるため、ここでは投票IDと選んだ選択肢だけ送る。
+  const castVote = useCallback(async (pollId: string, choice: string) => {
+    const res = await fetch("/api/member/poll-vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pollId, choice }),
+    }).then(r => r.json()).catch(() => null);
+    if (res?.ok) { await loadAll(true); return { ok: true as const }; }
+    return { ok: false as const, error: res?.error ?? "投票できませんでした。通信状況をご確認ください。" };
+  }, [loadAll]);
+
+  // 受付中なのに自分がまだ答えていない投票（タブのバッジと並び替えに使う）
+  const openPolls = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return polls
+      .filter(p => p.question && isPollLive(p, today))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [polls]);
+  const unansweredCount = useMemo(
+    () => (me ? openPolls.filter(p => !pollVotes.some(v => v.pollId === p.id && v.memberId === me)).length : 0),
+    [openPolls, pollVotes, me]
+  );
 
   /** 自分の成績分析（SKドッパミンAI）。外部APIは使わず端末内で計算する。 */
   const myAnalysis = useMemo<PlayerAnalysis | null>(() => {
@@ -1470,7 +1514,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         {loading ? (
           <p style={{ textAlign: "center", color: "rgba(235,235,245,0.60)", padding: 48, fontSize: 14 }}>読み込み中…</p>
         ) : tab === "news" ? (
-          <NewsView announcements={announcements} />
+          <NewsView announcements={announcements} polls={polls} pollVotes={pollVotes} me={me} onVote={castVote} />
         ) : tab === "schedule" ? (
           <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         ) : tab === "ai" ? (
@@ -1500,7 +1544,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       }}>
         <div style={{ display: "flex", maxWidth: 560, margin: "0 auto" }}>
           {([
-            ["news", "📣", "お知らせ", announcements.length],
+            ["news", "📣", "お知らせ", unansweredCount > 0 ? unansweredCount : announcements.length],
             ["stats", "⚾", "成績", -1],
             ["ai", "🧠", "AI解析", -1],
             ["schedule", "📅", "日程", scheduleCount],
@@ -2066,7 +2110,13 @@ function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; 
   );
 }
 
-function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
+function NewsView({ announcements, polls, pollVotes, me, onVote }: {
+  announcements: AnnouncementRow[];
+  polls: PollRow[];
+  pollVotes: PollVoteRow[];
+  me: string;
+  onVote: (pollId: string, choice: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
   const [showAll, setShowAll] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
 
@@ -2078,8 +2128,34 @@ function NewsView({ announcements }: { announcements: AnnouncementRow[] }) {
   const shown = showAll ? sorted : sorted.slice(0, RECENT);
   const hasMore = sorted.length > RECENT;
 
+  // 受付中を上に。終了したものは結果を見られるよう下に残す。
+  const today = new Date().toISOString().slice(0, 10);
+  const livePolls = polls
+    .filter(p => p.question && p.options.length > 0)
+    .map(p => ({ p, live: isPollLive(p, today) }))
+    .sort((a, b) => (a.live === b.live ? b.p.createdAt.localeCompare(a.p.createdAt) : a.live ? -1 : 1));
+  const open = livePolls.filter(x => x.live);
+  const done = livePolls.filter(x => !x.live);
+
   return (
     <div>
+      {/* 投票（受付中）── 管理者が作ると自動でここに出る */}
+      {open.map(({ p }) => (
+        <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
+      ))}
+      {done.length > 0 && (
+        <details style={{ marginBottom: 14 }}>
+          <summary style={{ cursor: "pointer", fontSize: 12.5, color: "rgba(235,235,245,0.45)", padding: "4px 2px" }}>
+            終了した投票の結果を見る（{done.length}件）
+          </summary>
+          <div style={{ marginTop: 10 }}>
+            {done.map(({ p }) => (
+              <PollCard key={p.id} poll={p} votes={pollVotes.filter(v => v.pollId === p.id)} me={me} onVote={onVote} />
+            ))}
+          </div>
+        </details>
+      )}
+
       {/* バージョン / 更新情報 */}
       <section className="stx-row" style={{ ...cardStyle, padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

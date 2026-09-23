@@ -35,6 +35,8 @@ const COLUMNS: Record<string, string[]> = {
   blog: ["date", "category", "title", "excerpt", "content", "slug"],
   subscriptions: ["endpoint", "p256dh", "auth", "label", "created_at_text"],
   evaluations: ["id", "member_id", "member_name", "date", "batting", "running", "fielding", "pitching", "teamwork", "comment", "created_at_text"],
+  polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text"],
+  poll_votes: ["id", "poll_id", "member_id", "member_name", "choice", "created_at_text"],
 };
 
 export const SUPABASE_TABLES = Object.keys(COLUMNS);
@@ -96,8 +98,15 @@ export async function callSupabase(payload: Record<string, unknown>): Promise<Da
       const names = (payload.sheets as string[] | undefined) ?? [];
       const sheets: Record<string, unknown> = {};
       // 1リクエストにつき並列で取得（SQLは速いので同時でも問題にならない）
+      // 1つのテーブルの失敗で全体を落とさない。新しいテーブルを足した直後など、
+      // まだ SQL を流していない状態でもアプリ全体が真っ白にならないようにする。
       await Promise.all(names.filter(n => COLUMNS[n]).map(async n => {
-        sheets[n] = await listRows(n);
+        try {
+          sheets[n] = await listRows(n);
+        } catch (e) {
+          console.error(`[supabase] listMany: ${n} を読めませんでした`, e);
+          sheets[n] = [];
+        }
       }));
       return { ok: true, data: { ok: true, sheets } };
     }

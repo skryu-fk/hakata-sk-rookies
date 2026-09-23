@@ -31,7 +31,7 @@ function isKatakanaName(name: string): boolean {
 
 const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "polls" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -44,6 +44,13 @@ type EvaluationRow = {
   batting: number; running: number; fielding: number; pitching: number; teamwork: number;
   comment: string; createdAt: string; _row: number;
 };
+
+/** 管理者が作る投票と、その回答 */
+type PollRow = {
+  id: string; question: string; options: string[]; note: string;
+  status: string; deadline: string; createdAt: string; _row: number;
+};
+type PollVoteRow = { id: string; pollId: string; memberId: string; memberName: string; choice: string; _row: number };
 
 /** 評価項目。key は evaluations シートの列名と対応する。 */
 const EVAL_CATEGORIES = [
@@ -482,6 +489,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>([]);
+  const [polls, setPolls] = useState<PollRow[]>([]);
+  const [pollVotes, setPollVotes] = useState<PollVoteRow[]>([]);
   const [pitching, setPitching] = useState<PitchingRow[]>([]);
   const [catching, setCatching] = useState<CatchingRow[]>([]);
   const [fielding, setFielding] = useState<FieldingRow[]>([]);
@@ -911,6 +920,32 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     });
   }, [listCached]);
 
+  const loadPolls = useCallback(async () => {
+    await listCached("polls", rows => {
+      setPolls(rows.map(r => ({
+        id: r.data[0] ?? "",
+        question: r.data[1] ?? "",
+        // 選択肢は1行1つで保存している
+        options: (r.data[2] ?? "").split("\n").map(o => o.trim()).filter(Boolean),
+        note: r.data[3] ?? "",
+        status: r.data[4] ?? "open",
+        deadline: (r.data[5] ?? "").slice(0, 10),
+        createdAt: r.data[6] ?? "",
+        _row: r.rowIndex,
+      })));
+    });
+    await listCached("poll_votes", rows => {
+      setPollVotes(rows.map(r => ({
+        id: r.data[0] ?? "",
+        pollId: r.data[1] ?? "",
+        memberId: r.data[2] ?? "",
+        memberName: r.data[3] ?? "",
+        choice: r.data[4] ?? "",
+        _row: r.rowIndex,
+      })));
+    });
+  }, [listCached]);
+
   const loadAccounts = useCallback(async () => {
     const cachedAcc = readCache<AccountRow[]>("admin_accounts");
     if (cachedAcc) setAccounts(cachedAcc);
@@ -943,6 +978,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   useEffect(() => { if (tab === "fielding" && fielding.length === 0) loadFielding(); }, [tab, fielding.length, loadFielding]);
   useEffect(() => { if (tab === "notify" && announcements.length === 0) loadAnnouncements(); }, [tab, announcements.length, loadAnnouncements]);
   useEffect(() => { if (tab === "maintenance") loadSettings(); }, [tab, loadSettings]);
+  useEffect(() => { loadPolls(); }, [loadPolls]);  // 受付中の件数をタブに出すため常に取得
   useEffect(() => { if (tab === "approvals") loadPending(); }, [tab, loadPending]);
   useEffect(() => { if (tab === "accounts") loadAccounts(); }, [tab, loadAccounts]);
   useEffect(() => {
@@ -1032,6 +1068,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             ["notify", "通知", undefined, false],
             ["approvals", "記録の承認", pending.length, pending.length > 0],
             ["accounts", "アカウント", accounts.length, acctAlerts > 0],
+            ["polls", "投票", polls.filter(p => p.status === "open").length, false],
             ["link", "連携", undefined, false],
             ["maintenance", "メンテナンス", undefined, false],
           ] },
@@ -1247,6 +1284,18 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             saving={saving}
             api={api}
             reload={loadEvaluations}
+            showToast={showToast}
+          />
+        )}
+        {tab === "polls" && (
+          <PollsTab
+            polls={polls}
+            pollVotes={pollVotes}
+            members={members}
+            loading={!!loading.polls}
+            saving={saving}
+            api={api}
+            reload={loadPolls}
             showToast={showToast}
           />
         )}
@@ -4148,6 +4197,286 @@ function EvaluationTab({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── 投票タブ（管理者が投票を作る → アプリに自動で出る） ───────── */
+function PollsTab({
+  polls, pollVotes, members, loading, saving, api, reload, showToast,
+}: {
+  polls: PollRow[];
+  pollVotes: PollVoteRow[];
+  members: Member[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }) => Promise<T | null>;
+  reload: () => void;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [question, setQuestion] = useState("");
+  const [note, setNote] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [options, setOptions] = useState<string[]>(["", ""]);
+  const [notify, setNotify] = useState(true);
+  const [openId, setOpenId] = useState<string>("");
+
+  const activeMembers = useMemo(() => members.filter(m => m.active), [members]);
+
+  // 投票ID → 回答一覧
+  const votesByPoll = useMemo(() => {
+    const map = new Map<string, PollVoteRow[]>();
+    for (const v of pollVotes) {
+      const arr = map.get(v.pollId);
+      if (arr) arr.push(v); else map.set(v.pollId, [v]);
+    }
+    return map;
+  }, [pollVotes]);
+
+  const sorted = useMemo(
+    () => [...polls].sort((a, b) => {
+      // 受付中を上に、その中では新しい順
+      if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+      return b.createdAt.localeCompare(a.createdAt);
+    }),
+    [polls]
+  );
+
+  function setOption(i: number, v: string) {
+    setOptions(prev => prev.map((o, k) => (k === i ? v : o)));
+  }
+  function addOption() {
+    setOptions(prev => (prev.length >= 8 ? prev : [...prev, ""]));
+  }
+  function removeOption(i: number) {
+    setOptions(prev => (prev.length <= 2 ? prev : prev.filter((_, k) => k !== i)));
+  }
+  function resetForm() {
+    setQuestion(""); setNote(""); setDeadline(""); setOptions(["", ""]); setNotify(true);
+  }
+
+  async function createPoll() {
+    const q = question.trim();
+    const opts = options.map(o => o.trim()).filter(Boolean);
+    if (!q) { showToast(false, "質問を入力してください。"); return; }
+    if (opts.length < 2) { showToast(false, "選択肢は2つ以上必要です。"); return; }
+    if (new Set(opts).size !== opts.length) { showToast(false, "同じ選択肢が重複しています。"); return; }
+
+    const id = `pl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const createdAt = new Date().toISOString().slice(0, 19).replace("T", " ");
+    // polls 列: [id, question, options, note, status, deadline, createdAt]
+    const row = [id, q, opts.join("\n"), note.trim(), "open", deadline, createdAt];
+    const ok = await api("/api/admin/append", { sheet: "polls", row });
+    if (!ok) return;
+
+    if (notify) {
+      // 通知が失敗しても投票自体は作成済みなので、ここでは止めない。
+      const sent = await api<{ sent: number }>("/api/push/send", {
+        title: "🗳 新しい投票が届きました",
+        body: q.slice(0, 80),
+        url: "/stats",
+        tag: "poll",
+      }, { silent: true });
+      showToast(true, sent ? `投票を公開し、通知を${sent.sent}件送信しました。` : "投票を公開しました（通知の送信には失敗しました）。");
+    } else {
+      showToast(true, "投票を公開しました。アプリのお知らせに出ます。");
+    }
+    resetForm();
+    reload();
+  }
+
+  async function setStatus(p: PollRow, status: "open" | "closed") {
+    const row = [p.id, p.question, p.options.join("\n"), p.note, status, p.deadline, p.createdAt];
+    const ok = await api("/api/admin/update", { sheet: "polls", rowIndex: p._row, row });
+    if (!ok) return;
+    showToast(true, status === "closed" ? "投票を締め切りました。" : "投票を再開しました。");
+    reload();
+  }
+
+  async function removePoll(p: PollRow) {
+    const votes = votesByPoll.get(p.id) ?? [];
+    if (!window.confirm(`「${p.question}」を削除します。\n投票された${votes.length}件の回答も消えます。よろしいですか？`)) return;
+    // 回答を先に消す。行番号がずれないよう、大きい行から消していく。
+    for (const v of [...votes].sort((a, b) => b._row - a._row)) {
+      await api("/api/admin/delete", { sheet: "poll_votes", rowIndex: v._row });
+    }
+    const ok = await api("/api/admin/delete", { sheet: "polls", rowIndex: p._row });
+    if (!ok) return;
+    showToast(true, "投票を削除しました。");
+    reload();
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* 作成フォーム */}
+      <section style={cardStyle}>
+        <H3>投票を作る</H3>
+        <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 16px" }}>
+          公開すると、アプリの「お知らせ」の一番上に自動で表示され、メンバーがその場で投票できます。
+          誰が何に入れたかは全員に見えます。
+        </p>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>質問</label>
+          <input
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            placeholder="例：次の練習、どの曜日がいい？"
+            maxLength={120}
+            style={inputStyle}
+          />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>選択肢（2〜8個）</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {options.map((o, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 14, color: "#E5B84B", width: 18, flexShrink: 0 }}>{i + 1}</span>
+                <input
+                  value={o}
+                  onChange={e => setOption(i, e.target.value)}
+                  placeholder={i === 0 ? "例：土曜の午前" : i === 1 ? "例：日曜の午後" : "選択肢"}
+                  maxLength={60}
+                  style={inputStyle}
+                />
+                <button
+                  onClick={() => removeOption(i)}
+                  disabled={options.length <= 2}
+                  title="この選択肢を消す"
+                  style={{
+                    ...btnSubStyle, padding: "8px 11px", flexShrink: 0,
+                    opacity: options.length <= 2 ? 0.3 : 1,
+                    cursor: options.length <= 2 ? "not-allowed" : "pointer",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          {options.length < 8 && (
+            <button onClick={addOption} style={{ ...btnSubStyle, marginTop: 8 }}>＋ 選択肢を追加</button>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>補足（任意）</label>
+            <input
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="例：多数決で決めます"
+              maxLength={120}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>締切（任意）</label>
+            <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", marginBottom: 16 }}>
+          <input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} style={{ width: 17, height: 17, accentColor: "#E5B84B" }} />
+          <span style={{ fontSize: 13, color: "rgba(235,235,245,0.85)" }}>公開と同時に、メンバーのスマホへ通知を送る</span>
+        </label>
+
+        <button onClick={createPoll} disabled={saving} style={{ ...btnPrimaryStyle, opacity: saving ? 0.5 : 1, cursor: saving ? "wait" : "pointer" }}>
+          {saving ? "公開中…" : "この内容で公開する"}
+        </button>
+      </section>
+
+      {/* 一覧と結果 */}
+      <section style={cardStyle}>
+        <H3>作成した投票（{polls.length}）</H3>
+        {loading ? (
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13 }}>読み込み中…</p>
+        ) : sorted.length === 0 ? (
+          <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13, lineHeight: 1.9 }}>
+            まだ投票がありません。<br />
+            上のフォームから作ると、アプリにすぐ反映されます。
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {sorted.map(p => {
+              const votes = votesByPoll.get(p.id) ?? [];
+              const total = votes.length;
+              const open = p.status === "open";
+              const expired = !!p.deadline && new Date().toISOString().slice(0, 10) > p.deadline;
+              const notYet = activeMembers.filter(m => !votes.some(v => v.memberId === m.id));
+              const isOpen = openId === p.id;
+              return (
+                <div key={p.id} style={{ background: "#141418", border: "1px solid #38383A", borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "3px 9px", borderRadius: 999, flexShrink: 0,
+                      background: open && !expired ? "#14301f" : "#2C2C2E",
+                      color: open && !expired ? "#67e088" : "rgba(235,235,245,0.45)",
+                      border: `1px solid ${open && !expired ? "#2f6245" : "#38383A"}`,
+                    }}>
+                      {!open ? "締切済" : expired ? "期限切れ" : "受付中"}
+                    </span>
+                    <strong style={{ fontSize: 15, flex: 1, minWidth: 180, lineHeight: 1.6 }}>{p.question}</strong>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", flexShrink: 0 }}>{total}票</span>
+                  </div>
+                  {(p.note || p.deadline) && (
+                    <p style={{ fontSize: 12, color: "rgba(235,235,245,0.45)", margin: "8px 0 0" }}>
+                      {p.note}{p.note && p.deadline ? "／" : ""}{p.deadline ? `締切 ${p.deadline}` : ""}
+                    </p>
+                  )}
+
+                  {/* 選択肢ごとの結果 */}
+                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
+                    {p.options.map(opt => {
+                      const got = votes.filter(v => v.choice === opt);
+                      const pct = total > 0 ? (got.length / total) * 100 : 0;
+                      return (
+                        <div key={opt}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 13.5, flex: 1 }}>{opt}</span>
+                            <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#E5B84B" }}>
+                              {got.length}票{total > 0 ? ` ・ ${Math.round(pct)}%` : ""}
+                            </span>
+                          </div>
+                          <div style={{ height: 6, background: "#2C2C2E", borderRadius: 999, overflow: "hidden" }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: "#E5B84B" }} />
+                          </div>
+                          {isOpen && got.length > 0 && (
+                            <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", margin: "5px 0 0", lineHeight: 1.7 }}>
+                              {got.map(g => g.memberName || g.memberId).join("・")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {isOpen && (
+                    <p style={{ fontSize: 11.5, color: notYet.length ? "#ffb02e" : "rgba(235,235,245,0.45)", margin: "12px 0 0", lineHeight: 1.7 }}>
+                      {notYet.length === 0
+                        ? "✓ 全員が回答済みです。"
+                        : `未回答（${notYet.length}人）：${notYet.map(m => m.name).join("・")}`}
+                    </p>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                    <button onClick={() => setOpenId(isOpen ? "" : p.id)} style={btnSubStyle}>
+                      {isOpen ? "内訳を閉じる" : "誰が入れたか見る →"}
+                    </button>
+                    <button onClick={() => setStatus(p, open ? "closed" : "open")} disabled={saving} style={btnSubStyle}>
+                      {open ? "締め切る" : "再開する"}
+                    </button>
+                    <button onClick={() => removePoll(p)} disabled={saving} style={{ ...btnSubStyle, color: "#ff6982", borderColor: "#5a2230" }}>
+                      削除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

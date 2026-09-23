@@ -128,6 +128,19 @@ create table if not exists evaluations (
   comment text, created_at_text text
 );
 
+-- 投票（管理者が作った質問）と、その回答
+create table if not exists polls (
+  row_id bigint generated always as identity primary key,
+  id text, question text, options text, note text,
+  status text, deadline text, created_at_text text
+);
+
+create table if not exists poll_votes (
+  row_id bigint generated always as identity primary key,
+  id text, poll_id text, member_id text, member_name text,
+  choice text, created_at_text text
+);
+
 -- よく絞り込む列にインデックス（件数が増えても速いまま）
 create index if not exists idx_batting_member on batting (member_id);
 create index if not exists idx_pitching_member on pitching (member_id);
@@ -135,6 +148,7 @@ create index if not exists idx_attendance_date on attendance (date);
 create index if not exists idx_accounts_user_id on accounts (user_id);
 create index if not exists idx_accounts_member_id on accounts (member_id);
 create index if not exists idx_evaluations_member on evaluations (member_id);
+create index if not exists idx_poll_votes_poll on poll_votes (poll_id);
 
 -- セキュリティ: RLSを有効化し、ポリシーは作らない。
 -- → 公開(anon)キーでは一切読み書きできず、サーバー側のサービスロールキー経由のみ許可される。
@@ -144,7 +158,8 @@ begin
   foreach t in array array[
     'members','attendance','batting','pitching','catching','fielding','practices',
     'participants','probables','announcements','settings','pending','accounts',
-    'lineups','games','payments','news','tweets','blog','subscriptions','evaluations'
+    'lineups','games','payments','news','tweets','blog','subscriptions','evaluations',
+    'polls','poll_votes'
   ] loop
     execute format('alter table %I enable row level security', t);
   end loop;

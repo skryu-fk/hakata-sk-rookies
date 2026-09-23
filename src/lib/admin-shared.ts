@@ -35,6 +35,9 @@ export const ALLOWED_SHEETS = new Set([
   "accounts",
   // 選手評価（管理者のみ・項目別5段階＋コメント）
   "evaluations",
+  // 投票（管理者が作った質問と、メンバーの回答）
+  "polls",
+  "poll_votes",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";

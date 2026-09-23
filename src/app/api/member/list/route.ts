@@ -26,6 +26,8 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "settings",      // メンテナンス状態の確認用
   "attendance",    // 練習参加投票（自分の出欠）表示用
   "pending",       // スコアラー記録の確認用
+  "polls",         // 管理者が作った投票の表示用
+  "poll_votes",    // 投票結果（誰が何に入れたか）の表示用
 ]);
 
 export async function POST(request: Request) {
