@@ -18,6 +18,7 @@ import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis
 import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
 import { parsePoll, isPollLive } from "@/lib/polls";
 import { QUALIFY, splitByQualified } from "@/lib/ranking";
+import { computeOverall, type OverallInput, type OverallScore } from "@/lib/overallScore";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -955,7 +956,7 @@ function aggFielding(members: Member[], rows: FieldingRow[]): FieldingStat[] {
 
 /* ── ダッシュボード ───────────────────────────────────── */
 type Tab = "news" | "polls" | "stats" | "ai" | "schedule" | "mypage";
-type StatKind = "batting" | "pitching" | "catching" | "fielding";
+type StatKind = "overall" | "batting" | "pitching" | "catching" | "fielding";
 type Profile = { name: string; linked: boolean; memberId: string; memberName: string; nickname: string; jerseyNumber: string; position: string; joinedDate: string };
 const MEMBER_POSITIONS = ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "左翼手", "中堅手", "右翼手", "指名打者", "未定"];
 const TOTAL_SCOPE = "__total__";
@@ -978,7 +979,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("news");
-  const [statKind, setStatKind] = useState<StatKind>("batting");
+  const [statKind, setStatKind] = useState<StatKind>("overall");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
 
   // 全シートを1回のリクエストでまとめて取得（読み込み高速化）。
@@ -1178,6 +1179,42 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const pitchingStats = useMemo(() => aggPitching(members, fPitching), [members, fPitching]);
   const catchingStats = useMemo(() => aggCatching(members, fCatching), [members, fCatching]);
   const fieldingStats = useMemo(() => aggFielding(members, fFielding), [members, fFielding]);
+
+  /* ── 総合ランキング ──
+   * 打撃・投球・守備・捕手・出席をまとめて「チームへの貢献度」を出す。
+   * 出席率は試合単位で見ても意味がないため、試合別ではなく通算で計算する。 */
+  const overallStats = useMemo(() => {
+    const bs = aggBatting(members, batting);
+    const ps = aggPitching(members, pitching);
+    const cs = aggCatching(members, catching);
+    const fs = aggFielding(members, fielding);
+    // 出欠を記録した日を「対象回数」、出席・遅刻を「参加」として数える
+    const days = new Set(attendance.map(a => a.date).filter(Boolean)).size;
+    const actives = members.filter(m => m.active);
+
+    const inputs: OverallInput[] = actives.map(m => {
+      const b = bs.find(x => x.m.id === m.id);
+      const p = ps.find(x => x.m.id === m.id);
+      const c = cs.find(x => x.m.id === m.id);
+      const f = fs.find(x => x.m.id === m.id);
+      const came = attendance.filter(
+        a => a.memberId === m.id && (a.status === "出席" || a.status === "遅刻")).length;
+      return {
+        id: m.id,
+        batting: b && b.pa > 0 ? { ops: b.ops, pa: b.pa } : undefined,
+        pitching: p && p.ipOuts > 0 ? { era: p.era, ipOuts: p.ipOuts } : undefined,
+        fielding: f && f.chances > 0 ? { rate: f.rate, chances: f.chances } : undefined,
+        catching: c && c.sba > 0 ? { rate: c.rate, sba: c.sba } : undefined,
+        attendance: days > 0 ? { attended: came, total: days } : undefined,
+      };
+    });
+
+    const scores = computeOverall(inputs);
+    return actives
+      .map(m => ({ m, s: scores.get(m.id) }))
+      .filter((x): x is { m: Member; s: OverallScore } => !!x.s && x.s.parts.length > 0)
+      .sort((a, b) => b.s.total - a.s.total);
+  }, [members, batting, pitching, catching, fielding, attendance]);
 
   /* ── 日程（今日以降の練習・試合） ── */
   const upcoming = useMemo(() => {
@@ -1489,10 +1526,11 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         {tab === "stats" && (
           <>
             <SegControl
-              items={[["batting", "打撃"], ["pitching", "投手"], ["catching", "捕手"], ["fielding", "守備"]]}
+              items={[["overall", "総合"], ["batting", "打撃"], ["pitching", "投手"], ["catching", "捕手"], ["fielding", "守備"]]}
               value={statKind}
               onChange={setStatKind}
             />
+            {statKind !== "overall" && (
             <div style={{ display: "flex", gap: 8, marginTop: 12, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
               <ScopeChip active={scope === TOTAL_SCOPE} onClick={() => setScope(TOTAL_SCOPE)} primary>通算</ScopeChip>
               {games.map(g => (
@@ -1507,6 +1545,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
                 </span>
               )}
             </div>
+            )}
           </>
         )}
       </div>
@@ -1525,6 +1564,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
           <FormCheckView />
         ) : tab === "mypage" ? (
           <MyPageView profile={profile} onReload={loadProfile} analysis={myAnalysis} />
+        ) : statKind === "overall" ? (
+          <OverallStatsView stats={overallStats} />
         ) : statKind === "batting" ? (
           <BattingStatsView key={`b-${scope}`} stats={battingStats} scopeLabel={scopeLabel} isGame={scope !== TOTAL_SCOPE} />
         ) : statKind === "pitching" ? (
@@ -2560,6 +2601,102 @@ function PlayerRow({
 function useOpenRow() {
   const [openId, setOpenId] = useState<string | null>(null);
   return { openId, toggle: (id: string) => setOpenId(p => (p === id ? null : id)) };
+}
+
+/* ── 総合 ───────────────────────────────────────────── */
+function scoreTone(v: number): string {
+  return v >= 65 ? "#30D158" : v >= 45 ? "#E5B84B" : "#FF453A";
+}
+
+function OverallStatsView({ stats }: { stats: { m: Member; s: OverallScore }[] }) {
+  const { openId, toggle } = useOpenRow();
+
+  if (stats.length === 0) {
+    return (
+      <IosGroup>
+        <p style={emptyMsg}>
+          まだ記録がありません。<br />
+          試合の成績や練習の出欠が入ると、ここに総合順位が出ます。
+        </p>
+      </IosGroup>
+    );
+  }
+
+  return (
+    <div>
+      <IosLabel>総合ランキング（タップで内訳）</IosLabel>
+      <IosGroup>
+        {stats.map((x, i) => {
+          const open = openId === x.m.id;
+          return (
+            <div key={x.m.id} style={{ borderTop: i === 0 ? "none" : "0.5px solid #38383A" }}>
+              <button
+                onClick={() => toggle(x.m.id)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 11,
+                  padding: "13px 14px", background: open ? "#2C2C2E" : "transparent",
+                  border: "none", cursor: "pointer", textAlign: "left", color: "#fff",
+                }}
+              >
+                <RankDot rank={i + 1} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, color: "#E5B84B", flexShrink: 0 }}>
+                      #{x.m.jerseyNumber || "—"}
+                    </span>
+                    <span style={{ fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {x.m.name}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {x.s.parts.map(p => `${p.label} ${p.score}`).join(" · ")}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, lineHeight: 1, color: scoreTone(x.s.total) }}>
+                    {x.s.total}
+                  </div>
+                  <div style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 2 }}>総合点</div>
+                </div>
+                <span style={{ color: "rgba(235,235,245,0.30)", fontSize: 15, flexShrink: 0 }}>{open ? "⌄" : "›"}</span>
+              </button>
+
+              {open && (
+                <div style={{ padding: "4px 14px 16px" }}>
+                  {x.s.parts.map(p => (
+                    <div key={p.key} style={{ marginBottom: 11 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, width: 34, flexShrink: 0 }}>{p.label}</span>
+                        <span style={{ fontSize: 11.5, color: "rgba(235,235,245,0.45)", flex: 1 }}>{p.detail}</span>
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: scoreTone(p.score), flexShrink: 0 }}>
+                          {p.score}
+                        </span>
+                      </div>
+                      <div style={{ height: 5, background: "#2C2C2E", borderRadius: 999, overflow: "hidden", position: "relative" }}>
+                        <div style={{ width: `${p.score}%`, height: "100%", background: scoreTone(p.score) }} />
+                        {/* 平均（50点）の位置 */}
+                        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,0.35)" }} />
+                      </div>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 11, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, marginTop: 10 }}>
+                    白い線がチーム平均（50点）です。
+                    {x.s.reliability < 0.6 && " 記録がまだ少ないため、点数は平均寄りに抑えています。"}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </IosGroup>
+
+      <p style={{ fontSize: 12, color: "rgba(235,235,245,0.30)", lineHeight: 1.8, padding: "0 4px", margin: "-12px 0 22px" }}>
+        総合点は、打撃・投球・守備・捕手・出席をまとめてチーム内で比べた目安です（チーム平均が50点）。
+        記録が少ないうちは平均寄りに抑えているので、試合を重ねるほど実力どおりの数字に近づきます。
+        やっていない部門は有利にも不利にもならないよう、平均として扱っています。
+      </p>
+    </div>
+  );
 }
 
 /* ── 打撃 ─────────────────────────────────────────────── */
