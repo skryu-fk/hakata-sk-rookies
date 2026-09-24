@@ -17,6 +17,7 @@ import { readCache, writeCache, clearCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
 import { parsePoll, isPollLive } from "@/lib/polls";
+import { QUALIFY, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -2474,15 +2475,31 @@ function SegControl<T extends string>({ items, value, onChange }: {
 }
 
 /** 順位の丸バッジ（1〜3位は色付き） */
+/** 「ここから下は規定に届いていない」ことを示す区切り */
+function QualDivider({ text, first }: { text: string; first: boolean }) {
+  return (
+    <div style={{
+      padding: "8px 14px", background: "#161618",
+      borderTop: first ? "none" : "0.5px solid #38383A",
+    }}>
+      <span style={{ fontSize: 11, color: "rgba(235,235,245,0.45)", letterSpacing: "0.03em" }}>{text}</span>
+    </div>
+  );
+}
+
 function RankDot({ rank }: { rank: number }) {
+  // rank=0 は規定未満（順位を付けない）
   const c = rank === 1 ? "#E5B84B" : rank === 2 ? "#C7CCD4" : rank === 3 ? "#CD8B5C" : "#3A3A3C";
-  const fg = rank <= 3 ? "#10131C" : "rgba(235,235,245,0.60)";
+  const fg = rank <= 3 && rank > 0 ? "#10131C" : "rgba(235,235,245,0.60)";
   return (
     <span style={{
-      width: 24, height: 24, borderRadius: "50%", background: c, color: fg,
+      width: 24, height: 24, borderRadius: "50%",
+      background: rank === 0 ? "transparent" : c,
+      border: rank === 0 ? "1px solid #3A3A3C" : "none",
+      color: fg,
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       fontFamily: "var(--font-oswald),sans-serif", fontSize: 13, fontWeight: 700, flexShrink: 0,
-    }}>{rank}</span>
+    }}>{rank === 0 ? "–" : rank}</span>
   );
 }
 
@@ -2548,7 +2565,7 @@ function useOpenRow() {
 /* ── 打撃 ─────────────────────────────────────────────── */
 function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[]; scopeLabel: string; isGame: boolean }) {
   const active = stats.filter(s => s.ab > 0 || s.bb > 0 || s.hbp > 0);
-  const ranked = [...active].sort((a, b) => b.avg - a.avg);
+  const { ranked, qualifiedCount } = splitByQualified(active, s => s.ab >= QUALIFY.ab, (a, b) => b.avg - a.avg);
   const { openId, toggle } = useOpenRow();
 
   const teamAb = active.reduce((s, x) => s + x.ab, 0);
@@ -2576,16 +2593,19 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
         <IosGroup><p style={emptyMsg}>{isGame ? "この試合の打席記録はありません。" : "まだ打席記録がありません。"}</p></IosGroup>
       ) : (
         <IosGroup>
-          {ranked.map((s, i) => (
+          {ranked.flatMap((s, i) => [
+            ...(i === qualifiedCount
+              ? [<QualDivider key="qual-div" first={i === 0} text="規定打数（3打数）に届いていない選手" />]
+              : []),
             <PlayerRow
               key={s.m.id}
-              rank={i + 1}
+              rank={i < qualifiedCount ? i + 1 : 0}
               name={s.m.name}
               jersey={s.m.jerseyNumber}
               main={fmtAvg(s.avg)}
               mainLabel="打率"
               sub={`${s.h}安打 / ${s.ab}打数 · OPS ${fmtAvg(s.ops)}`}
-              first={i === 0}
+              first={i === 0 || i === qualifiedCount}
               open={openId === s.m.id}
               onToggle={() => toggle(s.m.id)}
             >
@@ -2605,8 +2625,8 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
                 <StatTile label="wRC+" value={s.pa > 0 ? s.wrcPlus : "—"} tone={s.wrcPlus >= 100 ? "#30D158" : undefined} />
                 <StatTile label="WAR" value={s.pa > 0 ? s.war.toFixed(1) : "—"} accent />
               </TileGrid>
-            </PlayerRow>
-          ))}
+            </PlayerRow>,
+          ])}
         </IosGroup>
       )}
       <p style={{ fontSize: 12, color: "rgba(235,235,245,0.30)", lineHeight: 1.7, padding: "0 4px", margin: "-12px 0 22px" }}>
@@ -2619,7 +2639,7 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
 /* ── 投手 ─────────────────────────────────────────────── */
 function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scopeLabel: string }) {
   const active = stats.filter(s => s.ipOuts > 0);
-  const ranked = [...active].sort((a, b) => a.era - b.era);
+  const { ranked, qualifiedCount } = splitByQualified(active, s => s.ipOuts >= QUALIFY.ipOuts, (a, b) => a.era - b.era);
   const { openId, toggle } = useOpenRow();
 
   const teamOuts = active.reduce((s, x) => s + x.ipOuts, 0);
@@ -2645,16 +2665,19 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
         <IosGroup><p style={emptyMsg}>まだ投球記録がありません。</p></IosGroup>
       ) : (
         <IosGroup>
-          {ranked.map((s, i) => (
+          {ranked.flatMap((s, i) => [
+            ...(i === qualifiedCount
+              ? [<QualDivider key="qual-div" first={i === 0} text="規定投球回（1回）に届いていない選手" />]
+              : []),
             <PlayerRow
               key={s.m.id}
-              rank={i + 1}
+              rank={i < qualifiedCount ? i + 1 : 0}
               name={s.m.name}
               jersey={s.m.jerseyNumber}
               main={fmtEra(s.era)}
               mainLabel="防御率"
               sub={`${fmtIp(s.ipOuts)}回 · ${s.so}奪三振 · WHIP ${s.whip.toFixed(2)}`}
-              first={i === 0}
+              first={i === 0 || i === qualifiedCount}
               open={openId === s.m.id}
               onToggle={() => toggle(s.m.id)}
             >
@@ -2670,8 +2693,8 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
                 <StatTile label="K/9" value={s.k9.toFixed(1)} />
                 <StatTile label="WHIP" value={s.whip.toFixed(2)} />
               </TileGrid>
-            </PlayerRow>
-          ))}
+            </PlayerRow>,
+          ])}
         </IosGroup>
       )}
     </div>
@@ -2681,7 +2704,7 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
 /* ── 捕手 ─────────────────────────────────────────────── */
 function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scopeLabel: string }) {
   const active = stats.filter(s => s.sba > 0);
-  const ranked = [...active].sort((a, b) => b.rate - a.rate);
+  const { ranked, qualifiedCount } = splitByQualified(active, s => s.sba >= QUALIFY.sba, (a, b) => b.rate - a.rate);
   const { openId, toggle } = useOpenRow();
 
   const teamSba = active.reduce((s, x) => s + x.sba, 0);
@@ -2704,16 +2727,19 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
         <IosGroup><p style={emptyMsg}>まだ捕手記録がありません。</p></IosGroup>
       ) : (
         <IosGroup>
-          {ranked.map((s, i) => (
+          {ranked.flatMap((s, i) => [
+            ...(i === qualifiedCount
+              ? [<QualDivider key="qual-div" first={i === 0} text="規定（盗塁企図3回）に届いていない選手" />]
+              : []),
             <PlayerRow
               key={s.m.id}
-              rank={i + 1}
+              rank={i < qualifiedCount ? i + 1 : 0}
               name={s.m.name}
               jersey={s.m.jerseyNumber}
               main={fmtPct(s.rate)}
               mainLabel="阻止率"
               sub={`${s.cs}/${s.sba} 盗塁刺 · ${s.games}試合`}
-              first={i === 0}
+              first={i === 0 || i === qualifiedCount}
               open={openId === s.m.id}
               onToggle={() => toggle(s.m.id)}
             >
@@ -2723,8 +2749,8 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
                 <StatTile label="盗塁刺" value={s.cs} accent />
                 <StatTile label="阻止率" value={fmtPct(s.rate)} accent />
               </TileGrid>
-            </PlayerRow>
-          ))}
+            </PlayerRow>,
+          ])}
         </IosGroup>
       )}
     </div>
@@ -2734,7 +2760,7 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
 /* ── 守備 ─────────────────────────────────────────────── */
 function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scopeLabel: string }) {
   const active = stats.filter(s => s.chances > 0);
-  const ranked = [...active].sort((a, b) => b.rate - a.rate);
+  const { ranked, qualifiedCount } = splitByQualified(active, s => s.chances >= QUALIFY.chances, (a, b) => b.rate - a.rate);
   const { openId, toggle } = useOpenRow();
 
   const teamPo = active.reduce((s, x) => s + x.po, 0);
@@ -2760,16 +2786,19 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
         <IosGroup><p style={emptyMsg}>まだ守備記録がありません。</p></IosGroup>
       ) : (
         <IosGroup>
-          {ranked.map((s, i) => (
+          {ranked.flatMap((s, i) => [
+            ...(i === qualifiedCount
+              ? [<QualDivider key="qual-div" first={i === 0} text="規定（守備機会3回）に届いていない選手" />]
+              : []),
             <PlayerRow
               key={s.m.id}
-              rank={i + 1}
+              rank={i < qualifiedCount ? i + 1 : 0}
               name={s.m.name}
               jersey={s.m.jerseyNumber}
               main={fmtAvg(s.rate)}
               mainLabel="守備率"
               sub={`刺殺${s.po} · 捕殺${s.a} · 失策${s.e}`}
-              first={i === 0}
+              first={i === 0 || i === qualifiedCount}
               open={openId === s.m.id}
               onToggle={() => toggle(s.m.id)}
             >
@@ -2781,8 +2810,8 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
                 <StatTile label="守備機会" value={s.chances} />
                 <StatTile label="守備率" value={fmtAvg(s.rate)} accent />
               </TileGrid>
-            </PlayerRow>
-          ))}
+            </PlayerRow>,
+          ])}
         </IosGroup>
       )}
     </div>
