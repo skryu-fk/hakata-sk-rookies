@@ -62,14 +62,24 @@ function LINEIcon({ size = 16 }: { size?: number }) {
 }
 
 /* ── SectionTitle ─────────────────────────────────────── */
-function SectionTitle({ jp, en, light = false }: { jp: string; en: string; light?: boolean }) {
+/**
+ * セクションの見出し。
+ *
+ * en を渡さない場合は、背景の英字と英字ラベルを出さずに
+ * 日本語の見出しと赤いラインだけにする（飾りを減らしたい箇所用）。
+ */
+function SectionTitle({ jp, en, light = false }: { jp: string; en?: string; light?: boolean }) {
   return (
     <div className="mb-14 reveal" style={{ position: "relative" }}>
-      <div className="section-ghost" style={{ fontSize: "clamp(72px,12vw,140px)", color: light ? "rgba(255,255,255,0.04)" : "rgba(11,30,63,0.05)", marginBottom: -18, paddingLeft: 2 }}>
-        {en.toUpperCase()}
-      </div>
+      {en && (
+        <>
+          <div className="section-ghost" style={{ fontSize: "clamp(72px,12vw,140px)", color: light ? "rgba(255,255,255,0.04)" : "rgba(11,30,63,0.05)", marginBottom: -18, paddingLeft: 2 }}>
+            {en.toUpperCase()}
+          </div>
+          <p style={S.eyebrow}>{en}</p>
+        </>
+      )}
       <div>
-        <p style={S.eyebrow}>{en}</p>
         <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 900, color: light ? "#fff" : "#0b1e3f", lineHeight: 1.1 }}>{jp}</h2>
         <div className="grow-bar" />
       </div>
@@ -509,11 +519,42 @@ function AboutSection() {
 }
 
 /* ── AppSection（メンバー専用 公式アプリ） ───────────────── */
+/* アプリ機能のアイコン。絵文字は「間に合わせ」に見えるので、
+   線だけの自前アイコンにしてチームの金色で描く。 */
+function AppIcon({ name }: { name: "ai" | "stats" | "live" | "bell" }) {
+  const common = {
+    width: 30, height: 30, viewBox: "0 0 24 24", fill: "none",
+    stroke: "#d4a82a", strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  };
+  if (name === "ai") return (
+    <svg {...common} aria-hidden>
+      <path d="M12 3a4 4 0 0 0-4 4 3 3 0 0 0-1 5.8V15a4 4 0 0 0 5 3.9A4 4 0 0 0 17 15v-2.2A3 3 0 0 0 16 7a4 4 0 0 0-4-4Z" />
+      <path d="M12 3v16M8 9h2M14 12h2" />
+    </svg>
+  );
+  if (name === "stats") return (
+    <svg {...common} aria-hidden>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </svg>
+  );
+  if (name === "live") return (
+    <svg {...common} aria-hidden>
+      <rect x="9" y="2" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8" />
+    </svg>
+  );
+  return (
+    <svg {...common} aria-hidden>
+      <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7ZM10.5 20a2 2 0 0 0 3 0" />
+    </svg>
+  );
+}
+
 const APP_FEATURES = [
-  { icon: "🧠", tag: "独自開発AI", title: "SKドッパミンAI", body: "スイング・投球フォームを動画でAIが解析。点数・改善点・推定スイングスピードまで自動で診断します。" },
-  { icon: "📊", tag: "STATS", title: "成績アプリ", body: "打率・防御率・OPS・守備率に加え、WAR・wRC+ などプロ級の指標まで自動集計。試合別／通算でいつでも確認。" },
-  { icon: "🎙", tag: "LIVE", title: "ライブスコア記録", body: "試合の打席・走者・カウント・回をその場で記録。承認制で成績へ自動反映されます。" },
-  { icon: "🔔", tag: "SCHEDULE", title: "日程・出欠・通知", body: "練習日程の確認、参加投票、予告先発、プッシュ通知。チームの「今」がいつでも手元に。" },
+  { icon: "ai" as const, title: "SKドッパミンAI", body: "スイング・投球フォームを動画でAIが解析。点数・改善点・推定スイングスピードまで自動で診断します。" },
+  { icon: "stats" as const, title: "成績アプリ", body: "打率・防御率・OPS・守備率に加え、WAR・wRC+ などプロ級の指標まで自動集計。試合別／通算でいつでも確認。" },
+  { icon: "live" as const, title: "ライブスコア記録", body: "試合の打席・走者・カウント・回をその場で記録。承認制で成績へ自動反映されます。" },
+  { icon: "bell" as const, title: "日程・出欠・通知", body: "練習日程の確認、参加投票、予告先発、プッシュ通知。チームの「今」がいつでも手元に。" },
 ];
 
 function AppSection() {
@@ -524,20 +565,17 @@ function AppSection() {
         className="mark-drift absolute pointer-events-none select-none hidden md:block"
         style={{ left: "-5%", bottom: -40, width: "clamp(280px, 30vw, 440px)", height: "auto", opacity: 0.05 }} />
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
-        <SectionTitle jp="メンバー専用 公式アプリ" en="App" light />
+        <SectionTitle jp="メンバー専用 公式アプリ" light />
         <p className="reveal" style={{ color: "rgba(255,255,255,0.66)", fontSize: 15, lineHeight: 1.9, marginTop: -28, marginBottom: 28, maxWidth: 680 }}>
           博多SKルーキーズには、他のチームにはまずない<strong style={{ color: "#fff" }}>メンバー専用の公式アプリ</strong>があります。成績管理から<strong style={{ color: "#d4a82a" }}>AIフォーム診断</strong>まで——“草野球”の枠を超えた、最先端の環境を用意しています。
         </p>
 
         {/* 強調バナー */}
-        <div className="reveal" style={{ background: "linear-gradient(135deg, rgba(212,168,42,0.1), rgba(209,0,36,0.06))", border: "1px solid rgba(212,168,42,0.4)", padding: "20px 24px", marginBottom: 32, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 30, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.6))" }}>🚀</span>
-          <div>
-            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(17px,2.2vw,23px)", fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
-              他のチームには、まずない。<span style={{ color: "#d4a82a" }}>最先端の草野球チーム。</span>
-            </p>
-            <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginTop: 4, lineHeight: 1.7 }}>テクノロジーで、初心者の上達と「楽しい」をとことん後押しします。</p>
-          </div>
+        <div className="reveal" style={{ borderLeft: "4px solid #d4a82a", paddingLeft: 20, marginBottom: 32 }}>
+          <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(17px,2.2vw,23px)", fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
+            他のチームには、まずない。<span style={{ color: "#d4a82a" }}>最先端の草野球チーム。</span>
+          </p>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginTop: 6, lineHeight: 1.7 }}>テクノロジーで、初心者の上達と「楽しい」をとことん後押しします。</p>
         </div>
 
         {/* 機能カード */}
@@ -545,9 +583,8 @@ function AppSection() {
           {APP_FEATURES.map((f, i) => (
             <div key={f.title} className="support-card reveal" data-delay={String(i * 110)}
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", padding: "26px 24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, filter: "drop-shadow(0 0 10px rgba(212,168,42,0.4))" }}>{f.icon}</span>
+              <span style={{ flexShrink: 0, lineHeight: 0, marginTop: 2 }}><AppIcon name={f.icon} /></span>
               <div>
-                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.3em", marginBottom: 6 }}>{f.tag}</p>
                 <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 18, fontWeight: 900, color: "#fff", marginBottom: 8 }}>{f.title}</h3>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", lineHeight: 1.85 }}>{f.body}</p>
               </div>
