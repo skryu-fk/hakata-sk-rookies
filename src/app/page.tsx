@@ -1,26 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import HeroSection from "@/components/HeroSection";
-import FaqSection from "@/components/FaqSection";
+import FaqSection  from "@/components/FaqSection";
 import ScrollReveal from "@/components/ScrollReveal";
-import RecruitForm from "@/components/RecruitForm";
-import MobileMenu from "@/components/MobileMenu";
+import RecruitForm  from "@/components/RecruitForm";
+import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
-import { getNews, type NewsItem } from "@/data/news";
+import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
 import { getBlogs, type BlogPost } from "@/data/blog";
 import { getPractices, PRACTICE_TYPE_COLOR, type Practice } from "@/data/practices";
-
-/**
- * 公式サイト トップページ。
- *
- * 見せ方の方針（2026.09 リニューアル）:
- *  - 白を基調にして、余白で区切る。枠線・色面で囲わない。
- *  - 1セクション＝1メッセージ。見出しは短く、説明は1〜2文に絞る。
- *  - 色はSKレッド1色だけをリンクとボタンに使う。
- *  - 見せ場（アプリ・目標）だけ黒の全面にして緩急をつける。
- *  - 絵文字アイコン・流れるテロップ・光る装飾は置かない。
- */
 
 /** Googleスプレッドシート（ISR）由来のデータは5分で再検証 */
 export const revalidate = 300;
@@ -29,94 +18,107 @@ const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
 const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
-const TEAM_NAME_EN = "HAKATA SK ROOKIES";
-const X_URL = "https://x.com/SK_rookies_FK";
-const IG_HANDLE = "hakata_sk_rookies";
-const IG_URL = `https://www.instagram.com/${IG_HANDLE}/`;
-const LINE_URL = "https://line.me/ti/g/-buBk3SbuY";
-const FOUNDED = "2026";
-const MEMBER_COUNT = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 13);
+const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
+const X_URL         = "https://x.com/SK_rookies_FK";
+const IG_HANDLE     = "hakata_sk_rookies";
+const IG_URL        = `https://www.instagram.com/${IG_HANDLE}/`;
+const LINE_URL      = "https://line.me/ti/g/-buBk3SbuY";
+const FOUNDED       = "2026";
+const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 13);
 
-/* ── アイコン ─────────────────────────────────────────── */
+/* ── shared inline styles ─────────────────────────────── */
+const S = {
+  eyebrow: { fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.45em", color: "#d10024", textTransform: "uppercase" as const, marginBottom: 10 },
+  redBar:  { width: 44, height: 4, background: "#d10024", marginTop: 14, borderRadius: 2 },
+};
+
+/* ── XIcon ────────────────────────────────────────────── */
 function XIcon({ size = 14 }: { size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
-      <path d="M18.244 2H21l-6.52 7.45L22.5 22h-6.18l-4.84-6.32L5.91 22H3.15l6.98-7.97L1.5 2h6.34l4.38 5.79L18.244 2z" />
-    </svg>
-  );
-}
-function IGIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
-      <path d="M16 11.37a4 4 0 1 1-7.914 1.173A4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  );
-}
-function LINEIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
-      <path d="M12 2C6.486 2 2 5.589 2 10c0 3.953 3.564 7.273 8.443 7.91.327.07.772.214.885.491.102.252.066.65.033.905l-.143.86c-.043.252-.2.985.864.537 1.064-.448 5.732-3.376 7.819-5.78C21.36 13.292 22 11.71 22 10c0-4.411-4.486-8-10-8zM7.32 12.81H5.272a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .858 0v3.66H7.32a.43.43 0 0 1 0 .859zm1.694-.43a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .86 0v4.088zm4.917 0a.43.43 0 0 1-.43.43.428.428 0 0 1-.343-.171L11.062 9.78v2.6a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .43-.43c.13 0 .258.064.343.172l2.097 2.86V8.292a.43.43 0 0 1 .859 0v4.088zm3.301-2.473a.43.43 0 0 1 0 .859h-1.617v1.184h1.617a.43.43 0 0 1 0 .86h-2.046a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .43-.43h2.046a.43.43 0 0 1 0 .859h-1.617v1.186h1.617z" />
+      <path d="M18.244 2H21l-6.52 7.45L22.5 22h-6.18l-4.84-6.32L5.91 22H3.15l6.98-7.97L1.5 2h6.34l4.38 5.79L18.244 2z"/>
     </svg>
   );
 }
 
-/* ── セクションの見出し ──
-   英字ラベル（ALL CAPS）は置かない。見出しと1行の説明だけ。 */
-function Head({ title, sub, center = true }: { title: string; sub?: string; center?: boolean }) {
+/* ── IGIcon ───────────────────────────────────────────── */
+function IGIcon({ size = 14 }: { size?: number }) {
   return (
-    <div className={center ? "center" : ""} style={{ marginBottom: "clamp(34px, 4.6vw, 56px)" }}>
-      <h2 className="t-head reveal">{title}</h2>
-      {sub && (
-        <p className="t-sub reveal" style={{ marginTop: 16, maxWidth: 620, ...(center ? { marginLeft: "auto", marginRight: "auto" } : {}) }}>
-          {sub}
-        </p>
-      )}
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" ry="5"/>
+      <path d="M16 11.37a4 4 0 1 1-7.914 1.173A4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+    </svg>
+  );
+}
+
+/* ── LINEIcon ─────────────────────────────────────────── */
+function LINEIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden>
+      <path d="M12 2C6.486 2 2 5.589 2 10c0 3.953 3.564 7.273 8.443 7.91.327.07.772.214.885.491.102.252.066.65.033.905l-.143.86c-.043.252-.2.985.864.537 1.064-.448 5.732-3.376 7.819-5.78C21.36 13.292 22 11.71 22 10c0-4.411-4.486-8-10-8zM7.32 12.81H5.272a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .858 0v3.66H7.32a.43.43 0 0 1 0 .859zm1.694-.43a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .86 0v4.088zm4.917 0a.43.43 0 0 1-.43.43.428.428 0 0 1-.343-.171L11.062 9.78v2.6a.43.43 0 0 1-.86 0V8.292a.43.43 0 0 1 .43-.43c.13 0 .258.064.343.172l2.097 2.86V8.292a.43.43 0 0 1 .859 0v4.088zm3.301-2.473a.43.43 0 0 1 0 .859h-1.617v1.184h1.617a.43.43 0 0 1 0 .86h-2.046a.43.43 0 0 1-.43-.43V8.292a.43.43 0 0 1 .43-.43h2.046a.43.43 0 0 1 0 .859h-1.617v1.186h1.617z"/>
+    </svg>
+  );
+}
+
+/* ── SectionTitle ─────────────────────────────────────── */
+function SectionTitle({ jp, en, light = false }: { jp: string; en: string; light?: boolean }) {
+  return (
+    <div className="mb-14 reveal" style={{ position: "relative" }}>
+      <div className="section-ghost" style={{ fontSize: "clamp(72px,12vw,140px)", color: light ? "rgba(255,255,255,0.04)" : "rgba(11,30,63,0.05)", marginBottom: -18, paddingLeft: 2 }}>
+        {en.toUpperCase()}
+      </div>
+      <div>
+        <p style={S.eyebrow}>{en}</p>
+        <h2 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(26px,3.5vw,42px)", fontWeight: 900, color: light ? "#fff" : "#0b1e3f", lineHeight: 1.1 }}>{jp}</h2>
+        <div className="grow-bar" />
+      </div>
     </div>
   );
 }
 
-/* ── ヘッダー ──
-   Apple のように細く、半透明で、文字は小さく。 */
-function Header() {
-  const nav: [string, string][] = [
-    ["#about", "チーム"],
-    ["#activity", "活動"],
-    ["#schedule", "日程"],
-    ["#app", "アプリ"],
-    ["#vision", "目標"],
-    ["#sponsors", "スポンサー"],
-    ["#contact", "お問い合わせ"],
-  ];
+/* ── TopBar ───────────────────────────────────────────── */
+function TopBar() {
   return (
-    <header
-      style={{
-        position: "sticky", top: 0, zIndex: 50,
-        background: "rgba(255,255,255,0.82)",
-        backdropFilter: "saturate(180%) blur(20px)",
-        WebkitBackdropFilter: "saturate(180%) blur(20px)",
-        borderBottom: "1px solid rgba(0,0,0,0.08)",
-      }}
-    >
-      <div className="sec-in-wide" style={{ height: 52, display: "flex", alignItems: "center", gap: 16 }}>
-        <a href="#top" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flexShrink: 0 }}>
-          <Image src="/sk_logo_crop.png" alt={TEAM_NAME_JP} width={46} height={38} className="object-contain" style={{ width: 34, height: "auto" }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>{TEAM_NAME_JP}</span>
-        </a>
+    <div style={{ background: "#060f20", color: "rgba(255,255,255,0.55)", fontSize: 11, letterSpacing: "0.12em" }}>
+      <div className="max-w-[1280px] mx-auto px-8 flex items-center justify-between" style={{ height: 34 }}>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.2em" }}>福岡市拠点 — 草野球チーム — EST. {FOUNDED}</span>
+        <div className="hidden md:flex items-center gap-5">
+          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1.5" style={{ color: "inherit", textDecoration: "none" }}>
+            <XIcon size={11} /> 公式X
+          </a>
+          <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors flex items-center gap-1.5" style={{ color: "inherit", textDecoration: "none" }}>
+            <IGIcon size={12} /> Instagram
+          </a>
+          <span style={{ opacity: 0.2 }}>|</span>
+          <a href="#contact" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>お問い合わせ</a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        <nav className="hidden lg:flex" style={{ gap: 24, marginLeft: "auto", alignItems: "center" }}>
-          {nav.map(([href, label]) => (
-            <a key={href} href={href} style={{ fontSize: 13, color: "var(--ink)", textDecoration: "none", opacity: 0.82 }}>
-              {label}
-            </a>
+/* ── Header ───────────────────────────────────────────── */
+function Header() {
+  return (
+    <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
+      <div className="max-w-[1280px] mx-auto px-8 flex items-stretch" style={{ height: 68 }}>
+        <Link href="#top" className="logo-pop flex items-center gap-3 flex-shrink-0 pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
+          <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
+          <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+            {/* チーム名はワードマーク画像（博多SKルーキーズ） */}
+            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={26} className="object-contain" priority style={{ width: "clamp(150px, 24vw, 209px)", height: "auto" }} />
+            <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em", textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
+          </div>
+        </Link>
+        <nav className="ml-auto hidden xl:flex items-stretch h-full">
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+            <a key={href} href={href} className="nav-link">{label}</a>
           ))}
-          <a href="#contact" className="cta" style={{ fontSize: 13, padding: "7px 16px" }}>応募する</a>
+          <a href="#contact" className="nav-link-cta">お問い合わせ</a>
         </nav>
-
-        {/* display はクラス側に任せる。インラインで display を書くと lg:hidden が効かない */}
-        <div className="lg:hidden flex items-center gap-2.5" style={{ marginLeft: "auto" }}>
-          <a href="#contact" className="cta" style={{ fontSize: 13, padding: "7px 15px" }}>応募</a>
+        <div className="xl:hidden ml-auto flex items-stretch">
+          <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
           <MobileMenu />
         </div>
       </div>
@@ -124,548 +126,918 @@ function Header() {
   );
 }
 
-/* ── チーム紹介 ── */
-function AboutSection() {
-  const points: [string, string][] = [
-    ["みんなで教え合う", "代表自身も野球初心者です。経験者も未経験者もフラットに教え合うので、「分からない」を言いやすい空気があります。"],
-    ["勝ち負けより、楽しむ", "声を出して、笑って、汗をかく。うまくなるのはそのあとで大丈夫です。"],
-    ["年齢も職業も関係なし", "10代から40代までごちゃ混ぜ。グラウンドの上ではみんな対等です。"],
-  ];
-  return (
-    <section id="about" className="sec sec-hair" style={{ background: "#fff" }}>
-      <div className="sec-in">
-        <Head
-          title="初心者でも、大丈夫です。"
-          sub="経験がないと居づらいのではないか——その心配がいらないチームを作っています。"
-        />
-        <div style={{ display: "grid", gap: 26, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
-          {points.map(([t, d], i) => (
-            <div key={t} className="reveal" data-delay={String(i * 90)}>
-              <h3 className="t-head-sm">{t}</h3>
-              <p className="t-body" style={{ marginTop: 10 }}>{d}</p>
-            </div>
-          ))}
-        </div>
+/* ── NewsSection ──────────────────────────────────────── */
+function NewsSection({ news }: { news: NewsItem[] }) {
+  // ホームでは直近6件のみ表示。それ以上は /news の一覧ページに誘導。
+  const HOME_LIMIT = 6;
+  const shown = news.slice(0, HOME_LIMIT);
+  const hasMore = news.length > HOME_LIMIT;
 
-        <div className="panel reveal" style={{ marginTop: "clamp(36px, 5vw, 60px)" }}>
-          <p className="t-head-sm">「未経験だし…」は、気にしなくていい。</p>
-          <p className="t-body" style={{ marginTop: 14 }}>
-            代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。
-            チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。
-            経験者の方は、一緒に教える側として加わってくれると嬉しいです。
-          </p>
-          <p className="t-caption" style={{ marginTop: 16 }}>代表 柏木 海斗</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── 活動概要 ── */
-function ActivitySection() {
-  const rows: [string, string, string][] = [
-    ["活動エリア", "福岡市内のグラウンド", "市内および近郊の野球場・河川敷を中心に活動します。"],
-    ["主な球場", "舞鶴公園 / 山王公園 / 東平尾公園", "中央区の舞鶴公園野球場、博多区の山王公園野球場、東平尾公園 ベスト電器スタジアム野球場がメインです。"],
-    ["活動頻度", "週1〜2回 ＋ 月3〜4回", "公園でのキャッチボールが週1〜2回、球場を借りての練習が月3〜4回。平日夜・週末どちらもあります。"],
-    ["参加", "出られる時だけでOK", "毎回参加できなくても問題ありません。"],
-    ["練習内容", "基礎練習 ＋ 試合形式", "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。"],
-    ["持ち物", "グローブだけご用意ください", "チーム共通の防具はまだ揃っていません。バット・ボールはチーム側で準備します。"],
-    ["費用", "入会費 ¥2,000 ＋ 月額 ¥500", "ほかにスポーツ保険料 ¥2,000／年、グラウンド代（2時間 ¥400／4時間 ¥500）。月会費は2026年8月分より ¥1,000 に改定します。"],
-  ];
   return (
-    <section id="activity" className="sec sec-gray">
-      <div className="sec-in">
-        <Head title="活動のこと" sub="どこで、どれくらい、いくらで。先に知っておきたいことをまとめました。" />
-        <div className="rows reveal">
-          {rows.map(([label, value, note]) => (
-            <div key={label} className="row-item">
-              <div className="t-caption" style={{ paddingTop: 3 }}>{label}</div>
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>{value}</div>
-                <p className="t-body" style={{ marginTop: 6, fontSize: 15 }}>{note}</p>
+    <section id="news" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="お知らせ" en="News" />
+        <div>
+          {shown.map((n, i) => {
+            const cs = CATEGORY_STYLES[n.category] as string;
+            const hasBody = !!n.body;
+            const isImportant = n.category === "重要";
+            const inner = (
+              <>
+                <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: isImportant ? "#d10024" : "#0b1e3f", letterSpacing: "0.06em", fontWeight: isImportant ? 700 : 400 }}>{n.date}</span>
+                <span className={`order-2 inline-flex items-center gap-1 text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>
+                  {isImportant && <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>⚠</span>}
+                  {n.category}
+                </span>
+                <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug" style={{ color: isImportant ? "#0b1e3f" : undefined }}>
+                  {n.title}
+                  {hasBody && <span className="ml-2 text-red text-xs font-bold tracking-wider">詳しく →</span>}
+                </span>
+              </>
+            );
+            const cls = `news-row reveal flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr] ${isImportant ? "news-row-important" : ""}`;
+            const delay = String(i * 70);
+            return hasBody ? (
+              <Link key={n.slug} href={`/news/${n.slug}`} className={cls} data-delay={delay} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+                {inner}
+              </Link>
+            ) : (
+              <div key={n.slug || i} className={cls} data-delay={delay}>
+                {inner}
               </div>
-            </div>
+            );
+          })}
+          <div className="border-t border-line-2" />
+        </div>
+        {/* 一覧ページへの導線 */}
+        {hasMore && (
+          <div className="mt-8 text-center">
+            <p style={{ fontSize: 12, color: "#8a8a8a", marginBottom: 14 }}>
+              直近 {HOME_LIMIT} 件を表示しています（全 {news.length} 件）
+            </p>
+            <Link href="/news" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#0b1e3f", color: "#fff", padding: "12px 28px", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em" }}>
+              これ以前のお知らせも確認する →
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ── BlogPreview ──────────────────────────────────────── */
+function BlogPreview({ posts }: { posts: BlogPost[] }) {
+  const latest = posts.slice(0, 3);
+  if (latest.length === 0) return null;
+  return (
+    <section id="blog" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="ブログ・コラム" en="Blog" />
+        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
+          チームの考え方、福岡市で草野球を始めたい方向けのお役立ち情報、活動報告など。
+        </p>
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
+          {latest.map((p, i) => (
+            <Link key={p.slug} href={`/blog/${p.slug}`} className="reveal block bg-white border border-line-2 hover:border-red hover:-translate-y-1 hover:shadow-lg transition-all" data-delay={String(i * 120)}
+              style={{ textDecoration: "none", padding: "26px 24px", display: "flex", flexDirection: "column", gap: 12, minHeight: 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#0b1e3f", letterSpacing: "0.08em" }}>{p.date}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "#d10024", color: "#fff", padding: "3px 9px" }}>{p.category}</span>
+              </div>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.45 }}>{p.title}</h3>
+              <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.85, flex: 1 }}>{p.excerpt}</p>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#d10024", letterSpacing: "0.08em" }}>続きを読む →</span>
+            </Link>
           ))}
+        </div>
+        <div className="reveal mt-10 text-center">
+          <Link href="/blog" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0b1e3f", color: "#fff", padding: "12px 28px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+            すべての記事を見る →
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-/* ── 日程 ── */
+/* ── ScheduleSection ──────────────────────────────────── */
+const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
+const STATUS_STYLE: Record<string, { label: string; bg: string; color: string }> = {
+  scheduled: { label: "予定", bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.85)" },
+  tentative: { label: "未定",  bg: "rgba(212,168,42,0.15)",   color: "#d4a82a" },
+  canceled:  { label: "中止",  bg: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)" },
+};
+
 function practiceLabel(t: Practice["type"]) {
-  return t === "キャッチボール" ? "公園練習" : t;
+  return t === "キャッチボール" ? "公園練習" : t; // 試合 / 練習試合 / 全体練習 / 球場練習 はそのまま
+}
+
+function UpcomingPractices({ practices }: { practices: Practice[] }) {
+  // 文字列比較でJST由来のズレを回避（YYYY-MM-DDはISO昇順=日付昇順）
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayISO = jst.toISOString().slice(0, 10);
+  const upcoming = [...practices]
+    .filter(p => p.date >= todayISO)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
+
+  const [next, ...rest] = upcoming;
+
+  return (
+    <div className="reveal" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+      <div style={{ background: "rgba(255,255,255,0.06)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 4, height: 16, background: "#d10024" }} />
+          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>近日の練習</span>
+        </span>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>UPCOMING</span>
+      </div>
+
+      {!next ? (
+        <div style={{ padding: "32px 24px", textAlign: "center" }}>
+          <p style={{ color: "rgba(255,255,255,0.45)", fontSize: 14, lineHeight: 1.8 }}>次の練習日は調整中です。<br />決まり次第こちらに掲載します。</p>
+        </div>
+      ) : (
+        <>
+          {/* ── 次回練習のフィーチャーカード ── */}
+          {(() => {
+            const d = new Date(next.date + "T00:00:00");
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const wd = WEEKDAY_JP[d.getDay()];
+            const st = STATUS_STYLE[next.status];
+            const typeColor = next.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[next.type];
+            return (
+              <div className="practice-feature" style={{
+                margin: "14px 14px 10px",
+                background: "linear-gradient(135deg, rgba(212,168,42,0.07), rgba(209,0,36,0.05))",
+                border: "1px solid rgba(212,168,42,0.45)",
+                borderLeft: `4px solid ${typeColor}`,
+                padding: "18px 18px 16px",
+                position: "relative",
+                opacity: next.status === "canceled" ? 0.55 : 1,
+              }}>
+                <span className="next-chip" style={{
+                  position: "absolute", top: -10, right: 12,
+                  fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, fontWeight: 700,
+                  letterSpacing: "0.3em", background: "#d4a82a", color: "#0b1e3f",
+                  padding: "3px 12px",
+                }}>NEXT</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 34, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
+                    <div style={{ fontSize: 11, color: "#d4a82a", marginTop: 5, letterSpacing: "0.15em", fontWeight: 700 }}>{wd}曜日</div>
+                  </div>
+                  <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.12)" }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: typeColor, flexShrink: 0 }} />
+                      <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, color: "#fff", fontSize: 16 }}>{practiceLabel(next.type)}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>📍 {next.place}</div>
+                    {next.time && <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
+                    {next.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginTop: 5 }}>※ {next.note}</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── それ以降の予定 ── */}
+          {rest.length > 0 && (
+            <ul style={{ listStyle: "none", margin: 0, padding: "0 0 4px" }}>
+              {rest.map((p) => {
+                const d = new Date(p.date + "T00:00:00");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const wd = WEEKDAY_JP[d.getDay()];
+                const st = STATUS_STYLE[p.status];
+                const dotColor = p.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[p.type];
+                return (
+                  <li key={p.date + p.place} className="practice-item" style={{ padding: "13px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1, borderLeft: `3px solid ${dotColor}` }}>
+                    <div style={{ minWidth: 50, textAlign: "center" }}>
+                      <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 19, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13.5 }}>{practiceLabel(p.type)}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: st.bg, color: st.color, padding: "2px 8px" }}>{st.label}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.75)", marginBottom: p.note ? 3 : 0 }}>
+                        📍 {p.place}{p.time ? ` / ${p.time}` : ""}
+                      </div>
+                      {p.note && (
+                        <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>※ {p.note}</div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
+      <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── RecentPractices ──────────────────────────────────── */
+function RecentPractices({ practices }: { practices: Practice[] }) {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayISO = jst.toISOString().slice(0, 10);
+  const recent = [...practices]
+    .filter(p => p.date < todayISO && p.status !== "canceled")
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 5);
+
+  // 練習種別ごとの実施回数（中止以外）
+  const stats = practices.reduce(
+    (acc, p) => {
+      if (p.date < todayISO && p.status !== "canceled") {
+        acc.total += 1;
+        acc[p.type] = (acc[p.type] ?? 0) + 1;
+      }
+      return acc;
+    },
+    { total: 0 } as { total: number; [k: string]: number }
+  );
+
+  if (recent.length === 0) return null;
+
+  return (
+    <div className="reveal" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)" }}>
+      <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 4, height: 16, background: "#d4a82a" }} />
+          <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>最近の活動</span>
+        </span>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>RECENT</span>
+      </div>
+      {/* 実績サマリ */}
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", flexWrap: "wrap", gap: "8px 14px", alignItems: "center" }}>
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, color: "#d4a82a", lineHeight: 1, fontWeight: 700 }}>
+          {stats.total}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginLeft: 5, letterSpacing: "0.1em" }}>回 実施</span>
+        </span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: "auto" }}>
+          {(["球場練習", "キャッチボール", "全体練習", "練習試合", "試合"] as const).map(t =>
+            stats[t] ? (
+              <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.12)", padding: "3px 10px", background: "rgba(255,255,255,0.03)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[t] }} />
+                {t === "キャッチボール" ? "公園" : t === "球場練習" ? "球場" : t === "全体練習" ? "全体" : t === "練習試合" ? "練習試合" : "試合"} <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a" }}>{stats[t]}</span>
+              </span>
+            ) : null
+          )}
+        </div>
+      </div>
+      {/* タイムライン */}
+      <ul style={{ listStyle: "none", margin: 0, padding: "16px 20px 8px" }}>
+        {recent.map((p, i) => {
+          const d = new Date(p.date + "T00:00:00");
+          const mm = String(d.getMonth() + 1).padStart(2, "0");
+          const dd = String(d.getDate()).padStart(2, "0");
+          const wd = WEEKDAY_JP[d.getDay()];
+          const dotColor = PRACTICE_TYPE_COLOR[p.type];
+          const isLast = i === recent.length - 1;
+          return (
+            <li key={p.date + p.place} style={{ display: "flex", gap: 14 }}>
+              {/* 縦ライン + ドット */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 12, flexShrink: 0 }}>
+                <span className={i === 0 ? "timeline-dot" : undefined} style={{ width: 10, height: 10, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
+                {!isLast && <span style={{ width: 2, flex: 1, background: "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))", marginTop: 4 }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0, paddingBottom: isLast ? 8 : 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "rgba(255,255,255,0.9)", letterSpacing: "0.05em" }}>{mm}.{dd}<span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 5 }}>{wd}</span></span>
+                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "rgba(255,255,255,0.9)", fontSize: 13 }}>{practiceLabel(p.type)}</span>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", padding: "2px 7px" }}>実施済</span>
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>📍 {p.place}{p.time ? ` / ${p.time}` : ""}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 function ScheduleSection({ practices }: { practices: Practice[] }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = practices
-    .filter(p => p.date >= today && p.status !== "canceled")
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 4);
-
   return (
-    <section id="schedule" className="sec sec-hair" style={{ background: "#fff" }}>
-      <div className="sec-in">
-        <Head
-          title="練習は、週に1〜2回。"
-          sub="公園でのキャッチボールが中心。球場を借りての練習は月に3〜4回です。"
-        />
-
-        <div className="reveal" style={{ marginBottom: 34 }}>
-          <PracticeCalendar practices={practices} />
-        </div>
-
-        <h3 className="t-head-sm reveal" style={{ marginBottom: 16 }}>近日の予定</h3>
-        {upcoming.length === 0 ? (
-          <p className="t-body reveal">
-            次の練習日は調整中です。決まり次第ここに掲載します。
-            見学のご希望は、Xのダイレクトメッセージかお問い合わせからどうぞ。
-          </p>
-        ) : (
-          <div className="rows reveal">
-            {upcoming.map(p => (
-              <div key={p.date + p.place} className="row-item" style={{ gridTemplateColumns: "84px 1fr" }}>
-                <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, color: "var(--ink)" }}>
-                  {p.date.slice(5).replace("-", ".")}
-                </div>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: PRACTICE_TYPE_COLOR[p.type], flexShrink: 0 }} />
-                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>{practiceLabel(p.type)}</span>
-                    {p.status === "tentative" && <span className="t-caption">（予定）</span>}
-                  </div>
-                  <p className="t-body" style={{ marginTop: 5, fontSize: 15 }}>
-                    {p.place}{p.time ? ` ・ ${p.time}` : ""}{p.note ? ` ・ ${p.note}` : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="cta-row reveal" style={{ marginTop: 28 }}>
-          <a href="#contact" className="link-more">見学を申し込む</a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── お知らせ ── */
-function NewsSection({ news }: { news: NewsItem[] }) {
-  const shown = news.slice(0, 5);
-  return (
-    <section id="news" className="sec-tight sec-gray">
-      <div className="sec-in">
-        <Head title="お知らせ" center={false} />
-        <div className="rows reveal" style={{ marginTop: -18 }}>
-          {shown.map(n => {
-            const body = (
-              <>
-                <div className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", paddingTop: 3 }}>
-                  {n.date.replace(/-/g, ".")}
-                  {n.category === "重要" && (
-                    <span style={{ color: "var(--accent)", marginLeft: 10, fontFamily: "var(--font-zen),sans-serif" }}>重要</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 16, color: "var(--ink)", lineHeight: 1.6 }}>{n.title}</div>
-              </>
-            );
-            return n.body ? (
-              <Link key={n.slug} href={`/news/${n.slug}`} className="row-item" style={{ textDecoration: "none" }}>
-                {body}
-              </Link>
-            ) : (
-              <div key={n.slug} className="row-item">{body}</div>
-            );
-          })}
-        </div>
-        <div style={{ marginTop: 22 }}>
-          <Link href="/news" className="link-more reveal">すべてのお知らせ</Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── メンバー専用アプリ（黒の見せ場） ── */
-function AppSection() {
-  const features: [string, string][] = [
-    ["SKドッパミンAI", "スイングや投球フォームを撮るだけで、骨格をもとに解析。点数と改善点が出ます。動画は端末の中だけで処理します。"],
-    ["成績アプリ", "打率・防御率・OPS・守備率に加えて、WAR・wRC+ などの指標まで自動で集計。試合別でも通算でも見られます。"],
-    ["ライブスコア記録", "試合の打席・走者・カウントをその場で記録。承認したものが成績へ反映されます。"],
-    ["日程・出欠・投票", "練習日程の確認、参加の投票、運営からの投票やお知らせ。チームの「今」が手元にあります。"],
-  ];
-  return (
-    <section id="app" className="sec sec-dark">
-      <div className="sec-in center">
-        <h2 className="t-head reveal">メンバー専用アプリ。</h2>
-        <p className="t-sub reveal" style={{ marginTop: 16, maxWidth: 640, marginLeft: "auto", marginRight: "auto" }}>
-          成績の集計も、フォームの解析も、日程の連絡も。
-          草野球チームとしては珍しい環境を、自分たちで作っています。
+    <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+      <div className="field-grid absolute inset-0" />
+      {/* SKマークのウォーターマーク */}
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="mark-drift absolute pointer-events-none select-none hidden md:block"
+        style={{ right: "-4%", top: 60, width: "clamp(280px, 32vw, 460px)", height: "auto", opacity: 0.05 }} />
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="スケジュール" en="Schedule" light />
+        <p className="reveal" style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, lineHeight: 1.9, marginTop: -28, marginBottom: 36, maxWidth: 680 }}>
+          キャッチボール中心の公園練習は週1〜2回、野球場を借りてのノック・バッティング練習は月3〜4回を予定しています。平日夜・週末どちらも活動あり。毎回参加できなくても問題ありません。
         </p>
-      </div>
 
-      <div className="sec-in" style={{ marginTop: "clamp(44px, 6vw, 72px)" }}>
-        <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))" }}>
-          {features.map(([t, d], i) => (
-            <div key={t} className="panel reveal" data-delay={String(i * 90)}>
-              <h3 className="t-head-sm">{t}</h3>
-              <p className="t-body" style={{ marginTop: 10, fontSize: 15 }}>{d}</p>
+        <div className="grid gap-6 mb-10 grid-cols-1 lg:[grid-template-columns:1fr_380px] lg:items-start">
+          <PracticeCalendar practices={practices} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <UpcomingPractices practices={practices} />
+            <RecentPractices practices={practices} />
+          </div>
+        </div>
+
+        {/* Match notice */}
+        <div className="reveal" style={{ background: "rgba(209,0,36,0.08)", border: "1px solid rgba(209,0,36,0.2)", padding: "28px 28px" }}>
+          <div className="grid gap-5 items-start grid-cols-1 md:[grid-template-columns:1fr_auto] md:items-center">
+            <div>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>MATCH — 対戦相手 募集中</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(17px,2.2vw,22px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 8 }}>練習試合の対戦相手を募集しています。</h3>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>メンバーも集まり、いよいよ実戦へ。練習試合の対戦相手を募集中です。日程などのご相談は、公式XのDM、または公式サイトのお問い合わせフォーム（種別「練習試合・リーグのご相談」）からお気軽にどうぞ。戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.85)" }}>0勝 0敗 0分</span></p>
+            </div>
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+              対戦のご相談はこちら →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── AboutSection ─────────────────────────────────────── */
+const STORIES = [
+  { no: "01", head: "みんなで教え合う", body: "代表自身も野球初心者。経験者・未経験者がフラットに教え合うスタイルです。「分からない」を気軽に言える空気を大切に。経験者の加入も大歓迎。" },
+  { no: "02", head: "全力で楽しむ",     body: "勝ち負けより、まず楽しむこと。声を出して、笑って、汗をかく。それが、俺たちのスタイル。" },
+  { no: "03", head: "フラットな空気",   body: "10代から40代までごちゃ混ぜ。年齢も職業も関係なく、グラウンドの上ではみんな対等。" },
+];
+
+function AboutSection() {
+  return (
+    <section id="about" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="チーム紹介" en="About" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+          {STORIES.map((s, i) => (
+            <div key={s.no} className="about-card reveal" data-delay={String(i * 120)}
+              style={{ padding: "36px 28px", background: "#f9f6f2", border: "1px solid #e4e0d8", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", right: 10, top: 8, fontFamily: "var(--font-oswald),sans-serif", fontSize: 80, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{s.no}</div>
+              <div style={{ width: 4, height: 44, background: "#d10024", marginBottom: 20 }} />
+              <p style={S.eyebrow}>POINT {s.no}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 20, fontWeight: 900, color: "#0b1e3f", marginBottom: 12, lineHeight: 1.3 }}>{s.head}</h3>
+              <p style={{ fontSize: 14, color: "rgba(19,25,34,0.68)", lineHeight: 1.9 }}>{s.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* Founder */}
+        <div className="reveal grid overflow-hidden grid-cols-1 md:[grid-template-columns:200px_1fr]" style={{ background: "#0b1e3f" }}>
+          <div style={{ background: "rgba(209,0,36,0.08)", display: "flex", alignItems: "center", justifyContent: "center", padding: 36, borderRight: "1px solid rgba(255,255,255,0.06)" }}>
+            <Image src="/sk_logo_crop.png" alt="logo" width={150} height={124} className="object-contain" />
+          </div>
+          <div className="px-6 py-8 md:px-12 md:py-10">
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── AppSection（メンバー専用 公式アプリ） ───────────────── */
+const APP_FEATURES = [
+  { icon: "🧠", tag: "独自開発AI", title: "SKドッパミンAI", body: "スイング・投球フォームを動画でAIが解析。点数・改善点・推定スイングスピードまで自動で診断します。" },
+  { icon: "📊", tag: "STATS", title: "成績アプリ", body: "打率・防御率・OPS・守備率に加え、WAR・wRC+ などプロ級の指標まで自動集計。試合別／通算でいつでも確認。" },
+  { icon: "🎙", tag: "LIVE", title: "ライブスコア記録", body: "試合の打席・走者・カウント・回をその場で記録。承認制で成績へ自動反映されます。" },
+  { icon: "🔔", tag: "SCHEDULE", title: "日程・出欠・通知", body: "練習日程の確認、参加投票、予告先発、プッシュ通知。チームの「今」がいつでも手元に。" },
+];
+
+function AppSection() {
+  return (
+    <section id="app" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+      <div className="field-grid absolute inset-0" />
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="mark-drift absolute pointer-events-none select-none hidden md:block"
+        style={{ left: "-5%", bottom: -40, width: "clamp(280px, 30vw, 440px)", height: "auto", opacity: 0.05 }} />
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="メンバー専用 公式アプリ" en="App" light />
+        <p className="reveal" style={{ color: "rgba(255,255,255,0.66)", fontSize: 15, lineHeight: 1.9, marginTop: -28, marginBottom: 28, maxWidth: 680 }}>
+          博多SKルーキーズには、他のチームにはまずない<strong style={{ color: "#fff" }}>メンバー専用の公式アプリ</strong>があります。成績管理から<strong style={{ color: "#d4a82a" }}>AIフォーム診断</strong>まで——“草野球”の枠を超えた、最先端の環境を用意しています。
+        </p>
+
+        {/* 強調バナー */}
+        <div className="reveal" style={{ background: "linear-gradient(135deg, rgba(212,168,42,0.1), rgba(209,0,36,0.06))", border: "1px solid rgba(212,168,42,0.4)", padding: "20px 24px", marginBottom: 32, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 30, filter: "drop-shadow(0 0 12px rgba(212,168,42,0.6))" }}>🚀</span>
+          <div>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(17px,2.2vw,23px)", fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
+              他のチームには、まずない。<span style={{ color: "#d4a82a" }}>最先端の草野球チーム。</span>
+            </p>
+            <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", marginTop: 4, lineHeight: 1.7 }}>テクノロジーで、初心者の上達と「楽しい」をとことん後押しします。</p>
+          </div>
+        </div>
+
+        {/* 機能カード */}
+        <div className="grid gap-5 grid-cols-1 sm:grid-cols-2">
+          {APP_FEATURES.map((f, i) => (
+            <div key={f.title} className="support-card reveal" data-delay={String(i * 110)}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", padding: "26px 24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0, filter: "drop-shadow(0 0 10px rgba(212,168,42,0.4))" }}>{f.icon}</span>
+              <div>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.3em", marginBottom: 6 }}>{f.tag}</p>
+                <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 18, fontWeight: 900, color: "#fff", marginBottom: 8 }}>{f.title}</h3>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", lineHeight: 1.85 }}>{f.body}</p>
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="center" style={{ marginTop: 34 }}>
-          <p className="t-caption reveal">
-            アプリはメンバー専用です。入団後にご案内します。
+        <div className="reveal" style={{ marginTop: 22, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>
+            ※ アプリはメンバー専用（パスワード制・個人情報を厳重に保護）。入団後にご案内します。
           </p>
-          <div className="cta-row center reveal" style={{ marginTop: 16, justifyContent: "center" }}>
-            <Link href="/stats" className="link-more">メンバーの方はこちら</Link>
-          </div>
+          <Link href="/stats" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(212,168,42,0.14)", border: "1px solid rgba(212,168,42,0.4)", color: "#d4a82a", padding: "10px 20px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+            メンバーの方は 成績アプリへ →
+          </Link>
         </div>
       </div>
     </section>
   );
 }
 
-/* ── 目標 ── */
+/* ── VisionSection（目標・リーグ構想） ────────────────────── */
+const VISIONS = [
+  { no: "01", icon: "🏟", eyebrow: "GOAL — DREAM STAGE", title: "みずほPayPayドーム福岡で試合する", body: "福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。" },
+  { no: "02", icon: "🏆", eyebrow: "LEAGUE — 2026.9 始動予定", title: "設立2年以内のチーム限定リーグを創設", body: "今あるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めないのが現状。だからこそ“設立して2年以内のチーム限定”の公式リーグを、2026年9月の立ち上げをめどに準備を進めています。他のリーグに所属していても加入OK。同じスタートラインのチーム同士で、本気の公式戦を。" },
+];
+
 function VisionSection() {
   return (
-    <section id="vision" className="sec sec-hair" style={{ background: "#fff" }}>
-      <div className="sec-in">
-        <Head title="本気で、追いかけています。" sub="立ち上げたばかりのチームだからこそ、大きな目標を掲げています。" />
-
-        <div style={{ display: "grid", gap: "clamp(28px, 4vw, 48px)" }}>
-          <div className="reveal">
-            <p className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.2em", marginBottom: 8 }}>GOAL</p>
-            <h3 className="t-head-sm">みずほPayPayドーム福岡で試合する</h3>
-            <p className="t-body" style={{ marginTop: 10 }}>
-              福岡のシンボルであるあの場所のグラウンドに立つ。
-              いまはまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して一歩ずつ積み上げます。
-            </p>
-          </div>
-
-          <div className="reveal" data-delay="120">
-            <p className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.2em", marginBottom: 8 }}>LEAGUE</p>
-            <h3 className="t-head-sm">設立2年以内のチーム限定リーグを作る</h3>
-            <p className="t-body" style={{ marginTop: 10 }}>
-              いまあるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めません。
-              だからこそ「設立して2年以内のチーム限定」の公式リーグを準備しています。
-              他のリーグに所属していても加入できます。
-            </p>
-          </div>
-        </div>
-
-        <div className="panel reveal" style={{ marginTop: "clamp(36px, 5vw, 60px)" }}>
-          <h3 className="t-head-sm">練習試合の対戦相手を募集しています</h3>
-          <p className="t-body" style={{ marginTop: 12 }}>
-            日程などのご相談は、公式XのDMかお問い合わせフォーム（種別「練習試合・リーグのご相談」）からどうぞ。
-            リーグの詳細についても、そちらで承ります。
-          </p>
-          <div className="cta-row" style={{ marginTop: 20 }}>
-            <a href={X_URL} target="_blank" rel="noopener noreferrer" className="link-more">XのDMで相談する</a>
-            <a href="#contact" className="link-more">お問い合わせフォーム</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── メンバー募集 ── */
-function RecruitSection() {
-  const who = [
-    "野球をやってみたい初心者（代表も初心者です）",
-    "経験者の方（一緒に教え合える方）",
-    "10代〜40代の男女",
-    "福岡市内・近郊に通える方",
-    "学生・社会人・ブランクのある方",
-  ];
-  const steps: [string, string][] = [
-    ["応募する", "下のフォーム、またはXのDMからご連絡ください。"],
-    ["返信を待つ", "3日以内に代表から詳細をお返しします。"],
-    ["グラウンドへ", "次回の活動に参加してみてください。見学だけでも大丈夫です。"],
-  ];
-  return (
-    <section id="recruit" className="sec sec-gray">
-      <div className="sec-in">
-        <Head title="こんな人を、待っています。" />
-
-        <ul className="rows reveal" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {who.map(w => (
-            <li key={w} className="row-item" style={{ display: "block", fontSize: 17, color: "var(--ink)", lineHeight: 1.6 }}>
-              {w}
-            </li>
-          ))}
-        </ul>
-
-        <h3 className="t-head-sm reveal" style={{ marginTop: "clamp(44px, 6vw, 72px)", marginBottom: 22 }}>
-          応募は3ステップです。
-        </h3>
-        <div style={{ display: "grid", gap: 22, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-          {steps.map(([t, d], i) => (
-            <div key={t} className="reveal" data-delay={String(i * 90)}>
-              <div style={{
-                fontFamily: "var(--font-oswald),sans-serif", fontSize: 13,
-                color: "var(--accent)", letterSpacing: "0.1em", marginBottom: 8,
-              }}>
-                {String(i + 1).padStart(2, "0")}
-              </div>
-              <h4 style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>{t}</h4>
-              <p className="t-body" style={{ marginTop: 7, fontSize: 15 }}>{d}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="cta-row reveal" style={{ marginTop: 34 }}>
-          <a href="#contact" className="cta">応募フォームへ</a>
-          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="link-more">XのDMで聞く</a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── 支援のお願い ── */
-function SupportSection() {
-  return (
-    <section id="support" className="sec sec-hair" style={{ background: "#fff" }}>
-      <div className="sec-in">
-        <Head
-          title="支えてくださる方を探しています。"
-          sub="立ち上がったばかりのチームです。道具でも、応援でも、どんな形でも助かります。"
-        />
-        <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))" }}>
-          <div className="panel reveal">
-            <h3 className="t-head-sm">スポンサー</h3>
-            <p className="t-body" style={{ marginTop: 12, fontSize: 15 }}>
-              福岡の地域店舗・個人スポンサー様を募集しています。
-              ユニフォームへのロゴ掲出、サイト・Xでのご紹介、試合当日のPRなど、
-              ご予算に合わせてご相談いただけます。
-            </p>
-            <div style={{ marginTop: 18 }}>
-              <Link href="/sponsor" className="link-more">プランと料金を見る</Link>
-            </div>
-          </div>
-
-          <div className="panel reveal" data-delay="120">
-            <h3 className="t-head-sm">道具のお裾分け</h3>
-            <p className="t-body" style={{ marginTop: 12, fontSize: 15 }}>
-              使っていないボール・バット・ベース・防具などがあれば、譲っていただけると大変助かります。
-              「ちょうど処分しようと思ってた」くらいの気軽さで大丈夫です。
-            </p>
-            <div style={{ marginTop: 18 }}>
-              <a href="#contact" className="link-more">支援について相談する</a>
-            </div>
-          </div>
-        </div>
-        <p className="t-caption reveal" style={{ marginTop: 22 }}>
-          ご支援いただいた方は、サイトとXで感謝とともにご紹介させていただきます。
+    <section id="vision" className="bg-white border-b border-line-2 relative overflow-hidden">
+      <div style={{ position: "absolute", right: -50, top: -40, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 360, lineHeight: 1, color: "rgba(11,30,63,0.03)", userSelect: "none", pointerEvents: "none" }}>V</div>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="私たちの目標" en="Vision" />
+        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
+          立ち上げたばかりのチームだからこそ、大きな夢を本気で追いかけます。
         </p>
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+          {VISIONS.map((v, i) => (
+            <div key={v.no} className="about-card reveal" data-delay={String(i * 130)}
+              style={{ padding: "36px 30px", background: "#f9f6f2", border: "1px solid #e4e0d8", borderTop: "4px solid #d10024", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", right: 12, top: 6, fontFamily: "var(--font-oswald),sans-serif", fontSize: 88, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{v.no}</div>
+              <div style={{ fontSize: 34, marginBottom: 14, lineHeight: 1 }}>{v.icon}</div>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10.5, color: "#d10024", letterSpacing: "0.3em", marginBottom: 10, fontWeight: 700 }}>{v.eyebrow}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(18px,2.4vw,23px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 14, lineHeight: 1.35 }}>{v.title}</h3>
+              <p style={{ fontSize: 14, color: "rgba(19,25,34,0.7)", lineHeight: 1.95 }}>{v.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* 練習試合の対戦相手募集 + 連絡方法 */}
+        <div className="reveal" style={{ marginTop: 22, background: "#0b1e3f", padding: "28px 30px" }}>
+          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em", marginBottom: 8 }}>OPPONENTS WANTED</p>
+          <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,20px)", fontWeight: 900, color: "#fff", lineHeight: 1.5, marginBottom: 10 }}>
+            <span style={{ color: "#d4a82a" }}>練習試合の対戦相手</span>を募集中です。
+          </p>
+          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.95, marginBottom: 20, maxWidth: 720 }}>
+            日程などのご相談は、公式X（<a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ color: "#d4a82a", textDecoration: "underline" }}>@SK_rookies_FK</a>）のDM、または公式サイトの<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせフォーム</a>（種別「<strong style={{ color: "#fff" }}>練習試合・リーグのご相談</strong>」）からお気軽にどうぞ。リーグの詳細についても、そちらで承ります。
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.25)" }}>
+              <XIcon size={13} /> XのDMで相談 →
+            </a>
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+              お問い合わせフォーム →
+            </a>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-/* ── 公式スポンサー ── */
+/* ── ActivitySection ──────────────────────────────────── */
+const ACTIVITY = [
+  { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
+  { label: "主な活動球場", main: "舞鶴公園 / 山王公園 / 東平尾公園（ベスト電器スタジアム）", sub: "中央区の舞鶴公園野球場、博多区の山王公園野球場、そして博多区の東平尾公園 ベスト電器スタジアム野球場をメインに、市内の各グラウンドで活動します。空き状況に応じて他球場も使用します。" },
+  { label: "活動頻度",   main: "週 1〜2回 ＋ 月 3〜4回",    sub: "公園でのキャッチボール練習が週1〜2回、野球場を借りてのノック・バッティング練習が月3〜4回。平日夜・週末どちらも活動あり。参加は出れる時だけでOK。" },
+  { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
+  { label: "費用",       main: "入会費 ¥2,000 + 月額 ¥500（8月〜¥1,000）", sub: "新規入団者は入会費2,000円（5月15日以降）＋スポーツ保険料2,000円／年（6月15日以降全員必須）＋月会費500円（2026年8月分より1,000円に改定 ※既存メンバーの適用時期はお知らせ参照）＋グラウンド代（2時間400円／4時間500円）。詳細はお知らせをご覧ください。" },
+  { label: "装備",       main: "グローブ持参推奨",           sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。" },
+];
+
+function ActivitySection() {
+  return (
+    <section id="activity" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="活動概要" en="Activity" />
+        <div style={{ border: "1px solid #e0dcd4", overflow: "hidden" }}>
+          {ACTIVITY.map((row, i) => (
+            <div key={row.label} className="activity-row reveal grid grid-cols-1 md:[grid-template-columns:220px_1fr]" data-delay={String(i * 80)}
+              style={{ borderBottom: i < ACTIVITY.length - 1 ? "1px solid #e0dcd4" : "none" }}>
+              <div className="activity-label flex items-center px-5 md:px-7 py-4 md:py-6" style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024" }}>
+                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, color: "#fff", letterSpacing: "0.06em" }}>{row.label}</span>
+              </div>
+              <div className="activity-body px-5 md:px-8 py-5 md:py-6" style={{ background: "#fefcfa" }}>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,22px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 6 }}>{row.main}</p>
+                <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>{row.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── RecruitSection ───────────────────────────────────── */
+const TARGETS = [
+  "野球をやってみたい初心者（代表も初心者）",
+  "経験者も大歓迎（一緒に教え合える人）",
+  "10代〜40代までの男女",
+  "福岡市内・近郊に通える人",
+  "とにかく元気で、声を出せる人",
+  "学生も社会人も、ブランクある人もOK",
+];
+
+function RecruitSection() {
+  return (
+    <section id="recruit" className="bg-white border-b border-line-2 relative overflow-hidden">
+      <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="メンバー募集" en="Recruit" />
+        <div className="grid gap-10 md:gap-12 items-start grid-cols-1 md:[grid-template-columns:1fr_380px]">
+          <div>
+            <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>こんな人を、待っています。</p>
+            <div>
+              {TARGETS.map((item, i) => (
+                <div key={item} className="recruit-row reveal flex items-center gap-5 py-4 px-2 border-b border-line-2" data-delay={String(i * 80)}>
+                  <span className="recruit-num font-display font-bold transition-colors" style={{ fontSize: 24, color: "rgba(11,30,63,0.18)", width: 40, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-bold text-ink text-[15px] leading-snug flex-1">{item}</span>
+                  <span className="recruit-arrow text-red text-lg opacity-0 transition-opacity">→</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="reveal sticky" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "36px 32px", top: 100 }}>
+            <p style={S.eyebrow}>APPLY NOW</p>
+            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.5vw,26px)", fontWeight: 900, color: "#0b1e3f", lineHeight: 1.3, marginBottom: 28, marginTop: 8 }}>応募はかんたん<br />3ステップ。</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+              {[["1","フォームから連絡","下のフォーム or X DM で応募ください。"],["2","代表から返信","3日以内に詳細をお返しします。"],["3","グラウンドへ","次回の活動に参加してみてください！"]].map(([n,t,d]) => (
+                <div key={n} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <div style={{ width: 34, height: 34, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, flexShrink: 0 }}>{n}</div>
+                  <div><p style={{ fontWeight: 700, color: "#0b1e3f", fontSize: 14, marginBottom: 2 }}>{t}</p><p style={{ fontSize: 13, color: "#5b6373" }}>{d}</p></div>
+                </div>
+              ))}
+            </div>
+            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em" }}>
+              応募フォームへ →
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── SupportSection ───────────────────────────────────── */
+function SupportSection() {
+  const cards = [
+    { eyebrow: "SPONSOR",   eyeColor: "#d10024", title: "スポンサー募集中", body: "福岡の地域店舗・個人スポンサー様を募集しています。ユニフォームへのロゴ掲出、サイト・Xでの紹介、試合当日のPRなど、予算感に合わせてご相談可能です。", items: ["サイトにロゴ＆リンク掲出","公式X（@SK_rookies_FK）で紹介","ユニフォーム・備品へのロゴ掲出（相談）","活動報告での感謝紹介"], red: true },
+    { eyebrow: "EQUIPMENT", eyeColor: "#d4a82a", title: "道具のお裾分け歓迎", body: "もしご自宅に使っていないボール・バット・ベース・防具などがあれば、チームに譲っていただけると大変助かります。「ちょうど処分しようと思ってた」くらいの気軽さで大丈夫です。", items: ["軟式ボール（使用済みでもOK）","バット（子ども用〜大人用まで）","ベース・塁間マーカー","ヘルメット・キャッチャー防具","古くなったグローブ（練習用に）"], red: false },
+  ];
+  return (
+    <section id="support" className="bg-navy text-white relative overflow-hidden">
+      <div className="field-grid absolute inset-0" />
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="支援のお願い" en="Support" light />
+        <p className="reveal text-white/60 mb-12 text-[15px] leading-[1.9] max-w-lg" style={{ marginTop: -28 }}>立ち上がったばかりのチームです。道具や活動資金、応援の輪、どんな形でも支えていただけると大変助かります。</p>
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+          {cards.map((c, i) => (
+            <div key={c.title} className="support-card reveal" data-delay={String(i * 160)}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", padding: "36px 32px" }}>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: c.eyeColor, letterSpacing: "0.4em", marginBottom: 14 }}>{c.eyebrow}</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(18px,2vw,24px)", fontWeight: 900, color: "#fff", marginBottom: 16, lineHeight: 1.3 }}>{c.title}</h3>
+              <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", lineHeight: 1.9, marginBottom: 20 }}>{c.body}</p>
+              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px", display: "flex", flexDirection: "column", gap: 8 }}>
+                {c.items.map(item => <li key={item} style={{ display: "flex", gap: 10, fontSize: 13, color: "rgba(255,255,255,0.65)" }}><span style={{ color: c.eyeColor, flexShrink: 0 }}>⬥</span>{item}</li>)}
+              </ul>
+              <a href={c.red ? "/sponsor" : "#contact"} className={c.red ? "bg-red hover:bg-red-2 transition-colors" : "bg-transparent border border-white/30 hover:border-white/70 transition-colors"} style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+                {c.red ? "プラン・料金を見る →" : "道具支援のご相談はこちら →"}
+              </a>
+            </div>
+          ))}
+        </div>
+        <p className="reveal text-center text-white/35 text-sm mt-10">ご支援いただいた方はサイト・Xで感謝とともにご紹介させていただきます</p>
+      </div>
+    </section>
+  );
+}
+
+/* ── SponsorsSection ──────────────────────────────────── */
+
 function SponsorsSection() {
   return (
-    <section id="sponsors" className="sec sec-gray">
-      <div className="sec-in-wide">
-        <Head title="公式スポンサー" sub="活動を応援してくださっているパートナー様です。心より感謝申し上げます。" />
-        <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+    <section id="sponsors" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="公式スポンサー" en="Sponsors" />
+        <p className="reveal text-[#5b6373] mb-12 text-[15px] leading-[1.9] max-w-2xl" style={{ marginTop: -28 }}>
+          博多SKルーキーズの活動を応援してくださっているパートナー様のご紹介です。各ブランド・店舗様、心より感謝申し上げます。
+        </p>
+
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {SPONSORS.map((s, i) => (
             <a
               key={s.key}
               href={s.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="panel panel-plain reveal"
-              data-delay={String(i * 100)}
-              style={{ textDecoration: "none", color: "inherit", display: "block" }}
+              className="sponsor-card reveal"
+              data-delay={String(i * 120)}
+              style={{
+                background: "#fff",
+                border: "1px solid #e0dcd4",
+                textDecoration: "none",
+                color: "inherit",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
             >
-              <div style={{ display: "grid", placeItems: "center", minHeight: 140, marginBottom: 20 }}>
-                <Image src={s.logo} alt={s.name} width={280} height={140} className="object-contain max-w-full h-auto" style={{ maxHeight: 96 }} />
+              {/* ロゴ枠（白背景でロゴを大きく） */}
+              <div style={{
+                position: "relative",
+                background: "#fff",
+                borderBottom: "1px solid #f0ece6",
+                padding: "44px 24px",
+                display: "grid",
+                placeItems: "center",
+                minHeight: 220,
+              }}>
+                <Image
+                  src={s.logo}
+                  alt={s.name}
+                  width={300}
+                  height={150}
+                  className="object-contain max-w-full h-auto"
+                  style={{ maxHeight: 130 }}
+                />
+                {s.badge && (
+                  <span style={{
+                    position: "absolute",
+                    top: 14, left: 14,
+                    fontFamily: "var(--font-oswald),sans-serif",
+                    fontSize: 10,
+                    letterSpacing: "0.3em",
+                    color: "#d10024",
+                    background: "rgba(209,0,36,0.08)",
+                    padding: "3px 9px",
+                  }}>
+                    {s.badge}
+                  </span>
+                )}
               </div>
-              <p className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.18em" }}>{s.tagline}</p>
-              <h3 className="t-head-sm" style={{ marginTop: 7 }}>
-                {s.name}
-                {s.reading && <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ink-3)", marginLeft: 8 }}>{s.reading}</span>}
-              </h3>
-              {s.slogan && <p className="t-body" style={{ marginTop: 10, fontSize: 15 }}>{s.slogan}</p>}
-              <span className="link-more" style={{ marginTop: 16, fontSize: 15 }}>サイトを見る</span>
+              {/* 本文 */}
+              <div style={{ padding: "24px 26px 22px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em" }}>
+                  {s.tagline}
+                </p>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 22, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.25 }}>
+                    {s.name}
+                  </h3>
+                  {s.reading && (
+                    <span style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 12, color: "#8a8a8a" }}>
+                      ／ {s.reading}
+                    </span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  {s.body.split("\n\n").map((para, pi) => (
+                    <p key={pi} style={{ fontSize: 13, color: "#3a3f4a", lineHeight: 1.9, marginBottom: 10 }}>
+                      {para}
+                    </p>
+                  ))}
+                </div>
+                {s.highlight && (
+                  <div style={{
+                    marginTop: 4,
+                    background: "linear-gradient(135deg, rgba(209,0,36,0.05), rgba(212,168,42,0.05))",
+                    border: "1px solid rgba(209,0,36,0.2)",
+                    borderLeft: "4px solid #d10024",
+                    padding: "14px 16px",
+                  }}>
+                    <p style={{
+                      fontFamily: "var(--font-oswald),sans-serif",
+                      fontSize: 10,
+                      color: "#d10024",
+                      letterSpacing: "0.3em",
+                      fontWeight: 700,
+                      marginBottom: 6,
+                    }}>
+                      {s.highlight.label}
+                    </p>
+                    <p style={{
+                      fontFamily: "var(--font-zen),sans-serif",
+                      fontSize: 15,
+                      fontWeight: 900,
+                      color: "#0b1e3f",
+                      marginBottom: 6,
+                      lineHeight: 1.4,
+                    }}>
+                      {s.highlight.title}
+                    </p>
+                    <p style={{ fontSize: 12, color: "#3a3f4a", lineHeight: 1.85 }}>
+                      {s.highlight.body}
+                    </p>
+                  </div>
+                )}
+                {s.slogan && (
+                  <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: "3px solid #d10024" }}>
+                    <p style={{
+                      fontFamily: "var(--font-oswald),sans-serif",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      fontStyle: "italic",
+                      color: "#0b1e3f",
+                      letterSpacing: "0.02em",
+                      lineHeight: 1.3,
+                    }}>
+                      {s.slogan}
+                    </p>
+                    {s.sloganJp && (
+                      <p style={{ fontSize: 11, color: "#5b6373", marginTop: 4, lineHeight: 1.6 }}>
+                        {s.sloganJp}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <span style={{
+                  fontFamily: "var(--font-oswald),sans-serif",
+                  fontSize: 12,
+                  color: "#d10024",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  marginTop: 8,
+                }}>
+                  公式ショップを見る →
+                </span>
+              </div>
             </a>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
 
-/* ── ブログ ── */
-function BlogPreview({ posts }: { posts: BlogPost[] }) {
-  if (posts.length === 0) return null;
-  return (
-    <section id="blog" className="sec-tight sec-hair" style={{ background: "#fff" }}>
-      <div className="sec-in">
-        <Head title="ブログ" center={false} />
-        <div className="rows reveal" style={{ marginTop: -18 }}>
-          {posts.slice(0, 3).map(p => (
-            <Link key={p.slug} href={`/blog/${p.slug}`} className="row-item" style={{ textDecoration: "none" }}>
-              <div className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", paddingTop: 3 }}>
-                {p.date.replace(/-/g, ".")}
-              </div>
-              <div>
-                <div style={{ fontSize: 16, color: "var(--ink)", lineHeight: 1.6 }}>{p.title}</div>
-                {p.excerpt && <p className="t-body" style={{ marginTop: 5, fontSize: 14 }}>{p.excerpt}</p>}
-              </div>
-            </Link>
-          ))}
-        </div>
-        <div style={{ marginTop: 22 }}>
-          <Link href="/blog" className="link-more reveal">記事の一覧</Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── お問い合わせ ── */
-function ContactSection() {
-  const links: [string, React.ReactNode][] = [
-    ["X（旧Twitter）", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}><XIcon size={13} />&nbsp;@SK_rookies_FK</a>],
-    ["Instagram", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}><IGIcon size={14} />&nbsp;@{IG_HANDLE}</a>],
-    ["グループLINE", <a key="l" href={LINE_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}><LINEIcon size={16} />&nbsp;メンバー用の連絡網</a>],
-    ["ジモティー", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}>募集ページ</a>],
-    ["Labola", <a key="la" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}>募集ページ</a>],
-    ["郵便物", <span key="p" className="t-body" style={{ fontSize: 15 }}>〒812-0011 福岡市博多区博多駅前1-23-2<br />ParkFront博多駅前1丁目 5F-B</span>],
-  ];
-  return (
-    <section id="contact" className="sec sec-gray">
-      <div className="sec-in">
-        <Head
-          title="まずは、気軽に。"
-          sub="応募・質問・スポンサー・道具のご支援まで、こちらで受け付けています。3日以内にお返事します。"
-        />
-
-        <div className="panel panel-plain reveal" style={{ marginBottom: 34 }}>
-          <RecruitForm />
-        </div>
-
-        <h3 className="t-head-sm reveal" style={{ marginBottom: 6 }}>ほかの連絡先</h3>
-        <div className="rows reveal">
-          {links.map(([label, node]) => (
-            <div key={label} className="row-item">
-              <div className="t-caption" style={{ paddingTop: 4 }}>{label}</div>
-              <div>{node}</div>
-            </div>
-          ))}
-        </div>
-
-        <p className="t-caption reveal" style={{ marginTop: 22 }}>
-          女性はプレイヤーでもマネージャーでも歓迎です。代表は19歳ですが、年齢差はまったく気にしていません。
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/* ── フッター ── */
-function Footer() {
-  const menu: [string, string][] = [
-    ["#about", "チーム紹介"], ["#activity", "活動概要"], ["#schedule", "日程"],
-    ["#app", "公式アプリ"], ["#vision", "目標"], ["#recruit", "メンバー募集"],
-    ["#sponsors", "スポンサー"], ["#contact", "お問い合わせ"],
-  ];
-  const sub: [string, string][] = [
-    ["/news", "お知らせ"], ["/blog", "ブログ"], ["/uniform", "ユニフォーム"],
-    ["/sponsor", "スポンサー募集"], ["/stats", "メンバー成績アプリ"],
-    ["/privacy", "プライバシーポリシー"], ["/commercial", "特定商取引法に基づく表記"],
-  ];
-  return (
-    <footer style={{ background: "#f5f5f7", borderTop: "1px solid var(--hair)" }}>
-      <div className="sec-in-wide" style={{ paddingTop: 44, paddingBottom: 36 }}>
-        <div style={{ display: "grid", gap: 30, gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <Image src="/sk_logo_crop.png" alt={TEAM_NAME_JP} width={54} height={44} className="object-contain" style={{ width: 38, height: "auto" }} />
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{TEAM_NAME_JP}</p>
-                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, letterSpacing: "0.24em", color: "var(--ink-3)", marginTop: 2 }}>{TEAM_NAME_EN}</p>
-              </div>
-            </div>
-            <p className="t-caption" style={{ maxWidth: 280 }}>
-              福岡市を拠点に活動する、初心者中心の草野球チームです。
+        {/* スポンサー募集の導線 */}
+        <div className="reveal mt-12" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "24px 28px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em", marginBottom: 6 }}>
+              SPONSOR — BE THE NEXT PARTNER
             </p>
-            <div style={{ display: "flex", gap: 14, marginTop: 16 }}>
-              <a href={X_URL} target="_blank" rel="noopener noreferrer" aria-label="X" style={{ color: "var(--ink-2)" }}><XIcon size={16} /></a>
-              <a href={IG_URL} target="_blank" rel="noopener noreferrer" aria-label="Instagram" style={{ color: "var(--ink-2)" }}><IGIcon size={16} /></a>
-              <a href={LINE_URL} target="_blank" rel="noopener noreferrer" aria-label="LINE" style={{ color: "var(--ink-2)" }}><LINEIcon size={17} /></a>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 17, fontWeight: 900, color: "#0b1e3f", marginBottom: 4 }}>
+              スポンサーシップ募集中
+            </p>
+            <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>
+              年間 ¥10,000 〜。ユニフォームへのロゴ掲出、サイト・SNSでのご紹介、活動報告での感謝紹介など。
+            </p>
+          </div>
+          <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em" }}>
+            お問い合わせ →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── ContactSection ───────────────────────────────────── */
+function ContactSection() {
+  return (
+    <section id="contact" className="bg-white border-b border-line-2">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="お問い合わせ" en="Contact" />
+        <div className="grid gap-10 items-start grid-cols-1 md:[grid-template-columns:300px_1fr]">
+          <div>
+            <p className="reveal text-[14px] leading-[1.9] mb-5" style={{ color: "#3a3f4a" }}>
+              下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。
+            </p>
+            <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
+              <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
+              女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
             </div>
+            {[["X", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
+              ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
+              ["LINE GROUP", <a key="line" href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold transition-colors text-[15px]" style={{ textDecoration: "none", color: "#06c755" }}><LINEIcon size={20}/> 公式グループLINE（連絡網）→</a>, "メンバー専用の連絡網。入会時は必ず自己紹介（やりたいポジション・経験）をお願いします。"],
+              ["POSTAL", <div key="p" className="font-bold text-navy text-[14px]" style={{ lineHeight: 1.7 }}><div>福岡・博多オフィス</div><div className="font-normal text-[13px] mt-0.5" style={{ color: "#3a3f4a" }}>〒812-0011<br/>福岡県福岡市博多区博多駅前<br/>1丁目23番2号<br/>ParkFront博多駅前1丁目 5F-B</div></div>, "郵便物・物品送付はこちらまで。"],
+              ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
+              ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
+              ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
+            ].map(([eyebrow, content, sub]) => (
+              <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.4em", marginBottom: 10 }}>{eyebrow}</p>
+                {content}
+                <p className="text-[12px] text-muted mt-1.5">{sub}</p>
+              </div>
+            ))}
           </div>
+          <div className="reveal reveal-right"><RecruitForm /></div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
+/* ── Footer ───────────────────────────────────────────── */
+function Footer() {
+  return (
+    <footer style={{ background: "#060f20", color: "#fff", position: "relative", overflow: "hidden" }}>
+      <div style={{ height: 4, background: "linear-gradient(90deg,#d10024,#a80019 50%,#d10024)" }} />
+      {/* SKマークのウォーターマーク */}
+      <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
+        className="absolute pointer-events-none select-none hidden md:block"
+        style={{ right: "-3%", bottom: -40, width: "clamp(240px, 26vw, 380px)", height: "auto", opacity: 0.04, transform: "rotate(-6deg)" }} />
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 48, paddingBottom: 32 }}>
+        <div className="grid gap-10 md:gap-12 pb-10 grid-cols-1 md:[grid-template-columns:1fr_160px_220px]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
           <div>
-            <p className="t-caption" style={{ marginBottom: 12, color: "var(--ink)" }}>サイト内</p>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 9 }}>
-              {menu.map(([h, l]) => (
-                <li key={h}><a href={h} style={{ fontSize: 13, color: "var(--ink-2)", textDecoration: "none" }}>{l}</a></li>
+            <div className="flex items-center gap-4 mb-4">
+              <Image src="/sk_logo_crop.png" alt={TEAM_NAME_JP} width={78} height={64} className="object-contain" />
+              <div>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: "0.04em" }}>{TEAM_NAME_JP}</p>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em", marginTop: 3 }}>{TEAM_NAME_EN}</p>
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。一緒に野球を楽しむ仲間を募集中です。</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+                <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
           </div>
-
           <div>
-            <p className="t-caption" style={{ marginBottom: 12, color: "var(--ink)" }}>ページ</p>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 9 }}>
-              {sub.map(([h, l]) => (
-                <li key={h}><Link href={h} style={{ fontSize: 13, color: "var(--ink-2)", textDecoration: "none" }}>{l}</Link></li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <p className="t-caption" style={{ marginBottom: 12, color: "var(--ink)" }}>チーム情報</p>
-            <dl style={{ margin: 0, display: "grid", gap: 9 }}>
-              {[
-                ["拠点", "福岡市"],
-                ["設立", `${FOUNDED}年`],
-                ["代表", "柏木 海斗"],
-                ["対象", "10代〜40代 / 初心者中心"],
-              ].map(([l, v]) => (
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>TEAM INFO</p>
+            <dl style={{ display: "flex", flexDirection: "column", gap: 10, margin: 0 }}>
+              {[["拠点","福岡市"],["主な球場","舞鶴公園 / 山王公園 / 東平尾公園（ベスト電器スタジアム）"],["設立",`${FOUNDED}年`],["代表","柏木 海斗（19歳 / ボートレーサー志望）"],["対象","10代〜40代 / 初心者中心"],["郵便","〒812-0011 福岡市博多区博多駅前1-23-2 ParkFront博多駅前1丁目 5F-B"]].map(([l,v]) => (
                 <div key={l} style={{ display: "flex", gap: 12 }}>
-                  <dt className="t-caption" style={{ width: 34, flexShrink: 0 }}>{l}</dt>
-                  <dd style={{ fontSize: 13, color: "var(--ink-2)", margin: 0 }}>{v}</dd>
+                  <dt style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", width: 38, flexShrink: 0 }}>{l}</dt>
+                  <dd style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}>{v}</dd>
                 </div>
               ))}
             </dl>
+            <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <a href={X_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <XIcon size={12} /> 公式X
+              </a>
+              <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <IGIcon size={13} /> Instagram
+              </a>
+              <a href={LINE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                <LINEIcon size={14} /> LINE
+              </a>
+              <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                ジモティー
+              </a>
+              <a href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:border-white/50 transition-all" style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.15)", padding: "8px 14px", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: 12 }}>
+                Labola
+              </a>
+            </div>
           </div>
         </div>
-
-        <div style={{ marginTop: 34, paddingTop: 18, borderTop: "1px solid var(--hair)", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between" }}>
-          <span className="t-caption">© {new Date().getFullYear()} {TEAM_NAME_JP}</span>
-          <span className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.2em" }}>FUKUOKA — EST. {FOUNDED}</span>
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 pt-6 text-[11px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center" }}>
+            <span>© {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}.</span>
+            <Link href="/privacy" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>プライバシーポリシー</Link>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <Link href="/commercial" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>特定商取引法に基づく表記</Link>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <Link href="/stats" className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>メンバー成績アプリ（要パスワード）</Link>
+          </div>
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.3em" }}>FUKUOKA — EST. {FOUNDED}</span>
         </div>
       </div>
     </footer>
   );
 }
 
-/* ── ページ ───────────────────────────────────────────── */
+/* ── Page ─────────────────────────────────────────────── */
 export default async function Home() {
   const [news, practices, blogs] = await Promise.all([getNews(), getPractices(), getBlogs()]);
   return (
     <>
       <ScrollReveal />
+      <TopBar />
       <Header />
-      <main id="top">
+      <main>
         <HeroSection memberCount={MEMBER_COUNT} />
-        <AboutSection />
-        <ActivitySection />
-        <ScheduleSection practices={practices} />
         <NewsSection news={news} />
+        <ScheduleSection practices={practices} />
+        <AboutSection />
         <AppSection />
         <VisionSection />
+        <ActivitySection />
         <RecruitSection />
         <SupportSection />
         <SponsorsSection />

@@ -34,8 +34,8 @@ html {
 }
 
 html, body {
-  background: #fff;
-  color: #1d1d1f;
+  background: var(--base);
+  color: #131922;
   font-family: var(--font-zen), system-ui, sans-serif;
   /* タイポグラフィの精細化（プロ仕上げ） */
   font-feature-settings: "palt" 1;
@@ -55,20 +55,19 @@ html, body {
 
 ::selection { background: var(--red); color: #fff; }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: var(--navy); }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.22);
-  border: 3px solid transparent;
-  background-clip: content-box;
+  background: var(--red);
+  border: 2px solid var(--navy);
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.38); background-clip: content-box; }
-* { scrollbar-color: rgba(0,0,0,0.22) transparent; }
+::-webkit-scrollbar-thumb:hover { background: var(--red-2); }
+* { scrollbar-color: var(--red) var(--navy); }
 
 /* キーボード操作時だけ出る、ブランド配色のフォーカスリング（アクセシビリティ＋上質感） */
 :focus-visible {
-  outline: 2px solid var(--accent, #d10024);
+  outline: 2px solid var(--gold);
   outline-offset: 3px;
   border-radius: 1px;
 }
@@ -653,123 +652,3 @@ a[href]:active, button:active { transition-duration: 0.05s; }
   .grow-bar { transform: scaleX(1); }
   html { scroll-behavior: auto; }
 }
-
-/* ══════════════════════════════════════════════════════
-   公式サイトの基盤（2026.09 リニューアル）
-
-   方針:
-   - 白を基調に、余白で情報を区切る。枠線や色面で囲わない。
-   - 見出しは大きく、太さは控えめ、字間は詰める。
-   - 色は1色（SKレッド）だけをリンクとボタンに使う。
-     装飾のためのグラデーション・光・粒子は置かない。
-   - 見せ場（アプリ・目標）だけ黒の全面セクションにして緩急をつける。
-   ══════════════════════════════════════════════════════ */
-:root {
-  --ink: #1d1d1f;       /* 本文 */
-  --ink-2: #6e6e73;     /* 補足・説明文 */
-  --ink-3: #86868b;     /* さらに弱い文字 */
-  --surface-2: #f5f5f7; /* うっすらグレーの面 */
-  --hair: #d2d2d7;      /* 極細の区切り線 */
-  --accent: #d10024;    /* SKレッド */
-}
-
-/* ── セクション ── */
-.sec { padding: clamp(76px, 11vw, 150px) 0; }
-.sec-tight { padding: clamp(56px, 8vw, 104px) 0; }
-.sec-in { max-width: 980px; margin: 0 auto; padding: 0 22px; }
-.sec-in-wide { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
-.sec-gray { background: var(--surface-2); }
-.sec-dark { background: #000; color: #f5f5f7; }
-.sec-dark .t-sub, .sec-dark .t-body { color: #a1a1a6; }
-.sec-hair + .sec-hair { border-top: 1px solid var(--hair); }
-
-/* ── 文字 ── */
-.t-display {
-  font-weight: 700;
-  font-size: clamp(38px, 7.6vw, 80px);
-  line-height: 1.07;
-  letter-spacing: -0.028em;
-  color: var(--ink);
-}
-.t-head {
-  font-weight: 700;
-  font-size: clamp(27px, 4.6vw, 48px);
-  line-height: 1.16;
-  letter-spacing: -0.022em;
-  color: var(--ink);
-}
-.t-head-sm {
-  font-weight: 700;
-  font-size: clamp(20px, 2.6vw, 27px);
-  line-height: 1.3;
-  letter-spacing: -0.016em;
-  color: var(--ink);
-}
-.t-sub {
-  font-weight: 400;
-  font-size: clamp(16px, 1.9vw, 21px);
-  line-height: 1.55;
-  letter-spacing: -0.004em;
-  color: var(--ink-2);
-}
-.t-body {
-  font-size: 16px;
-  line-height: 1.8;
-  color: var(--ink-2);
-}
-.t-caption { font-size: 13px; line-height: 1.7; color: var(--ink-3); }
-.sec-dark .t-display, .sec-dark .t-head, .sec-dark .t-head-sm { color: #f5f5f7; }
-.sec-dark .t-caption { color: #86868b; }
-
-/* ── ボタンとリンク ── */
-.cta {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #fff;
-  font-size: 16px; font-weight: 500; letter-spacing: 0;
-  padding: 13px 26px; border-radius: 980px;
-  text-decoration: none; border: none; cursor: pointer;
-  transition: background .25s var(--ease-out), transform .25s var(--ease-out);
-}
-.cta:hover { background: #b8001f; }
-.cta:active { transform: scale(0.97); }
-.cta-ghost {
-  background: transparent; color: var(--accent);
-  border: 1px solid currentColor;
-}
-.cta-ghost:hover { background: rgba(209,0,36,0.06); }
-.sec-dark .cta-ghost { color: #fff; }
-.sec-dark .cta-ghost:hover { background: rgba(255,255,255,0.1); }
-
-.link-more {
-  display: inline-flex; align-items: center; gap: 3px;
-  color: var(--accent); font-size: 16px; text-decoration: none;
-  transition: opacity .2s;
-}
-.link-more::after { content: "›"; font-size: 1.25em; line-height: 0.9; }
-.link-more:hover { opacity: 0.72; }
-.sec-dark .link-more { color: #ff6b7f; }
-
-/* ── 面（カード）──
-   囲み枠ではなく、角丸の面として置く。影は使わない。 */
-.panel {
-  background: var(--surface-2);
-  border-radius: 18px;
-  padding: clamp(24px, 3.4vw, 40px);
-}
-.sec-dark .panel { background: #131316; }
-.panel-plain { background: #fff; }
-
-/* ── 上下の余白まわりの共通 ── */
-.stack > * + * { margin-top: 18px; }
-.center { text-align: center; }
-.center .cta-row { justify-content: center; }
-.cta-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
-
-/* ── 罫線つきリスト（Apple の仕様表のような見せ方） ── */
-.rows { border-top: 1px solid var(--hair); }
-.row-item {
-  display: grid; gap: 4px 28px; padding: 20px 0;
-  border-bottom: 1px solid var(--hair);
-}
-@media (min-width: 720px) { .row-item { grid-template-columns: 220px 1fr; gap: 0 28px; } }
-.sec-dark .rows, .sec-dark .row-item { border-color: #2a2a2e; }

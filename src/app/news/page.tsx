@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getNews } from "@/data/news";
-import SiteHeader from "@/components/SiteHeader";
-import PageHero from "@/components/PageHero";
+import Image from "next/image";
+import { getNews, CATEGORY_STYLES } from "@/data/news";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
@@ -22,45 +21,82 @@ export default async function NewsIndexPage() {
 
   return (
     <>
-      <SiteHeader />
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
+        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
+          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
+            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
+            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
+            </div>
+          </Link>
+          <Link href="/" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
+            ← トップへ戻る
+          </Link>
+        </div>
+      </header>
 
       <main className="bg-white">
-        <PageHero title="お知らせ一覧" sub={<>重要なご連絡・募集・活動報告など、これまでのお知らせを新しい順にまとめています。全 {news.length} 件。</>} />
+        {/* Hero */}
+        <section className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+          <div className="field-grid absolute inset-0" />
+          <div className="max-w-[1080px] mx-auto px-5 md:px-8 py-12 md:py-16 relative">
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d10024", letterSpacing: "0.45em", marginBottom: 10 }}>NEWS</p>
+            <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(28px,4vw,42px)", fontWeight: 900, lineHeight: 1.2 }}>
+              お知らせ一覧
+            </h1>
+            <p className="mt-5 text-white/65 text-[14px] leading-[1.9] max-w-2xl">
+              重要なご連絡・募集・活動報告など、これまで掲載したお知らせを新しい順にまとめています。
+              全 <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a", fontWeight: 700, fontSize: 16 }}>{news.length}</span> 件。
+            </p>
+          </div>
+        </section>
 
-        {/* 一覧 */}
-        <section className="sec-tight" style={{ background: "#fff" }}>
-          <div className="sec-in">
-            {news.length === 0 ? (
-              <p className="t-body center" style={{ padding: "32px 0" }}>まだお知らせがありません。</p>
-            ) : (
-              <div className="rows">
-                {news.map((n, i) => {
-                  const isImportant = n.category === "重要";
-                  const inner = (
-                    <>
-                      <div className="t-caption" style={{ fontFamily: "var(--font-oswald),sans-serif", paddingTop: 3 }}>
-                        {n.date}
-                        <span style={{ fontFamily: "var(--font-zen),sans-serif", marginLeft: 10, color: isImportant ? "var(--accent)" : "var(--ink-3)" }}>
-                          {n.category}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 16, color: "var(--ink)", lineHeight: 1.6 }}>{n.title}</div>
-                    </>
-                  );
-                  return n.body ? (
-                    <Link key={n.slug} href={`/news/${n.slug}`} className="row-item" style={{ textDecoration: "none" }}>
-                      {inner}
-                    </Link>
-                  ) : (
-                    <div key={n.slug || i} className="row-item">{inner}</div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="center" style={{ marginTop: 34 }}>
-              <Link href="/" className="link-more">トップへ戻る</Link>
+        {/* List */}
+        <section className="max-w-[1080px] mx-auto px-5 md:px-8 py-12 md:py-16">
+          {news.length === 0 ? (
+            <p style={{ padding: "32px 0", textAlign: "center", color: "#5b6373", fontSize: 14 }}>
+              まだお知らせがありません。
+            </p>
+          ) : (
+            <div>
+              {news.map((n, i) => {
+                const cs = CATEGORY_STYLES[n.category] as string;
+                const hasBody = !!n.body;
+                const isImportant = n.category === "重要";
+                const inner = (
+                  <>
+                    <span className="order-1" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: isImportant ? "#d10024" : "#0b1e3f", letterSpacing: "0.06em", fontWeight: isImportant ? 700 : 400 }}>{n.date}</span>
+                    <span className={`order-2 inline-flex items-center gap-1 text-xs font-bold tracking-wider px-2.5 py-1 ${cs}`}>
+                      {isImportant && <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>⚠</span>}
+                      {n.category}
+                    </span>
+                    <span className="order-3 basis-full md:basis-auto font-bold text-ink text-[15px] leading-snug" style={{ color: isImportant ? "#0b1e3f" : undefined }}>
+                      {n.title}
+                      {hasBody && <span className="ml-2 text-red text-xs font-bold tracking-wider">詳しく →</span>}
+                    </span>
+                  </>
+                );
+                const cls = `news-row flex flex-wrap md:grid md:items-center gap-x-6 gap-y-2 px-2 md:px-4 py-4 md:py-5 border-t border-line-2 md:[grid-template-columns:160px_88px_1fr] ${isImportant ? "news-row-important" : ""}`;
+                return hasBody ? (
+                  <Link key={n.slug} href={`/news/${n.slug}`} className={cls} style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={n.slug || i} className={cls}>
+                    {inner}
+                  </div>
+                );
+              })}
+              <div className="border-t border-line-2" />
             </div>
+          )}
+
+          <div className="mt-10 text-center">
+            <Link href="/" style={{ display: "inline-flex", alignItems: "center", padding: "12px 28px", border: "1px solid #d8d4cb", color: "#0b1e3f", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
+              ← トップへ戻る
+            </Link>
           </div>
         </section>
       </main>

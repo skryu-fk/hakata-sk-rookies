@@ -8,16 +8,16 @@ const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
 type Status = "idle" | "submitting" | "success" | "error";
 
 const inp: React.CSSProperties = {
-  width: "100%", border: "1px solid var(--hair)", background: "#fff",
-  padding: "13px 15px", fontSize: 16, color: "var(--ink)", outline: "none",
-  fontFamily: "var(--font-zen), sans-serif", display: "block", borderRadius: 12,
-  boxSizing: "border-box", transition: "border-color .15s, box-shadow .15s",
+  width: "100%", border: "1px solid #d8d4cb", background: "#faf9f7",
+  padding: "12px 16px", fontSize: 15, color: "#131922", outline: "none",
+  fontFamily: "var(--font-zen), sans-serif", display: "block",
+  boxSizing: "border-box", transition: "border-color 0.15s, box-shadow 0.15s",
 };
 
 function FLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label style={{ display: "block", fontSize: 13, color: "var(--ink-2)", marginBottom: 7 }}>
-      {children}{required && <span style={{ color: "var(--accent)", marginLeft: 3 }}>*</span>}
+    <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0b1e3f", marginBottom: 8, letterSpacing: "0.05em" }}>
+      {children} {required && <span style={{ color: "#d10024" }}>*</span>}
     </label>
   );
 }
@@ -69,11 +69,13 @@ function FSubmit({ children, disabled }: { children: React.ReactNode; disabled?:
   return (
     <button type="submit" disabled={disabled}
       style={{
-        width: "100%", background: disabled ? "#c7c7cc" : (hov ? "#b8001f" : "var(--accent)"),
-        color: "#fff", border: "none", padding: "15px", borderRadius: 980,
-        fontSize: 16, fontWeight: 500, letterSpacing: 0,
+        width: "100%", background: disabled ? "#ccc" : (hov ? "#a80019" : "#d10024"),
+        color: "#fff", border: "none", padding: "16px",
+        fontSize: 15, fontWeight: 700, letterSpacing: "0.15em",
         cursor: disabled ? "not-allowed" : "pointer",
-        transition: "background .2s", fontFamily: "var(--font-zen), sans-serif",
+        transition: "all 0.2s", fontFamily: "var(--font-zen), sans-serif",
+        transform: hov && !disabled ? "translateY(-2px)" : "none",
+        boxShadow: hov && !disabled ? "0 8px 28px rgba(209,0,36,0.3)" : "none",
       }}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}>
       {children}
@@ -128,11 +130,12 @@ export default function RecruitForm() {
   }
 
   if (status === "success") return (
-    <div style={{ padding: "56px 24px", textAlign: "center" }}>
-      <p className="t-head-sm" style={{ marginBottom: 12 }}>
+    <div style={{ background: "#0b1e3f", padding: "64px 48px", textAlign: "center" }}>
+      <div style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 16 }}>THANK YOU</div>
+      <p style={{ fontFamily: "var(--font-zen), sans-serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 12 }}>
         {isMember ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
       </p>
-      <p className="t-body" style={{ fontSize: 15 }}>
+      <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.85 }}>
         内容を確認のうえ、3日以内にご返信します。<br />
         {isMember ? "グラウンドでお会いしましょう。" : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
       </p>
@@ -140,8 +143,14 @@ export default function RecruitForm() {
   );
 
   return (
-    <form onSubmit={handleSubmit} style={{ background: "transparent" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <form onSubmit={handleSubmit} style={{ background: "#fff", border: "1px solid #e0dcd4" }}>
+      {/* Header */}
+      <div style={{ background: "#0b1e3f", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontFamily: "var(--font-zen), sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.1em" }}>応募・お問い合わせフォーム</span>
+        <span style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>FORM</span>
+      </div>
+
+      <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: 20 }}>
         {/* まず相談内容を選んでもらい、それに合わせて下の項目を出し分ける */}
         <FSelect label="ご相談内容" name="inquiry_type" value={inquiry} onChange={setInquiry} options={[
           { value: "メンバー応募",     label: "メンバーとして応募したい" },
@@ -180,12 +189,12 @@ export default function RecruitForm() {
         </div>
         <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" style={{ display: "none" }} />
         {status === "error" && (
-          <div style={{ background: "rgba(209,0,36,0.06)", borderRadius: 12, padding: "13px 16px", color: "var(--accent)", fontSize: 14 }}>
+          <div style={{ background: "rgba(209,0,36,0.06)", border: "1px solid rgba(209,0,36,0.25)", padding: "12px 16px", color: "#d10024", fontSize: 13 }}>
             {errorMsg}
           </div>
         )}
         <FSubmit disabled={status === "submitting"}>{status === "submitting" ? "送信中…" : "送信する →"}</FSubmit>
-        <p className="t-caption" style={{ textAlign: "center" }}>送信内容はチーム代表者のみが確認します。3日以内に返信します。</p>
+        <p style={{ fontSize: 12, color: "#aaa", textAlign: "center" }}>送信内容はチーム代表者のみが確認します。3日以内に返信します。</p>
       </div>
     </form>
   );

@@ -2,130 +2,176 @@
 
 import { useEffect, useState } from "react";
 
-/**
- * スマホ用のメニュー。
- *
- * 白い面に細い罫線で項目を並べるだけにしている。
- * 番号・矢印・色分けといった飾りは置かず、行そのものを押しやすくする。
- */
 const MENU: [string, string][] = [
-  ["#about", "チーム紹介"],
-  ["#activity", "活動概要"],
-  ["#schedule", "日程"],
   ["#news", "お知らせ"],
-  ["#app", "公式アプリ"],
-  ["#vision", "目標"],
-  ["#recruit", "メンバー募集"],
-  ["#support", "支援のお願い"],
-  ["#sponsors", "公式スポンサー"],
-  ["#faq", "よくある質問"],
-  ["/uniform", "ユニフォーム"],
   ["/blog", "ブログ"],
+  ["#about", "チーム紹介"],
+  ["#app", "公式アプリ"],
+  ["#vision", "目標・ビジョン"],
+  ["#activity", "活動概要"],
+  ["/uniform", "ユニフォーム紹介"],
+  ["#recruit", "メンバー募集"],
+  ["#support", "支援"],
+  ["#sponsors", "公式スポンサー"],
+  ["#faq", "FAQ"],
   ["#contact", "お問い合わせ"],
 ];
 
 const X_URL = "https://x.com/SK_rookies_FK";
 const IG_URL = "https://www.instagram.com/hakata_sk_rookies/";
 const LINE_URL = "https://line.me/ti/g/-buBk3SbuY";
+const JIMOTY_URL = "https://jmty.jp/fukuoka/com-spo/article-1okvug";
+const LABOLA_URL = "https://labola.jp/recruit/show/AZ2l6St6f3L-ncVW9EwL";
 
 export default function MobileMenu() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const bar: React.CSSProperties = {
-    width: 18, height: 1.5, background: "var(--ink)", borderRadius: 2,
-    transition: "transform .3s var(--ease-out), opacity .2s ease",
+  const barBase: React.CSSProperties = {
+    width: 22,
+    height: 2,
+    background: "#fff",
+    transition: "transform 0.3s cubic-bezier(0.2,0.8,0.2,1), opacity 0.2s ease",
     transformOrigin: "center",
   };
 
   return (
     <>
+      {/* Hamburger / X toggle */}
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen((v) => !v)}
         aria-label={open ? "メニューを閉じる" : "メニューを開く"}
         aria-expanded={open}
-        className="lg:hidden flex flex-col items-center justify-center"
-        style={{
-          gap: 5, width: 34, height: 34, background: "transparent", border: "none",
-          cursor: "pointer", position: "relative", zIndex: 1100, padding: 0,
-        }}
-      >
-        <span style={{ ...bar, transform: open ? "translateY(6.5px) rotate(45deg)" : "none" }} />
-        <span style={{ ...bar, opacity: open ? 0 : 1 }} />
-        <span style={{ ...bar, transform: open ? "translateY(-6.5px) rotate(-45deg)" : "none" }} />
+        className="xl:hidden flex flex-col justify-center items-center gap-[5px] h-full"
+        style={{ width: 56, background: "#0b1e3f", border: "none", cursor: "pointer", position: "relative", zIndex: 1100 }}>
+        <span style={{ ...barBase, transform: open ? "translateY(7px) rotate(45deg)" : "none" }} />
+        <span style={{ ...barBase, opacity: open ? 0 : 1 }} />
+        <span style={{ ...barBase, transform: open ? "translateY(-7px) rotate(-45deg)" : "none" }} />
       </button>
 
-      {/* 背面の覆い */}
+      {/* Backdrop fade */}
       <div
-        className="fixed inset-0 lg:hidden"
+        className="fixed inset-0 xl:hidden"
         onClick={() => setOpen(false)}
         aria-hidden
         style={{
-          zIndex: 990, background: "rgba(0,0,0,0.25)",
-          opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
-          transition: "opacity .3s ease",
+          zIndex: 990,
+          background: "rgba(0,0,0,0.5)",
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "opacity 0.3s ease",
         }}
       />
 
-      {/* 引き出しメニュー */}
+      {/* Sliding menu */}
       <div
-        className="fixed top-0 right-0 bottom-0 lg:hidden"
+        className="fixed top-0 right-0 bottom-0 xl:hidden"
         aria-hidden={!open}
         style={{
-          zIndex: 1000, width: "min(86vw, 380px)", background: "#fff",
+          zIndex: 1000,
+          width: "min(88vw, 400px)",
+          background: "#0b1e3f",
           transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform .42s cubic-bezier(0.22,1,0.36,1)",
-          overflowY: "auto", display: "flex", flexDirection: "column",
-          borderLeft: "1px solid var(--hair)",
-        }}
-      >
-        <div style={{ height: 52, flexShrink: 0 }} />
+          transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: open ? "-20px 0 60px rgba(0,0,0,0.4)" : "none",
+        }}>
+        {/* Top bar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 24px 18px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{
+            fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em",
+            opacity: open ? 1 : 0,
+            transform: open ? "translateY(0)" : "translateY(-8px)",
+            transition: `opacity 0.3s ease ${open ? 0.2 : 0}s, transform 0.3s ease ${open ? 0.2 : 0}s`,
+          }}>MENU</div>
+          <div style={{ width: 40, height: 40 }} />
+        </div>
 
-        <nav style={{ padding: "0 22px", display: "flex", flexDirection: "column" }}>
+        {/* Nav */}
+        <nav style={{ padding: "8px 24px", display: "flex", flexDirection: "column" }}>
           {MENU.map(([h, l], i) => (
             <a
               key={h}
               href={h}
               onClick={() => setOpen(false)}
               style={{
-                padding: "15px 0",
-                borderTop: i === 0 ? "none" : "1px solid var(--hair)",
-                color: "var(--ink)", textDecoration: "none",
-                fontSize: 17, letterSpacing: "-0.01em",
-              }}
-            >
-              {l}
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                padding: "17px 0",
+                borderBottom: i < MENU.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none",
+                color: "#fff",
+                textDecoration: "none",
+                fontFamily: "var(--font-zen),sans-serif",
+                fontWeight: 700,
+                fontSize: 17,
+                opacity: open ? 1 : 0,
+                transform: open ? "translateX(0)" : "translateX(24px)",
+                transition: `opacity 0.4s ease ${open ? 0.15 + i * 0.045 : 0}s, transform 0.4s cubic-bezier(0.22,1,0.36,1) ${open ? 0.15 + i * 0.045 : 0}s`,
+              }}>
+              <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#d4a82a", letterSpacing: "0.15em", minWidth: 24 }}>{String(i + 1).padStart(2, "0")}</span>
+              <span style={{ flex: 1 }}>{l}</span>
+              <span style={{ color: "#d10024", fontSize: 16 }}>→</span>
             </a>
           ))}
         </nav>
 
-        <div style={{ padding: "24px 22px 10px" }}>
+        {/* CTA */}
+        <div style={{
+          padding: "20px 24px 12px",
+          opacity: open ? 1 : 0,
+          transform: open ? "translateY(0)" : "translateY(16px)",
+          transition: `opacity 0.4s ease ${open ? 0.55 : 0}s, transform 0.4s cubic-bezier(0.22,1,0.36,1) ${open ? 0.55 : 0}s`,
+        }}>
           <a
             href="#contact"
             onClick={() => setOpen(false)}
-            className="cta"
-            style={{ width: "100%" }}
-          >
-            メンバーに応募する
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "#d10024", color: "#fff", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.12em", boxShadow: "0 8px 24px rgba(209,0,36,0.3)" }}>
+            メンバーに応募する →
           </a>
         </div>
 
-        <div style={{ padding: "14px 22px 34px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {[["公式X", X_URL], ["Instagram", IG_URL], ["グループLINE", LINE_URL]].map(([l, u]) => (
-            <a key={l} href={u} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: 15 }}>
-              {l}
-            </a>
-          ))}
+        {/* External */}
+        <div style={{
+          padding: "16px 24px 32px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          opacity: open ? 1 : 0,
+          transform: open ? "translateY(0)" : "translateY(16px)",
+          transition: `opacity 0.4s ease ${open ? 0.65 : 0}s, transform 0.4s cubic-bezier(0.22,1,0.36,1) ${open ? 0.65 : 0}s`,
+        }}>
+          <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+            公式X
+          </a>
+          <a href={IG_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+            Instagram
+          </a>
+          <a href={LINE_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", background: "#06c755", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
+            公式グループLINE（連絡網）→
+          </a>
+          <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+            ジモティー
+          </a>
+          <a href={LABOLA_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+            Labola
+          </a>
         </div>
       </div>
     </>

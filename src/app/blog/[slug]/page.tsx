@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getBlogs, getBlogBySlug, blogPosts } from "@/data/blog";
-import SiteHeader from "@/components/SiteHeader";
 
+const TEAM_NAME_JP = "博多SKルーキーズ";
+const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 const X_URL = "https://x.com/SK_rookies_FK";
 
 // シート由来データなので 5 分の ISR で再検証
@@ -62,17 +64,31 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <>
-      <SiteHeader />
+      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
+        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
+          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
+            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
+            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
+              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
+            </div>
+          </Link>
+          <Link href="/blog" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
+            ← ブログ一覧
+          </Link>
+        </div>
+      </header>
 
       <main className="bg-white">
         <article>
-          <header style={{ background: "#fff", paddingTop: "clamp(40px, 6vw, 72px)", paddingBottom: "clamp(22px, 3vw, 36px)" }}>
-            <div className="sec-in">
-              <div className="t-caption" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif" }}>{post.date}</span>
-                <span style={{ color: "var(--accent)" }}>{post.category}</span>
+          <header className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
+            <div className="field-grid absolute inset-0" />
+            <div className="max-w-[820px] mx-auto px-5 md:px-8 py-14 md:py-20 relative">
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em" }}>{post.date}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", background: "#d10024", color: "#fff", padding: "3px 10px" }}>{post.category}</span>
               </div>
-              <h1 className="t-head">{post.title}</h1>
+              <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(22px,3vw,36px)", fontWeight: 900, lineHeight: 1.35 }}>{post.title}</h1>
             </div>
           </header>
 
