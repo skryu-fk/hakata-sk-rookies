@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getNews, getNewsBySlug, CATEGORY_STYLES } from "@/data/news";
 import { renderMarkdown } from "@/lib/markdown";
+import SiteHeader from "@/components/SiteHeader";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
@@ -44,20 +44,7 @@ export default async function NewsDetailPage(
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
-        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
-            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
-            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
-            </div>
-          </Link>
-          <Link href="/#news" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
-            ← お知らせ一覧
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="bg-white">
         <article>

@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import Image from "next/image";
 import { SPONSORS } from "@/data/sponsors";
+import SiteHeader from "@/components/SiteHeader";
 
-const TEAM_NAME_JP = "博多SKルーキーズ";
-const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 // お問い合わせフォームで「スポンサーの相談」を最初から選択した状態で開く
 const CONTACT_HREF = "/?inquiry=sponsor#contact";
 
@@ -124,46 +122,20 @@ const FAQS: { q: string; a: string }[] = [
 export default function SponsorPage() {
   return (
     <>
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
-        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
-            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
-            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
-            </div>
-          </Link>
-          <Link href="/" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
-            ← トップへ戻る
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main style={{ background: "#f5f2ec" }}>
         {/* Hero */}
-        <section className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
-          <div className="max-w-[1080px] mx-auto px-5 md:px-8 py-14 md:py-20 relative">
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 12 }}>
-              SPONSORSHIP
+        <section style={{ background: "#fff", paddingTop: "clamp(46px, 7vw, 84px)", paddingBottom: "clamp(30px, 4.5vw, 52px)" }}>
+          <div className="sec-in center">
+            <h1 className="t-head">博多から、一緒に<br />大きな舞台へ。</h1>
+            <p className="t-sub" style={{ marginTop: 18, maxWidth: 640, marginLeft: "auto", marginRight: "auto" }}>
+              福岡市で活動する草野球チームです。活動を一緒に支えてくださるスポンサー様を募集しています。
+              個人の方は一口1,000円から、店舗・企業様は年1万円からご参加いただけます。
             </p>
-            <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(30px,5.5vw,54px)", fontWeight: 900, lineHeight: 1.25 }}>
-              博多から、一緒に<br />
-              <span style={{ color: "#d4a82a" }}>大きな舞台</span>へ。
-            </h1>
-            <div style={{ width: 60, height: 3, background: "#d10024", margin: "20px 0" }} />
-            <p style={{ fontSize: 15, color: "rgba(255,255,255,0.8)", lineHeight: 2, maxWidth: 640 }}>
-              博多SKルーキーズは、福岡市で活動する草野球チームです。<br />
-              チームの活動を一緒に支えてくださるスポンサー様を募集しています。<br />
-              個人の方は<strong style={{ color: "#fff" }}>一口1,000円</strong>から、店舗・企業様は<strong style={{ color: "#fff" }}>年1万円</strong>からご参加いただけます。
-            </p>
-            <div className="flex flex-wrap gap-3" style={{ marginTop: 30 }}>
-              <a href={CONTACT_HREF} className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "15px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.08em" }}>
-                スポンサーの相談をする →
-              </a>
-              <a href="#plans" className="border border-white/40 hover:border-white transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "15px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.08em" }}>
-                プランを見る
-              </a>
+            <div className="cta-row center" style={{ marginTop: 30, justifyContent: "center" }}>
+              <a href={CONTACT_HREF} className="cta">スポンサーの相談をする</a>
+              <a href="#plans" className="link-more">プランを見る</a>
             </div>
           </div>
         </section>

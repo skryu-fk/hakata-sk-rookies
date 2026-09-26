@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { getBlogs } from "@/data/blog";
+import SiteHeader from "@/components/SiteHeader";
+import PageHero from "@/components/PageHero";
 
-const TEAM_NAME_JP = "博多SKルーキーズ";
-const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 
 // シート由来データなので 5 分の ISR で再検証
 export const revalidate = 300;
@@ -20,34 +19,10 @@ export default async function BlogIndex() {
   const posts = await getBlogs();
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
-        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
-            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
-            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
-            </div>
-          </Link>
-          <Link href="/" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
-            ← トップへ戻る
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="bg-base">
-        <section className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
-          <div className="field-grid absolute inset-0" />
-          <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-16 md:py-24 relative">
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d10024", letterSpacing: "0.45em", marginBottom: 10 }}>BLOG</p>
-            <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(28px,4vw,48px)", fontWeight: 900, lineHeight: 1.2 }}>
-              ブログ・コラム
-            </h1>
-            <p className="mt-5 text-white/60 text-[15px] leading-[1.9] max-w-2xl">
-              福岡市で草野球を始めたい方に向けたお役立ち情報、活動報告、代表のコラムなど。野球・チームづくりに関する記事をゆるく投稿していきます。
-            </p>
-          </div>
-        </section>
+        <PageHero title="ブログ・コラム" sub="チームの活動や、野球を始める人に向けた記事をまとめています。" />
 
         <section className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-20">
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

@@ -63,78 +63,62 @@ export default function FaqSection() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
-        {/* Section title */}
-        <div className="mb-14 reveal">
-          <div className="section-ghost text-navy/5 mb-[-18px]" style={{ fontSize: "clamp(72px,12vw,140px)" }}>FAQ</div>
-          <div>
-            <p className="font-display text-[11px] tracking-[0.45em] text-red uppercase mb-2.5">FAQ</p>
-            <h2 className="font-sans font-black text-navy" style={{ fontSize: "clamp(26px,3.5vw,42px)" }}>よくある質問</h2>
-            <div className="w-11 h-1 bg-red mt-3.5 rounded-sm" />
-          </div>
+    <section id="faq" className="sec sec-hair" style={{ background: "#fff" }}>
+      <div className="sec-in">
+        <div className="center" style={{ marginBottom: "clamp(34px, 4.6vw, 56px)" }}>
+          <h2 className="t-head reveal">よくある質問</h2>
+          <p className="t-sub reveal" style={{ marginTop: 16, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}>
+            ほかに気になることがあれば、
+            <a href="#contact" className="link-more" style={{ fontSize: "inherit" }}>お問い合わせ</a>
+            {" "}か{" "}
+            <a href={X_URL} target="_blank" rel="noopener noreferrer" className="link-more" style={{ fontSize: "inherit" }}>XのDM</a>
+            {" "}までどうぞ。
+          </p>
         </div>
 
-        <p className="reveal text-muted text-[15px] leading-relaxed mb-11 max-w-lg" style={{ marginTop: -28 }}>
-          他に気になることは
-          <a href="#contact" className="text-red font-bold underline decoration-dotted underline-offset-4">お問い合わせフォーム</a>か
-          <a href={X_URL} target="_blank" rel="noopener noreferrer" className="text-red font-bold underline decoration-dotted underline-offset-4">X（@SK_rookies_FK）</a>
-          までお気軽にどうぞ。
-        </p>
+        <div className="rows reveal">
+          {faqs.map((f, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={i} style={{ borderBottom: "1px solid var(--hair)" }}>
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  aria-expanded={isOpen}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "flex-start", gap: 18,
+                    padding: "20px 2px", background: "transparent", border: "none",
+                    cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <span style={{
+                    flex: 1, fontSize: 17, lineHeight: 1.55, letterSpacing: "-0.01em",
+                    color: isOpen ? "var(--accent)" : "var(--ink)",
+                    transition: "color .2s",
+                  }}>
+                    {f.q}
+                  </span>
+                  {/* 開閉の印。プラスを回転させて×にする */}
+                  <span style={{
+                    flexShrink: 0, marginTop: 4, width: 15, height: 15, position: "relative",
+                    color: isOpen ? "var(--accent)" : "var(--ink-3)",
+                    transform: isOpen ? "rotate(45deg)" : "none",
+                    transition: "transform .3s var(--ease-out), color .2s",
+                  }}>
+                    <span style={{ position: "absolute", left: 0, top: 7, width: 15, height: 1.5, background: "currentColor" }} />
+                    <span style={{ position: "absolute", left: 7, top: 0, width: 1.5, height: 15, background: "currentColor" }} />
+                  </span>
+                </button>
 
-        <div style={{ borderTop: "2px solid #0b1e3f" }}>
-          {faqs.map((f, i) => (
-            <div key={i} className="reveal border-b border-line" style={{ animationDelay: `${i * 40}ms` }}>
-              {/* Question row */}
-              <button
-                onClick={() => setOpen(open === i ? null : i)}
-                className="w-full flex items-start gap-5 text-left transition-colors"
-                style={{
-                  padding: "22px 16px",
-                  background: open === i ? "rgba(209,0,36,0.03)" : "transparent",
-                  border: "none", cursor: "pointer",
-                }}>
-                {/* Q badge */}
                 <div style={{
-                  width: 44, height: 44, flexShrink: 0,
-                  background: open === i ? "#d10024" : "#0b1e3f",
-                  display: "grid", placeItems: "center",
-                  fontFamily: "var(--font-oswald), sans-serif",
-                  fontSize: 13, color: "#fff", letterSpacing: "0.05em",
-                  transition: "background 0.2s",
+                  overflow: "hidden",
+                  maxHeight: isOpen ? 600 : 0,
+                  transition: "max-height .4s cubic-bezier(0.4,0,0.2,1)",
                 }}>
-                  Q{String(i + 1).padStart(2, "0")}
-                </div>
-                {/* Text */}
-                <span className="flex-1 font-sans font-bold pt-2.5 leading-snug transition-colors"
-                  style={{ fontSize: "clamp(14px,1.5vw,17px)", color: open === i ? "#d10024" : "#0b1e3f" }}>
-                  {f.q}
-                </span>
-                {/* Toggle */}
-                <div style={{
-                  width: 32, height: 32, flexShrink: 0, marginTop: 6,
-                  border: `2px solid ${open === i ? "#d10024" : "#d8d4cb"}`,
-                  borderRadius: "50%", display: "grid", placeItems: "center",
-                  color: open === i ? "#d10024" : "#aaa",
-                  fontSize: 18, fontWeight: 700,
-                  transform: open === i ? "rotate(45deg)" : "none",
-                  transition: "all 0.25s cubic-bezier(0.2,0.8,0.2,1)",
-                }}>+</div>
-              </button>
-              {/* Answer */}
-              <div style={{
-                overflow: "hidden",
-                maxHeight: open === i ? 500 : 0,
-                transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1)",
-              }}>
-                <div className="pb-7 pl-4 pr-4 pt-2 md:pl-20">
-                  <p className="text-[15px] leading-[1.95]" style={{ color: "#3a3f4a", borderLeft: "3px solid rgba(209,0,36,0.2)", paddingLeft: 16 }}>
-                    {f.a}
-                  </p>
+                  <p className="t-body" style={{ padding: "0 34px 24px 2px" }}>{f.a}</p>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

@@ -73,9 +73,9 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
   const isCurrentView = year === today.getFullYear() && month === today.getMonth();
 
   const navBtn: React.CSSProperties = {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    color: "rgba(255,255,255,0.7)",
+    background: "#fff",
+    border: "1px solid var(--hair)",
+    color: "var(--ink-2)",
     cursor: "pointer",
     fontSize: 16,
     width: 32,
@@ -86,13 +86,13 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
   };
 
   return (
-    <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
+    <div style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: 16, overflow: "hidden" }}>
       {/* header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.06)" }}>
-        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.12em" }}>練習カレンダー</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--hair)" }}>
+        <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, color: "var(--ink)", fontSize: 14 }}>練習カレンダー</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={goPrev} aria-label="前の月" style={navBtn}>‹</button>
-          <div style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#fff", fontSize: 15, letterSpacing: "0.08em", minWidth: 72, textAlign: "center" }}>
+          <div style={{ fontFamily: "var(--font-oswald),sans-serif", color: "var(--ink)", fontSize: 15, letterSpacing: "0.06em", minWidth: 72, textAlign: "center" }}>
             {year}.{String(month + 1).padStart(2, "0")}
           </div>
           <button onClick={goNext} aria-label="次の月" style={navBtn}>›</button>
@@ -106,7 +106,7 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
       <div style={{ padding: "16px 14px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
           {WEEKDAYS.map((w, i) => (
-            <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: i === 0 ? "#f28899" : i === 6 ? "#8fc4ff" : "rgba(255,255,255,0.5)", padding: "4px 0", letterSpacing: "0.05em" }}>{w}</div>
+            <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: i === 0 ? "#d1495b" : i === 6 ? "#4a7fb5" : "var(--ink-3)", padding: "4px 0", letterSpacing: "0.05em" }}>{w}</div>
           ))}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
@@ -144,7 +144,7 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
                 <span style={{
                   fontFamily: "var(--font-oswald),sans-serif",
                   fontSize: 13,
-                  color: isToday ? "#ff5b75" : dow === 0 ? "#f28899" : dow === 6 ? "#8fc4ff" : "rgba(255,255,255,0.85)",
+                  color: isToday ? "var(--accent)" : dow === 0 ? "#d1495b" : dow === 6 ? "#4a7fb5" : "var(--ink)",
                   fontWeight: isToday || hasPractice ? 700 : 400,
                   textDecoration: allCanceled ? "line-through" : "none",
                 }}>{d}</span>
@@ -152,7 +152,7 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
                   {ps.slice(0, 3).map((p, idx) => (
                     <span key={idx} style={{
                       width: 6, height: 6, borderRadius: "50%",
-                      background: p.status === "canceled" ? "rgba(255,255,255,0.2)" : PRACTICE_TYPE_COLOR[p.type],
+                      background: p.status === "canceled" ? "var(--hair)" : PRACTICE_TYPE_COLOR[p.type],
                       opacity: p.status === "tentative" ? 0.6 : 1,
                     }} />
                   ))}
@@ -163,7 +163,7 @@ export default function PracticeCalendar({ practices }: { practices: Practice[] 
         </div>
 
         {/* legend */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 16px", marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--hair)", fontSize: 11, color: "var(--ink-3)" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 12, height: 12, border: "2px solid #d10024", background: "rgba(209,0,36,0.1)" }} /> 今日
           </span>

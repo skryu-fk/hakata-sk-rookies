@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
+import SiteHeader from "@/components/SiteHeader";
+import PageHero from "@/components/PageHero";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
@@ -116,34 +117,10 @@ const rows: { label: string; value: React.ReactNode }[] = [
 export default function CommercialPage() {
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
-        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
-          <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
-            <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
-            <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={192} height={24} className="object-contain" style={{ width: "clamp(140px, 22vw, 192px)", height: "auto" }} />
-              <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em" }}>{TEAM_NAME_EN}</div>
-            </div>
-          </Link>
-          <Link href="/" className="ml-auto flex items-center font-bold text-[13px] text-navy hover:text-red transition-colors" style={{ textDecoration: "none" }}>
-            ← トップへ戻る
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="bg-white">
-        <div className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
-          <div className="field-grid absolute inset-0" />
-          <div className="max-w-[820px] mx-auto px-5 md:px-8 py-12 md:py-16 relative">
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>LEGAL — COMMERCIAL TRANSACTIONS</p>
-            <h1 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(22px,3.2vw,32px)", fontWeight: 900, lineHeight: 1.35 }}>
-              特定商取引法に基づく表記
-            </h1>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 14 }}>
-              最終更新日：2026年5月18日
-            </p>
-          </div>
-        </div>
+        <PageHero title="特定商取引法に基づく表記" sub="最終更新日：2026年5月18日" />
 
         <article className="max-w-[820px] mx-auto px-5 md:px-8 py-12 md:py-16">
           <div style={{ border: "1px solid #e0dcd4" }}>
