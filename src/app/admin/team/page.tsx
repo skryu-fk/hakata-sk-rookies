@@ -21,6 +21,7 @@ import Image from "next/image";
 import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
+import { suggestLineup, type AdvisorPlayer, type LineupSuggestion } from "@/lib/lineupAdvisor";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -924,6 +925,49 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     return map;
   }, [members, batting, pitching, catching, fielding, attendance]);
 
+  /**
+   * オーダー提案の入力。記録（打撃・投球・守備・捕手）と
+   * 管理者の選手評価をひとつにまとめる。
+   */
+  const advisorPlayers = useMemo<AdvisorPlayer[]>(() => {
+    const sum = <T,>(rows: T[], pick: (r: T) => number) => rows.reduce((s, r) => s + pick(r), 0);
+    const days = new Set(attendance.map(a => a.date).filter(Boolean)).size;
+    // 同じ選手に複数の評価があれば、いちばん新しいものを使う
+    const latestEval = new Map<string, EvaluationRow>();
+    for (const e of [...evaluations].sort((a, b) => a.date.localeCompare(b.date))) {
+      latestEval.set(e.memberId, e);
+    }
+    return members.filter(m => m.active).map(m => {
+      const b = batting.filter(r => r.memberId === m.id);
+      const p = pitching.filter(r => r.memberId === m.id);
+      const c = catching.filter(r => r.memberId === m.id);
+      const f = fielding.filter(r => r.memberId === m.id);
+      const ev = latestEval.get(m.id);
+      const came = attendance.filter(a => a.memberId === m.id && (a.status === "出席" || a.status === "遅刻")).length;
+      return {
+        id: m.id,
+        name: m.name,
+        position: m.position,
+        batting: b.length ? {
+          ab: sum(b, x => x.atBats), h: sum(b, x => x.hits), doubles: sum(b, x => x.doubles),
+          triples: sum(b, x => x.triples), hr: sum(b, x => x.hr), bb: sum(b, x => x.bb),
+          hbp: sum(b, x => x.hbp), so: sum(b, x => x.so), sb: sum(b, x => x.sb), cs: sum(b, x => x.cs),
+        } : undefined,
+        pitching: p.length ? {
+          ipOuts: sum(p, x => x.ipOuts), er: sum(p, x => x.er), hits: sum(p, x => x.hits),
+          bb: sum(p, x => x.bb), so: sum(p, x => x.so),
+        } : undefined,
+        fielding: f.length ? { po: sum(f, x => x.po), a: sum(f, x => x.a), e: sum(f, x => x.e) } : undefined,
+        catching: c.length ? { sba: sum(c, x => x.sba), cs: sum(c, x => x.cs) } : undefined,
+        evals: ev ? {
+          batting: ev.batting, running: ev.running, fielding: ev.fielding,
+          pitching: ev.pitching, teamwork: ev.teamwork,
+        } : undefined,
+        attendRate: days > 0 ? came / days : undefined,
+      };
+    });
+  }, [members, batting, pitching, catching, fielding, evaluations, attendance]);
+
   const loadEvaluations = useCallback(async () => {
     await listCached("evaluations", rows => {
       setEvaluations(rows.map(r => ({
@@ -1029,6 +1073,17 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     }
   }, [tab, probables.length, practices.length, loadProbables, loadPractices]);
   useEffect(() => { if (tab === "lineup" && lineups.length === 0) loadLineups(); }, [tab, lineups.length, loadLineups]);
+  // オーダー提案は成績と評価を材料にするので、スタメンタブでもまとめて読み込む
+  useEffect(() => {
+    if (tab !== "lineup") return;
+    if (batting.length === 0) loadBatting();
+    if (pitching.length === 0) loadPitching();
+    if (catching.length === 0) loadCatching();
+    if (fielding.length === 0) loadFielding();
+    if (evaluations.length === 0) loadEvaluations();
+    if (attendance.length === 0) loadAttendance();
+  }, [tab, batting.length, pitching.length, catching.length, fielding.length, evaluations.length, attendance.length,
+      loadBatting, loadPitching, loadCatching, loadFielding, loadEvaluations, loadAttendance]);
   useEffect(() => { if (tab === "scoreboard" && games.length === 0) loadGames(); }, [tab, games.length, loadGames]);
   useEffect(() => { if (tab === "payments" && payments.length === 0) loadPayments(); }, [tab, payments.length, loadPayments]);
   useEffect(() => {
@@ -1193,6 +1248,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             api={api}
             reload={loadLineups}
             reloadPractices={loadPractices}
+            advisorPlayers={advisorPlayers}
+            attendance={attendance}
             showToast={showToast}
           />
         )}
@@ -2028,8 +2085,25 @@ function AttendanceTab({
 // ────────────────────────────────────────────────────────
 // スタメン登録タブ（紅白戦対応）
 // ────────────────────────────────────────────────────────
+/** 能力値のセル。50がチーム平均。色で強弱が分かるようにする。 */
+function AbilityCells({ a }: { a: { onbase: number; power: number; speed: number; defense: number } }) {
+  const tone = (v: number) => (v >= 62 ? "#67e088" : v >= 45 ? "rgba(235,235,245,0.75)" : "#ff6982");
+  return (
+    <>
+      {[a.onbase, a.power, a.speed, a.defense].map((v, i) => (
+        <td key={i} style={{
+          padding: "9px 10px", fontFamily: "var(--font-oswald),sans-serif",
+          fontSize: 14, color: tone(v),
+        }}>
+          {Math.round(v)}
+        </td>
+      ))}
+    </>
+  );
+}
+
 function LineupTab({
-  members, lineups, practices, loading, api, reload, reloadPractices, showToast,
+  members, lineups, practices, loading, api, reload, reloadPractices, advisorPlayers, attendance, showToast,
 }: {
   members: Member[];
   lineups: LineupRow[];
@@ -2038,6 +2112,8 @@ function LineupTab({
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
   reload: () => void;
   reloadPractices: () => void;
+  advisorPlayers: AdvisorPlayer[];
+  attendance: AttendanceRow[];
   showToast: (ok: boolean, text: string) => void;
 }) {
   const [date, setDate] = useState(todayIso());
@@ -2100,6 +2176,39 @@ function LineupTab({
   );
 
   const activeMembers = members.filter(m => m.active);
+
+  /* ── オーダー提案 ── */
+  const [suggestion, setSuggestion] = useState<LineupSuggestion | null>(null);
+  const [onlyAttending, setOnlyAttending] = useState(true);
+
+  // この日に「出席」と答えたメンバー
+  const attendedIds = useMemo(
+    () => attendance
+      .filter(a => a.date === date && (a.status === "出席" || a.status === "遅刻"))
+      .map(a => a.memberId),
+    [attendance, date]
+  );
+
+  function makeSuggestion() {
+    const ids = onlyAttending && attendedIds.length > 0 ? new Set(attendedIds) : null;
+    const pool = advisorPlayers.filter(p => !ids || ids.has(p.id));
+    if (pool.length === 0) {
+      showToast(false, "候補になる選手がいません。出欠か名簿をご確認ください。");
+      return;
+    }
+    setSuggestion(suggestLineup(pool, size));
+  }
+
+  /** 提案をそのままスタメン欄へ流し込む */
+  function applySuggestion(team: "A" | "B") {
+    if (!suggestion) return;
+    const next: Slot[] = Array.from({ length: size }, (_, i) => {
+      const s = suggestion.starters.find(x => x.order === i + 1);
+      return s ? { memberId: s.player.id, position: s.position } : { memberId: "", position: "" };
+    });
+    (team === "A" ? setSlotsA : setSlotsB)(next);
+    showToast(true, "提案をスタメン欄に入れました。このあと自由に直せます。");
+  }
 
   function updateSlot(team: "A" | "B", idx: number, key: keyof Slot, value: string) {
     const setter = team === "A" ? setSlotsA : setSlotsB;
@@ -2191,6 +2300,93 @@ function LineupTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* オーダー提案 */}
+      <section style={cardStyle}>
+        <H3>オーダー提案</H3>
+        <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 16px" }}>
+          記録（打率・長打・盗塁・守備率・防御率）と「選手評価」の★から、
+          スタメン・守備位置・打順の案を出します。記録が少ない選手は評価を、
+          記録が溜まっている選手は記録を重く見ます。
+        </p>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          <button onClick={makeSuggestion} style={btnPrimaryStyle}>
+            この日のおすすめを出す
+          </button>
+          {attendedIds.length > 0 && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "rgba(235,235,245,0.85)" }}>
+              <input
+                type="checkbox"
+                checked={onlyAttending}
+                onChange={e => setOnlyAttending(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: "#E5B84B" }}
+              />
+              この日に「出席」と答えた人だけで組む（{attendedIds.length}人）
+            </label>
+          )}
+        </div>
+
+        {suggestion && (
+          <div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              <button onClick={() => applySuggestion("A")} style={btnSubStyle}>
+                {mode === "split" ? `${teamAName}に反映` : "このスタメンに反映"}
+              </button>
+              {mode === "split" && (
+                <button onClick={() => applySuggestion("B")} style={btnSubStyle}>{teamBName}に反映</button>
+              )}
+              <button onClick={() => setSuggestion(null)} style={btnSubStyle}>閉じる</button>
+            </div>
+
+            {/* スタメン */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #38383A" }}>
+                    {["打順", "守備", "選手", "出塁", "長打", "走塁", "守備力", "理由"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: "rgba(235,235,245,0.45)", whiteSpace: "nowrap", fontWeight: 400 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {suggestion.starters.map(s => (
+                    <tr key={s.player.id} style={{ borderBottom: "1px solid #2C2C2E" }}>
+                      <td style={{ padding: "9px 10px", fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B" }}>{s.order}</td>
+                      <td style={{ padding: "9px 10px", whiteSpace: "nowrap" }}>{s.position}</td>
+                      <td style={{ padding: "9px 10px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.player.name}</td>
+                      <AbilityCells a={s.ability} />
+                      <td style={{ padding: "9px 10px", color: "rgba(235,235,245,0.60)", fontSize: 12 }}>{s.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 控え */}
+            {suggestion.bench.length > 0 && (
+              <>
+                <p style={{ fontSize: 12, color: "rgba(235,235,245,0.45)", margin: "18px 0 8px" }}>控えの使いどころ</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {suggestion.bench.map(b => (
+                    <div key={b.player.id} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, minWidth: 110 }}>{b.player.name}</span>
+                      <span style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)" }}>{b.role}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* 注意 */}
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid #2C2C2E" }}>
+              {suggestion.notes.map((n, i) => (
+                <p key={i} style={{ fontSize: 11.5, color: "rgba(235,235,245,0.45)", lineHeight: 1.8, margin: i === 0 ? 0 : "6px 0 0" }}>・{n}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* 上部: 日付・モード・人数 */}
       <section style={cardStyle}>
         <H3>スタメン登録</H3>
