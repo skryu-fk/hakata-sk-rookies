@@ -1393,8 +1393,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       {/* v1.2 背景FX（グリッド＋オーロラ＋スキャンライン） */}
 
       {/* SKマークの透かし */}
+      {/* 透かし。固定配置のものを動かし続けると、iOS で固定レイヤーの描画が
+          ずれる原因になるため、アニメーションは掛けない（4%の濃さなので動きは見えない）。 */}
       <Image src="/sk_mark.png" alt="" aria-hidden width={824} height={457}
-        className="mark-drift"
         style={{ position: "fixed", right: "-8%", bottom: "-6%", width: "min(54vw, 520px)", height: "auto", opacity: 0.04, pointerEvents: "none", userSelect: "none" }} />
 
       {/* ── メンテナンス中ポップアップ（全画面・管理者がONにすると表示） ── */}
@@ -1428,7 +1429,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       )}
 
       {/* ── ヘッダー ── */}
-      <header className="stx-headline" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "0.5px solid #38383A", position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)" }}>
+      <header className="stx-headline" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "0.5px solid #38383A", position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)", transform: "translateZ(0)", willChange: "transform" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 60, gap: 14 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
@@ -1541,6 +1542,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30,
         background: "rgba(0,0,0,0.80)",
         backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)",
+        // 自前の描画レイヤーに固定する。これが無いと iOS で
+        // スクロール中に古い描画が residual として画面の途中に残ることがある。
+        transform: "translateZ(0)", willChange: "transform",
         borderTop: "0.5px solid #38383A",
         paddingBottom: "max(env(safe-area-inset-bottom), 10px)",
         paddingLeft: "env(safe-area-inset-left)",

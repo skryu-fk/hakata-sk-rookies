@@ -39,7 +39,20 @@
  * 編集後、最大5分でサイトに反映されます（ISR revalidate: 300）。
  */
 
+/**
+ * 公開サイト向けのデータ取得。
+ *
+ * 管理画面の保存先が Supabase に移ったため、Supabase が設定されていれば
+ * そちらを唯一の保存先として扱う。スプレッドシートは、Supabase を
+ * 使っていない場合と、Supabase への問い合わせ自体が失敗した場合の控えとして残す。
+ *
+ * （以前はここがスプレッドシートしか見ておらず、管理画面で登録した練習日程が
+ *   アプリには出るのに公式サイトには出ない、という食い違いが起きていた）
+ */
 export async function fetchSheetCSV(sheetName: string): Promise<string[][]> {
+  const fromDb = await fetchFromSupabase(sheetName);
+  if (fromDb) return fromDb;
+
   const sheetId = process.env.SHEETS_ID;
   if (!sheetId) return [];
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
@@ -86,4 +99,25 @@ function parseCSV(text: string): string[][] {
   if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
   // 空行を除外
   return rows.filter(r => r.some(v => v.trim().length > 0));
+}
+
+
+/**
+ * Supabase から取得して、CSV と同じ形（1行目が見出し）に整える。
+ * 使えない・失敗した場合は null を返し、呼び出し元がスプレッドシートへ切り替える。
+ * 取得できたが0件の場合は「本当に0件」なので、空の見出しだけを返す。
+ */
+async function fetchFromSupabase(sheetName: string): Promise<string[][] | null> {
+  const { supabaseEnabled, sheetColumns, callSupabase } = await import("@/lib/supabaseData");
+  if (!supabaseEnabled()) return null;
+  const cols = sheetColumns(sheetName);
+  if (!cols) return null;
+  try {
+    const res = await callSupabase({ op: "list", sheet: sheetName });
+    if (!res.ok) return null;
+    const rows = (res.data as { rows?: { data: string[] }[] }).rows ?? [];
+    return [cols, ...rows.map(r => r.data)];
+  } catch {
+    return null;
+  }
 }

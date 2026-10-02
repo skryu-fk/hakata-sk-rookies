@@ -42,7 +42,17 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+}
+
+/* 横スクロールを止める。
+   ただし html 要素には掛けないこと。iOS Safari では html に overflow が付くと
+   position: fixed が壊れ、固定したはずの下部タブバーが中身と一緒に動いて
+   画面の途中に現れてしまう（実機で発生した不具合）。
+   clip が使える環境ではそちらを使う。hidden と違いスクロール領域を作らないため、
+   固定表示にいっさい影響しない。 */
+body { overflow-x: hidden; }
+@supports (overflow: clip) {
+  body { overflow-x: clip; }
 }
 
 /* アンカー遷移をなめらかに（モーション抑制設定は尊重する） */

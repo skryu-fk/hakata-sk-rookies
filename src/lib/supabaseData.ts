@@ -42,6 +42,11 @@ const COLUMNS: Record<string, string[]> = {
 
 export const SUPABASE_TABLES = Object.keys(COLUMNS);
 
+/** そのテーブルの列の並び（公開サイト側で見出し行を組み立てるのに使う） */
+export function sheetColumns(sheet: string): string[] | null {
+  return COLUMNS[sheet] ?? null;
+}
+
 /** Supabase が使える設定になっているか */
 export function supabaseEnabled(): boolean {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
