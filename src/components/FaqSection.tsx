@@ -1,10 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import {
+  RECRUIT_OPEN,
+  RECRUIT_PAUSED_SINCE,
+  RECRUIT_PAUSE_PENDING,
+  RECRUIT_PAUSE_REASON,
+  RECRUIT_PAUSE_RESUME,
+} from "@/data/recruit";
 
 const X_URL = "https://x.com/SK_rookies_FK";
 
+/** 募集を休止している間だけ、FAQの先頭に出す項目 */
+const PAUSE_FAQ = {
+  q: "いまメンバーに応募できますか？",
+  a: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
+};
+
 const faqs = [
+  ...(RECRUIT_OPEN ? [] : [PAUSE_FAQ]),
   {
     q: "本当に未経験・初心者でも大丈夫ですか？",
     a: "大丈夫です。福岡市でもっとも初心者が始めやすい草野球チームを目指しています。代表自身も野球未経験からのスタートで、みんなで少しずつ覚えながら楽しんでいくスタイルなので、ルールを知らない段階でも気後れなく参加できます。",
@@ -43,7 +57,9 @@ const faqs = [
   },
   {
     q: "見学だけでもできますか？",
-    a: "もちろん可能です。応募フォームかX（@SK_rookies_FK）のDMで「見学希望」とお伝えください。次回の活動日時と場所をご案内します。",
+    a: RECRUIT_OPEN
+      ? "もちろん可能です。応募フォームかX（@SK_rookies_FK）のDMで「見学希望」とお伝えください。次回の活動日時と場所をご案内します。"
+      : "申し訳ありません。新規メンバーの募集を休止している間は、見学・体験参加のお受付もできません。再開しだい、このサイトのお知らせと公式X（@SK_rookies_FK）でご案内しますので、よろしければフォローしてお待ちください。",
   },
   {
     q: "対戦相手（他のチーム）も募集していますか？",
@@ -81,6 +97,16 @@ export default function FaqSection() {
           <a href={X_URL} target="_blank" rel="noopener noreferrer" className="text-red font-bold underline decoration-dotted underline-offset-4">X（@SK_rookies_FK）</a>
           までお気軽にどうぞ。
         </p>
+
+        {/* 入団・費用・見学などの回答は「募集している前提」で書かれているため、
+            休止中はここで一度まとめてお断りしておく（回答ごとに注記を足すより読みやすい） */}
+        {!RECRUIT_OPEN && (
+          <div className="reveal mb-8 text-[13.5px] leading-[1.95]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a", maxWidth: 760 }}>
+            <p className="font-bold text-navy mb-1">現在、新規メンバーの募集は休止しています</p>
+            入団・費用・道具・見学などについての以下の回答は、募集を再開したときのご案内です。いまはお受付ができませんので、ご了承ください。
+            <a href="#recruit" className="text-red font-bold underline decoration-dotted underline-offset-4" style={{ marginLeft: 4 }}>募集状況のくわしい説明 →</a>
+          </div>
+        )}
 
         <div style={{ borderTop: "2px solid #0b1e3f" }}>
           {faqs.map((f, i) => (

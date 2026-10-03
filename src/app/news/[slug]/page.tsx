@@ -4,6 +4,8 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { getNews, getNewsBySlug, CATEGORY_STYLES } from "@/data/news";
 import { renderMarkdown } from "@/lib/markdown";
+import { RecruitStatusStrip } from "@/components/RecruitStatus";
+import { RECRUIT_OPEN } from "@/data/recruit";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
@@ -58,6 +60,8 @@ export default async function NewsDetailPage(
           </Link>
         </div>
       </header>
+      {/* 募集を休止している間は、下層ページでもヘッダー直下で知らせる */}
+      {!RECRUIT_OPEN && <RecruitStatusStrip />}
 
       <main className="bg-white">
         <article>

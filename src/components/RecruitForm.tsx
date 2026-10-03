@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RECRUIT_OPEN, RECRUIT_PAUSE_RESUME } from "@/data/recruit";
 
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "";
 const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
@@ -87,7 +88,9 @@ export default function RecruitForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   // ご相談内容。これによって表示する入力項目を切り替える。
-  const [inquiry, setInquiry] = useState("メンバー応募");
+  // 募集を休止している間は、既定を「メンバー応募」にしない。
+  // 開いた瞬間に応募フォームになっていると、休止中だと気づかれないため。
+  const [inquiry, setInquiry] = useState(RECRUIT_OPEN ? "メンバー応募" : "質問");
 
   // スポンサー募集ページなどから「?inquiry=sponsor」付きで来た場合は、
   // ご相談内容をあらかじめ選択しておく（毎回選び直す手間をなくす）。
@@ -133,11 +136,15 @@ export default function RecruitForm() {
     <div style={{ background: "#0b1e3f", padding: "64px 48px", textAlign: "center" }}>
       <div style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 16 }}>THANK YOU</div>
       <p style={{ fontFamily: "var(--font-zen), sans-serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 12 }}>
-        {isMember ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
+        {isMember && RECRUIT_OPEN ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
       </p>
       <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.85 }}>
         内容を確認のうえ、3日以内にご返信します。<br />
-        {isMember ? "グラウンドでお会いしましょう。" : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
+        {isMember
+          ? (RECRUIT_OPEN
+              ? "グラウンドでお会いしましょう。"
+              : "募集を再開する際に、あらためてご案内いたします。")
+          : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
       </p>
     </div>
   );
@@ -146,19 +153,27 @@ export default function RecruitForm() {
     <form onSubmit={handleSubmit} style={{ background: "#fff", border: "1px solid #e0dcd4" }}>
       {/* Header */}
       <div style={{ background: "#0b1e3f", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "var(--font-zen), sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.1em" }}>応募・お問い合わせフォーム</span>
+        <span style={{ fontFamily: "var(--font-zen), sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.1em" }}>{RECRUIT_OPEN ? "応募・お問い合わせフォーム" : "お問い合わせフォーム"}</span>
         <span style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>FORM</span>
       </div>
 
       <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: 20 }}>
         {/* まず相談内容を選んでもらい、それに合わせて下の項目を出し分ける */}
         <FSelect label="ご相談内容" name="inquiry_type" value={inquiry} onChange={setInquiry} options={[
-          { value: "メンバー応募",     label: "メンバーとして応募したい" },
+          { value: "メンバー応募",     label: RECRUIT_OPEN ? "メンバーとして応募したい" : "メンバー応募（現在、募集を休止中）" },
           { value: "対戦・リーグ",     label: "練習試合・リーグのご相談" },
           { value: "スポンサー",       label: "スポンサーの相談をしたい" },
           { value: "道具支援",         label: "道具を譲りたい・支援したい" },
           { value: "質問",             label: "質問・その他" },
         ]} />
+        {/* 休止中に「メンバー応募」を選んだ人には、送る前にはっきり伝える。
+            そのうえで、再開のご案内希望としては受け取れるようにしておく。 */}
+        {!RECRUIT_OPEN && isMember && (
+          <div style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.72)" }}>
+            <p style={{ fontWeight: 700, color: "#fff", marginBottom: 4 }}>現在、新規メンバーの募集は休止しています</p>
+            {RECRUIT_PAUSE_RESUME}このままお送りいただいた場合は「再開時のご案内希望」として承ります。
+          </div>
+        )}
         {isSponsor && (
           <FField label="会社名・店舗名" name="company" placeholder="例：〇〇商店（個人の方は空欄でOK）" />
         )}

@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import {
+  RECRUIT_OPEN,
+  RECRUIT_PAUSED_SINCE,
+  RECRUIT_PAUSE_PENDING,
+  RECRUIT_PAUSE_REASON,
+  RECRUIT_PAUSE_RESUME,
+} from "@/data/recruit";
 import "./globals.css";
 
 const zenKaku = Zen_Kaku_Gothic_New({
@@ -40,8 +47,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "博多SKルーキーズ | HAKATA SK ROOKIES — 福岡市の草野球チーム",
-  description:
-    "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しむ仲間を募集中。月額500円、グローブがあれば始められます。",
+  // 検索結果に出る説明文。募集を休止している間は、ここでも必ず伝える
+  // （「サイトでは募集中と書いてあった」という行き違いを防ぐため）
+  description: RECRUIT_OPEN
+    ? "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しむ仲間を募集中。月額500円、グローブがあれば始められます。"
+    : "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しんでいます。※現在、新規メンバーの募集は休止中です（練習試合・スポンサー・道具のご支援のご相談は受付中）。",
   applicationName: "博多SKルーキーズ",
   authors: [{ name: "博多SKルーキーズ" }],
   creator: "博多SKルーキーズ",
@@ -75,8 +85,9 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
-    description:
-      "福岡市の草野球チーム『博多SKルーキーズ』メンバー募集中。初心者歓迎・10〜40代。",
+    description: RECRUIT_OPEN
+      ? "福岡市の草野球チーム『博多SKルーキーズ』メンバー募集中。初心者歓迎・10〜40代。"
+      : "福岡市の草野球チーム『博多SKルーキーズ』。初心者中心・10〜40代。※現在、新規メンバーの募集は休止中です。",
     url: SITE_URL,
     siteName: "博多SKルーキーズ",
     locale: "ja_JP",
@@ -86,7 +97,9 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary",
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
-    description: "福岡市の草野球チーム。初心者歓迎・メンバー募集中。",
+    description: RECRUIT_OPEN
+      ? "福岡市の草野球チーム。初心者歓迎・メンバー募集中。"
+      : "福岡市の草野球チーム。初心者中心。※現在、新規メンバーの募集は休止中です。",
     images: ["/sk_logo.png"],
   },
   robots: {
@@ -160,6 +173,15 @@ const jsonLd = [
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: [
+      // 休止中は、検索結果のFAQにも先頭で出るようにしておく
+      ...(RECRUIT_OPEN ? [] : [{
+        "@type": "Question",
+        name: "いまメンバーに応募できますか？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
+        },
+      }]),
       {
         "@type": "Question",
         name: "本当に未経験・初心者でも大丈夫ですか？",

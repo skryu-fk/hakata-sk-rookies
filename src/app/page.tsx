@@ -6,6 +6,8 @@ import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
+import { RecruitStatusBar, RecruitStatusPanel } from "@/components/RecruitStatus";
+import { RECRUIT_OPEN, RECRUIT_STATUS_LINE } from "@/data/recruit";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
 import { getBlogs, type BlogPost } from "@/data/blog";
@@ -122,13 +124,25 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
-            <a key={href} href={href} className="nav-link">{label}</a>
+          {/* 募集を休止中は「メンバー募集」ではなく「募集状況」にして、休止のしるしを添える */}
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+            <a key={href} href={href} className="nav-link">
+              {label}
+              {href === "#recruit" && !RECRUIT_OPEN && (
+                <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", color: "#fff", background: "#5b6373", padding: "2px 5px", borderRadius: 2 }}>休止</span>
+              )}
+            </a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
         </nav>
         <div className="xl:hidden ml-auto flex items-stretch">
-          <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
+          {/* 休止中に赤い「募集」ボタンを置くと「応募できる」と読めてしまうので、
+              文言と色を変えて募集状況の案内に差し替える */}
+          {RECRUIT_OPEN ? (
+            <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
+          ) : (
+            <a href="#recruit-status" className="text-white flex items-center px-3 font-bold" style={{ background: "#0b1e3f", textDecoration: "none", fontSize: 11.5, lineHeight: 1.3, textAlign: "center", whiteSpace: "nowrap" }}>募集<br />休止中</a>
+          )}
           <MobileMenu />
         </div>
       </div>
@@ -351,7 +365,13 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
         </>
       )}
       <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</p>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>
+          {RECRUIT_OPEN ? (
+            <>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</>
+          ) : (
+            <>メンバー募集を休止中のため、見学・体験参加のお受付は停止しています（<a href="#recruit" style={{ color: "#d4a82a", textDecoration: "underline" }}>募集状況</a>）。</>
+          )}
+        </p>
       </div>
     </div>
   );
@@ -480,7 +500,8 @@ function ScheduleSection({ practices }: { practices: Practice[] }) {
 
 /* ── AboutSection ─────────────────────────────────────── */
 const STORIES = [
-  { no: "01", head: "みんなで教え合う", body: "代表自身も野球初心者。経験者・未経験者がフラットに教え合うスタイルです。「分からない」を気軽に言える空気を大切に。経験者の加入も大歓迎。" },
+  // 「加入も大歓迎」は募集中のときだけ。休止中に書くと矛盾してしまう
+  { no: "01", head: "みんなで教え合う", body: `代表自身も野球初心者。経験者・未経験者がフラットに教え合うスタイルです。「分からない」を気軽に言える空気を大切に。${RECRUIT_OPEN ? "経験者の加入も大歓迎。" : ""}` },
   { no: "02", head: "全力で楽しむ",     body: "勝ち負けより、まず楽しむこと。声を出して、笑って、汗をかく。それが、俺たちのスタイル。" },
   { no: "03", head: "フラットな空気",   body: "10代から40代までごちゃ混ぜ。年齢も職業も関係なく、グラウンドの上ではみんな対等。" },
 ];
@@ -510,7 +531,12 @@ function AboutSection() {
           <div className="px-6 py-8 md:px-12 md:py-10">
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 14 }}>代表からのメッセージ</p>
             <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,21px)", fontWeight: 700, color: "#fff", lineHeight: 1.6, marginBottom: 14 }}>「未経験だし…」「下手だし…」は気にしないでOK。</p>
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。</p>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.65)", lineHeight: 1.9 }}>
+              代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。
+              {RECRUIT_OPEN
+                ? "経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。"
+                : "いまは受け入れ体制を整えるため、新規メンバーの募集を休止しています。再開できるようになったら、このサイトとSNSでお知らせします。"}
+            </p>
           </div>
         </div>
       </div>
@@ -705,9 +731,18 @@ function RecruitSection() {
       <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="メンバー募集" en="Recruit" />
-        <div className="grid gap-10 md:gap-12 items-start grid-cols-1 md:[grid-template-columns:1fr_380px]">
+        {/* 休止中は、セクションの先頭に状況・理由・再開の案内をはっきり置く */}
+        {!RECRUIT_OPEN && <RecruitStatusPanel />}
+        <div className={`grid gap-10 md:gap-12 items-start grid-cols-1 ${RECRUIT_OPEN ? "md:[grid-template-columns:1fr_380px]" : ""}`}>
           <div>
-            <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>こんな人を、待っています。</p>
+            <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>
+              {RECRUIT_OPEN ? "こんな人を、待っています。" : "募集を再開したら、こんな人を待っています。"}
+            </p>
+            {!RECRUIT_OPEN && (
+              <p className="reveal mb-6" style={{ fontSize: 13.5, lineHeight: 1.95, color: "#5b6373", marginTop: -14, maxWidth: 620 }}>
+                いまは新しいお受付ができませんが、チームが目指している姿は変わりません。再開したときに、ぜひ声をかけたいのはこんな方です。
+              </p>
+            )}
             <div>
               {TARGETS.map((item, i) => (
                 <div key={item} className="recruit-row reveal flex items-center gap-5 py-4 px-2 border-b border-line-2" data-delay={String(i * 80)}>
@@ -718,6 +753,8 @@ function RecruitSection() {
               ))}
             </div>
           </div>
+          {/* 応募の案内は、募集を受け付けているときだけ出す */}
+          {RECRUIT_OPEN && (
           <div className="reveal sticky" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "36px 32px", top: 100 }}>
             <p style={S.eyebrow}>APPLY NOW</p>
             <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.5vw,26px)", fontWeight: 900, color: "#0b1e3f", lineHeight: 1.3, marginBottom: 28, marginTop: 8 }}>応募はかんたん<br />3ステップ。</h3>
@@ -733,6 +770,7 @@ function RecruitSection() {
               応募フォームへ →
             </a>
           </div>
+          )}
         </div>
       </div>
     </section>
@@ -957,8 +995,18 @@ function ContactSection() {
         <div className="grid gap-10 items-start grid-cols-1 md:[grid-template-columns:300px_1fr]">
           <div>
             <p className="reveal text-[14px] leading-[1.9] mb-5" style={{ color: "#3a3f4a" }}>
-              下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。
+              {RECRUIT_OPEN ? (
+                <>下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
+              ) : (
+                <>下記フォームから、質問・練習試合のご相談・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
+              )}
             </p>
+            {!RECRUIT_OPEN && (
+              <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", color: "rgba(255,255,255,0.7)" }}>
+                <p className="font-bold mb-1" style={{ color: "#fff" }}>メンバー募集は休止中です</p>
+                {RECRUIT_STATUS_LINE}そのため、入団・見学・体験参加のお受付はできません。再開を知りたい方は、<a href="#recruit" style={{ color: "#ffd45e", fontWeight: 700 }}>募集状況</a>をご覧ください。
+              </div>
+            )}
             <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
               <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
               女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
@@ -967,8 +1015,12 @@ function ContactSection() {
               ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
               ["LINE GROUP", <a key="line" href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold transition-colors text-[15px]" style={{ textDecoration: "none", color: "#06c755" }}><LINEIcon size={20}/> 公式グループLINE（連絡網）→</a>, "メンバー専用の連絡網。入会時は必ず自己紹介（やりたいポジション・経験）をお願いします。"],
               ["POSTAL", <div key="p" className="font-bold text-navy text-[14px]" style={{ lineHeight: 1.7 }}><div>福岡・博多オフィス</div><div className="font-normal text-[13px] mt-0.5" style={{ color: "#3a3f4a" }}>〒812-0011<br/>福岡県福岡市博多区博多駅前<br/>1丁目23番2号<br/>ParkFront博多駅前1丁目 5F-B</div></div>, "郵便物・物品送付はこちらまで。"],
-              ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
-              ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
+              // 外部の募集ページ（ジモティー・Labola）は、休止中は載せない。
+              // 休止と書いた横に募集ページへの導線があると、結局そこから応募が来てしまう。
+              ...(RECRUIT_OPEN ? [
+                ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
+                ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
+              ] : []),
               ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
             ].map(([eyebrow, content, sub]) => (
               <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
@@ -1004,12 +1056,12 @@ function Footer() {
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em", marginTop: 3 }}>{TEAM_NAME_EN}</p>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。一緒に野球を楽しむ仲間を募集中です。</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。{RECRUIT_STATUS_LINE}</p>
           </div>
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit","メンバー募集"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit",RECRUIT_OPEN ? "メンバー募集" : "メンバー募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -1069,6 +1121,8 @@ export default async function Home() {
       <Header />
       <main>
         <HeroSection memberCount={MEMBER_COUNT} />
+        {/* 募集を休止している間は、ヒーローの直下に必ず出す（見落とされないように） */}
+        {!RECRUIT_OPEN && <RecruitStatusBar />}
         <NewsSection news={news} />
         <ScheduleSection practices={practices} />
         <AboutSection />

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { RECRUIT_BADGE, RECRUIT_BADGE_EN, RECRUIT_OPEN } from "@/data/recruit";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN  = "HAKATA SK ROOKIES";
@@ -125,10 +126,21 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
 
             {/* Left */}
             <div style={{ maxWidth: 680 }}>
-              {/* Badge */}
-              <div className="hero-badge inline-flex items-center gap-3 bg-red font-display text-xs tracking-[0.4em] uppercase mb-9" style={{ padding: "9px 18px" }}>
-                <span className="w-2 h-2 rounded-full bg-white" style={{ animation: "heroPulse 1.8s ease-in-out infinite" }} />
-                MEMBER WANTED — メンバー募集中
+              {/* Badge ── 募集中は赤＋点滅、休止中は紺＋点滅なしにして、
+                  ひと目で「いま応募できるか」が分かるようにしている */}
+              <div
+                className="hero-badge inline-flex items-center gap-3 font-display text-xs tracking-[0.4em] uppercase mb-9"
+                style={RECRUIT_OPEN
+                  ? { padding: "9px 18px", background: "#d10024" }
+                  : { padding: "9px 18px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(212,168,42,0.45)", color: "#f0cf72" }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={RECRUIT_OPEN
+                    ? { background: "#fff", animation: "heroPulse 1.8s ease-in-out infinite" }
+                    : { background: "#d4a82a" }}
+                />
+                {RECRUIT_BADGE_EN} — {RECRUIT_BADGE}
               </div>
 
               {/* Headline */}
@@ -143,13 +155,17 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
                 <div className="font-sans font-black tracking-wide mb-1" style={{ fontSize: "clamp(17px,2vw,22px)" }}>{TEAM_NAME_JP}</div>
                 <div className="font-display text-white/38 tracking-[0.28em] mb-9" style={{ fontSize: 11 }}>{TEAM_NAME_EN} — FUKUOKA SANDLOT BASEBALL CLUB</div>
                 <p className="text-white/72 leading-[1.9] mb-10" style={{ fontSize: "clamp(14px,1.4vw,17px)", maxWidth: 500 }}>
-                  代表も初心者。10代から40代まで、年齢も経験も関係なく、野球を全力で楽しむ仲間を募集中。バットを握ったことがなくても大歓迎です。
+                  {RECRUIT_OPEN
+                    ? "代表も初心者。10代から40代まで、年齢も経験も関係なく、野球を全力で楽しむ仲間を募集中。バットを握ったことがなくても大歓迎です。"
+                    : "代表も初心者。10代から40代まで、年齢も経験も関係なく野球を楽しんでいるチームです。現在は受け入れ体制を整えるため、新規メンバーの募集を休止しています。"}
                 </p>
               </div>
 
               {/* CTAs */}
               <div className="hero-btns flex flex-wrap gap-3 mb-14">
-                <HeroBtn href="#recruit" primary>メンバーに応募する →</HeroBtn>
+                {RECRUIT_OPEN
+                  ? <HeroBtn href="#recruit" primary>メンバーに応募する →</HeroBtn>
+                  : <HeroBtn href="#recruit" primary>募集状況をみる →</HeroBtn>}
                 <HeroBtn href="#about">チームを知る</HeroBtn>
               </div>
 
@@ -199,7 +215,11 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
         <StitchDivider />
         <div className="ticker-track mt-1">
           {[...Array(3)].flatMap(() =>
-            ["メンバー募集中","初心者大歓迎","道具・防具のご支援歓迎","福岡市拠点","経験者も歓迎",`EST. ${FOUNDED}`,"HAKATA SK ROOKIES"]
+            RECRUIT_OPEN
+              ? ["メンバー募集中","初心者大歓迎","道具・防具のご支援歓迎","福岡市拠点","経験者も歓迎",`EST. ${FOUNDED}`,"HAKATA SK ROOKIES"]
+              // 休止中は「大歓迎」の類を流さない。流れている文字だけ見て
+              // 応募できると思われてしまうため。
+              : [RECRUIT_BADGE,"初心者中心のチーム","練習試合の対戦相手 募集中","道具・防具のご支援歓迎","福岡市拠点",`EST. ${FOUNDED}`,"HAKATA SK ROOKIES"]
           ).map((t, i) => (
             <span key={i} className="font-display tracking-[0.25em] uppercase inline-flex items-center" style={{ fontSize: 14, padding: "0 32px" }}>
               {t}<span className="ml-8 opacity-40 text-xs">⬥</span>

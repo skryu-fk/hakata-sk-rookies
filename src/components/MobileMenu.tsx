@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RECRUIT_OPEN } from "@/data/recruit";
 
 const MENU: [string, string][] = [
   ["#news", "お知らせ"],
@@ -10,7 +11,7 @@ const MENU: [string, string][] = [
   ["#vision", "目標・ビジョン"],
   ["#activity", "活動概要"],
   ["/uniform", "ユニフォーム紹介"],
-  ["#recruit", "メンバー募集"],
+  ["#recruit", RECRUIT_OPEN ? "メンバー募集" : "メンバー募集（休止中）"],
   ["#support", "支援"],
   ["#sponsors", "公式スポンサー"],
   ["#faq", "FAQ"],
@@ -166,12 +167,17 @@ export default function MobileMenu() {
           <a href={LINE_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", background: "#06c755", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}>
             公式グループLINE（連絡網）→
           </a>
-          <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
-            ジモティー
-          </a>
-          <a href={LABOLA_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
-            Labola
-          </a>
+          {/* 外部の募集ページは、募集を受け付けているときだけ出す */}
+          {RECRUIT_OPEN && (
+            <>
+              <a href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 45%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+                ジモティー
+              </a>
+              <a href={LABOLA_URL} target="_blank" rel="noopener noreferrer" style={{ flex: "1 1 100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 14px", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)", textDecoration: "none", fontSize: 12 }}>
+                Labola
+              </a>
+            </>
+          )}
         </div>
       </div>
     </>
