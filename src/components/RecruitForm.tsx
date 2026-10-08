@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RECRUIT_OPEN, RECRUIT_PAUSE_RESUME } from "@/data/recruit";
+import { MANAGER_OPEN, RECRUIT_OPEN, RECRUIT_PAUSE_RESUME } from "@/data/recruit";
 
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "";
 const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
@@ -88,22 +88,23 @@ export default function RecruitForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   // ご相談内容。これによって表示する入力項目を切り替える。
-  // 募集を休止している間は、既定を「メンバー応募」にしない。
+  // 選手の募集を休止している間は、既定を「メンバー応募」にしない。
   // 開いた瞬間に応募フォームになっていると、休止中だと気づかれないため。
   const [inquiry, setInquiry] = useState(RECRUIT_OPEN ? "メンバー応募" : "質問");
 
-  // スポンサー募集ページなどから「?inquiry=sponsor」付きで来た場合は、
-  // ご相談内容をあらかじめ選択しておく（毎回選び直す手間をなくす）。
+  // スポンサー募集ページやマネージャー募集セクションから
+  // 「?inquiry=sponsor」付きで来た場合は、ご相談内容をあらかじめ選択しておく。
   // 初期描画はサーバーと同じ既定値にし、表示後に切り替えることで表示ズレを防ぐ。
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("inquiry");
-    const map: Record<string, string> = { sponsor: "スポンサー", match: "対戦・リーグ" };
+    const map: Record<string, string> = { sponsor: "スポンサー", match: "対戦・リーグ", manager: "マネージャー応募" };
     const value = q ? map[q] : undefined;
     if (value) setInquiry(value);
   }, []);
 
-  // 年齢・野球経験はメンバー応募のときだけ聞く（お店の方などには不要なため）
+  // 年齢・野球経験は選手として応募するときだけ聞く（お店の方などには不要なため）
   const isMember = inquiry === "メンバー応募";
+  const isManager = inquiry === "マネージャー応募";
   const isSponsor = inquiry === "スポンサー";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -136,15 +137,17 @@ export default function RecruitForm() {
     <div style={{ background: "#0b1e3f", padding: "64px 48px", textAlign: "center" }}>
       <div style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 16 }}>THANK YOU</div>
       <p style={{ fontFamily: "var(--font-zen), sans-serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 12 }}>
-        {isMember && RECRUIT_OPEN ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
+        {(isMember && RECRUIT_OPEN) || isManager ? "ご応募ありがとうございました。" : "お問い合わせありがとうございました。"}
       </p>
       <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, lineHeight: 1.85 }}>
         内容を確認のうえ、3日以内にご返信します。<br />
-        {isMember
-          ? (RECRUIT_OPEN
-              ? "グラウンドでお会いしましょう。"
-              : "募集を再開する際に、あらためてご案内いたします。")
-          : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
+        {isManager
+          ? "グラウンドでお会いできるのを楽しみにしています。"
+          : isMember
+            ? (RECRUIT_OPEN
+                ? "グラウンドでお会いしましょう。"
+                : "募集を再開する際に、あらためてご案内いたします。")
+            : isSponsor ? "チームへのご支援のご相談、心より感謝いたします。" : "今しばらくお待ちください。"}
       </p>
     </div>
   );
@@ -153,25 +156,34 @@ export default function RecruitForm() {
     <form onSubmit={handleSubmit} style={{ background: "#fff", border: "1px solid #e0dcd4" }}>
       {/* Header */}
       <div style={{ background: "#0b1e3f", padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "var(--font-zen), sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.1em" }}>{RECRUIT_OPEN ? "応募・お問い合わせフォーム" : "お問い合わせフォーム"}</span>
+        <span style={{ fontFamily: "var(--font-zen), sans-serif", fontWeight: 700, color: "#fff", fontSize: 13, letterSpacing: "0.1em" }}>{RECRUIT_OPEN || MANAGER_OPEN ? "応募・お問い合わせフォーム" : "お問い合わせフォーム"}</span>
         <span style={{ fontFamily: "var(--font-oswald), sans-serif", fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em" }}>FORM</span>
       </div>
 
       <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: 20 }}>
         {/* まず相談内容を選んでもらい、それに合わせて下の項目を出し分ける */}
         <FSelect label="ご相談内容" name="inquiry_type" value={inquiry} onChange={setInquiry} options={[
-          { value: "メンバー応募",     label: RECRUIT_OPEN ? "メンバーとして応募したい" : "メンバー応募（現在、募集を休止中）" },
+          ...(MANAGER_OPEN ? [{ value: "マネージャー応募", label: "マネージャーとして応募したい（募集中）" }] : []),
+          { value: "メンバー応募",     label: RECRUIT_OPEN ? "メンバーとして応募したい" : "選手として応募したい（現在、募集を休止中）" },
           { value: "対戦・リーグ",     label: "練習試合・リーグのご相談" },
           { value: "スポンサー",       label: "スポンサーの相談をしたい" },
           { value: "道具支援",         label: "道具を譲りたい・支援したい" },
           { value: "質問",             label: "質問・その他" },
         ]} />
-        {/* 休止中に「メンバー応募」を選んだ人には、送る前にはっきり伝える。
+        {/* マネージャーは募集中なので、迷わず送ってもらえるよう後押しする */}
+        {isManager && (
+          <div style={{ background: "rgba(212,168,42,0.1)", borderLeft: "4px solid #d4a82a", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "#3a3f4a" }}>
+            <p style={{ fontWeight: 700, color: "#0b1e3f", marginBottom: 4 }}>マネージャーは募集中です</p>
+            野球の経験は必要ありません。月会費・入会費はいただかず、ご負担は参加した日のグラウンド代（1人400〜500円）だけです。まずは聞くだけでも大丈夫です。
+          </div>
+        )}
+        {/* 休止中に「選手として応募」を選んだ人には、送る前にはっきり伝える。
             そのうえで、再開のご案内希望としては受け取れるようにしておく。 */}
         {!RECRUIT_OPEN && isMember && (
           <div style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.72)" }}>
-            <p style={{ fontWeight: 700, color: "#fff", marginBottom: 4 }}>現在、新規メンバーの募集は休止しています</p>
+            <p style={{ fontWeight: 700, color: "#fff", marginBottom: 4 }}>現在、選手（プレイヤー）の募集は休止しています</p>
             {RECRUIT_PAUSE_RESUME}このままお送りいただいた場合は「再開時のご案内希望」として承ります。
+            {MANAGER_OPEN && "なお、マネージャーは募集中です。上の「ご相談内容」から選べます。"}
           </div>
         )}
         {isSponsor && (
@@ -194,12 +206,27 @@ export default function RecruitForm() {
             ]} />
           </>
         )}
+        {/* マネージャーには野球経験を聞かない。代わりにやってみたいことを聞く */}
+        {isManager && (
+          <>
+            <FField label="年齢" name="age" type="number" required placeholder="例：22" min={10} max={60} />
+            <FSelect label="やってみたいこと" name="manager_role" required options={[
+              { value: "撮影",        label: "撮影（写真・動画）" },
+              { value: "企画",        label: "イベントの企画" },
+              { value: "データ管理",  label: "選手データの管理・記録" },
+              { value: "全部",        label: "全部やってみたい" },
+              { value: "未定",        label: "まだ決めていない・相談したい" },
+            ]} />
+          </>
+        )}
         <div>
           <FLabel>メッセージ</FLabel>
           <textarea name="message" rows={5}
             placeholder={isSponsor
               ? "ご希望のプラン（個人応援・サポーター・パートナー・公式パートナー）や、ご質問などをご記入ください。"
-              : "意気込み・聞きたいこと・自己紹介など、自由にどうぞ。"}
+              : isManager
+                ? "カメラをやっていた、企画を考えるのが好き、など。まだ何もなくても大丈夫です。聞きたいことだけでもどうぞ。"
+                : "意気込み・聞きたいこと・自己紹介など、自由にどうぞ。"}
             style={{ ...inp, resize: "vertical", height: 120 }} />
         </div>
         <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" style={{ display: "none" }} />

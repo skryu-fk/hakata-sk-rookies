@@ -7,7 +7,14 @@ import RecruitForm  from "@/components/RecruitForm";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
 import { RecruitStatusBar, RecruitStatusPanel } from "@/components/RecruitStatus";
-import { RECRUIT_OPEN, RECRUIT_STATUS_LINE } from "@/data/recruit";
+import {
+  MANAGER_COST,
+  MANAGER_LEAD,
+  MANAGER_OPEN,
+  MANAGER_ROLES,
+  RECRUIT_OPEN,
+  RECRUIT_SUMMARY_LINE,
+} from "@/data/recruit";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
 import { getBlogs, type BlogPost } from "@/data/blog";
@@ -114,31 +121,28 @@ function TopBar() {
 function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
-      <div className="max-w-[1280px] mx-auto px-8 flex items-stretch" style={{ height: 68 }}>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
         <Link href="#top" className="logo-pop flex items-center gap-3 flex-shrink-0 pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
           <Image src="/sk_logo_crop.png" alt="" width={44} height={36} className="object-contain" priority />
           <div style={{ lineHeight: 1, display: "flex", flexDirection: "column", gap: 5 }}>
             {/* チーム名はワードマーク画像（博多SKルーキーズ） */}
-            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={26} className="object-contain" priority style={{ width: "clamp(150px, 24vw, 209px)", height: "auto" }} />
+            <Image src="/hksk_logo_crop.png" alt={TEAM_NAME_JP} width={209} height={26} className="object-contain" priority style={{ width: "clamp(132px, 24vw, 209px)", height: "auto" }} />
             <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#aaa", letterSpacing: "0.3em", textTransform: "uppercase" }}>{TEAM_NAME_EN}</div>
           </div>
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
-          {/* 募集を休止中は「メンバー募集」ではなく「募集状況」にして、休止のしるしを添える */}
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"],["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
-            <a key={href} href={href} className="nav-link">
-              {label}
-              {href === "#recruit" && !RECRUIT_OPEN && (
-                <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", color: "#fff", background: "#5b6373", padding: "2px 5px", borderRadius: 2 }}>休止</span>
-              )}
-            </a>
+          {/* いま募集しているものをナビに出す。選手を休止中はマネージャー募集を載せる */}
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+            <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
         </nav>
         <div className="xl:hidden ml-auto flex items-stretch">
-          {/* 休止中に赤い「募集」ボタンを置くと「応募できる」と読めてしまうので、
-              文言と色を変えて募集状況の案内に差し替える */}
-          {RECRUIT_OPEN ? (
+          {/* いま応募できるものをボタンにする。選手が休止中にここを赤い「募集」に
+              しておくと「選手を募集している」と読めてしまうため */}
+          {MANAGER_OPEN ? (
+            <a href="#manager" className="flex items-center font-bold" style={{ background: "#d4a82a", color: "#0b1e3f", textDecoration: "none", fontSize: 11, lineHeight: 1.3, textAlign: "center", whiteSpace: "nowrap", paddingLeft: 10, paddingRight: 10 }}>マネージャー<br />募集中</a>
+          ) : RECRUIT_OPEN ? (
             <a href="#recruit" className="bg-red text-white flex items-center px-4 font-bold text-sm tracking-wide" style={{ textDecoration: "none" }}>募集</a>
           ) : (
             <a href="#recruit-status" className="text-white flex items-center px-3 font-bold" style={{ background: "#0b1e3f", textDecoration: "none", fontSize: 11.5, lineHeight: 1.3, textAlign: "center", whiteSpace: "nowrap" }}>募集<br />休止中</a>
@@ -369,7 +373,10 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
           {RECRUIT_OPEN ? (
             <>見学希望はX DMまたは<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせ</a>から。</>
           ) : (
-            <>メンバー募集を休止中のため、見学・体験参加のお受付は停止しています（<a href="#recruit" style={{ color: "#d4a82a", textDecoration: "underline" }}>募集状況</a>）。</>
+            <>
+              選手の募集を休止中のため、見学・体験参加のお受付は停止しています（<a href="#recruit" style={{ color: "#d4a82a", textDecoration: "underline" }}>募集状況</a>）。
+              {MANAGER_OPEN && <><br /><a href="#manager" style={{ color: "#ffd45e", textDecoration: "underline", fontWeight: 700 }}>マネージャーは募集中です →</a></>}
+            </>
           )}
         </p>
       </div>
@@ -535,7 +542,9 @@ function AboutSection() {
               代表は19歳。普段はボートレーサーを目指して修行中で、野球も初心者からのスタートです。チームを立ち上げたばかりで、メンバーみんなで作っていくフェーズ。
               {RECRUIT_OPEN
                 ? "経験者の方は、一緒に教える側として加わってくれると嬉しいです。まずは気軽に応募・質問してください。"
-                : "いまは受け入れ体制を整えるため、新規メンバーの募集を休止しています。再開できるようになったら、このサイトとSNSでお知らせします。"}
+                : MANAGER_OPEN
+                  ? "いまは受け入れ体制を整えるため、選手の募集は休止しています。そのぶん、撮影や企画でチームを一緒に作ってくれるマネージャーを探しています。野球を知らなくても大丈夫です。"
+                  : "いまは受け入れ体制を整えるため、新規メンバーの募集を休止しています。再開できるようになったら、このサイトとSNSでお知らせします。"}
             </p>
           </div>
         </div>
@@ -715,6 +724,104 @@ function ActivitySection() {
   );
 }
 
+/* ── ManagerSection ───────────────────────────────────── */
+/**
+ * マネージャー募集。選手の募集を休止している今、いちばん前に出したい内容なので
+ * 独立したセクションにして、選手の募集状況（RecruitSection）の手前に置いている。
+ */
+function ManagerSection() {
+  return (
+    <section id="manager" className="bg-navy text-white relative overflow-hidden">
+      <div className="field-grid absolute inset-0" />
+      <div style={{ position: "absolute", right: -50, top: -70, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 460, lineHeight: 1, color: "rgba(255,255,255,0.022)", userSelect: "none", pointerEvents: "none" }}>M</div>
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
+        <SectionTitle jp="マネージャー募集" en="Manager" light />
+
+        <div className="reveal" style={{ marginTop: -26, marginBottom: 40 }}>
+          <div className="inline-flex items-center gap-3" style={{ background: "#d4a82a", color: "#0b1e3f", padding: "8px 16px", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 20 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#0b1e3f" }} />
+            積極募集中 — 野球の経験は必要ありません
+          </div>
+          <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(22px,3.2vw,36px)", fontWeight: 900, color: "#fff", lineHeight: 1.45, marginBottom: 16 }}>
+            グラウンドの外から、<br />
+            チームを<span style={{ color: "#ffd45e" }}>いちばん近くで</span>支える人。
+          </h3>
+          <p style={{ fontSize: 15, lineHeight: 1.95, color: "rgba(255,255,255,0.7)", maxWidth: 680 }}>
+            {MANAGER_LEAD}
+          </p>
+        </div>
+
+        {/* 活動内容 */}
+        <p className="reveal" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.4em", color: "#d4a82a", marginBottom: 16 }}>
+          WHAT YOU DO — 主な活動内容
+        </p>
+        <div className="grid gap-5 grid-cols-1 md:grid-cols-3" style={{ marginBottom: 48 }}>
+          {MANAGER_ROLES.map((role, i) => (
+            <div key={role.title} className="support-card reveal" data-delay={String(i * 120)}
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", padding: "30px 28px" }}>
+              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 26, color: "rgba(212,168,42,0.5)", lineHeight: 1, marginBottom: 14 }}>
+                {String(i + 1).padStart(2, "0")}
+              </p>
+              <h4 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: "#fff", marginBottom: 12 }}>{role.title}</h4>
+              <p style={{ fontSize: 13.5, lineHeight: 1.95, color: "rgba(255,255,255,0.6)" }}>{role.body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* 費用 ＋ 応募導線 */}
+        <div className="grid gap-6 items-start grid-cols-1 lg:[grid-template-columns:1fr_360px]">
+          <div className="reveal">
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.4em", color: "#d4a82a", marginBottom: 16 }}>
+              COST — 費用
+            </p>
+            <div style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+              {MANAGER_COST.map((c, i) => (
+                <div key={c.label} className="grid grid-cols-1 sm:[grid-template-columns:120px_1fr]"
+                  style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.09)", padding: "18px 22px", gap: 6 }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", paddingTop: 3 }}>{c.label}</p>
+                  <div>
+                    <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: "#ffd45e", marginBottom: 4 }}>{c.value}</p>
+                    <p style={{ fontSize: 12.5, lineHeight: 1.8, color: "rgba(255,255,255,0.55)" }}>{c.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="reveal" style={{ background: "rgba(212,168,42,0.09)", border: "1px solid rgba(212,168,42,0.45)", padding: "32px 28px" }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.4em", color: "#d4a82a", marginBottom: 12 }}>
+              APPLY
+            </p>
+            <h4 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.45, marginBottom: 14 }}>
+              気になったら、<br />まず聞くだけでOK。
+            </h4>
+            <p style={{ fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.62)", marginBottom: 24 }}>
+              お問い合わせフォームの「ご相談内容」で<strong style={{ color: "#ffd45e" }}>マネージャー応募</strong>を選んでください。3日以内に代表からご返信します。X（@SK_rookies_FK）のDMでも大丈夫です。
+            </p>
+            <a href="/?inquiry=manager#contact"
+              style={{ display: "flex", justifyContent: "center", padding: "14px 24px", background: "#ffd45e", color: "#0b1e3f", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 10 }}>
+              マネージャーに応募する →
+            </a>
+            <a href={X_URL} target="_blank" rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+              style={{ display: "flex", justifyContent: "center", padding: "11px 24px", border: "1px solid rgba(255,255,255,0.22)", color: "rgba(255,255,255,0.65)", textDecoration: "none", fontSize: 13 }}>
+              𝕏 のDMで聞いてみる
+            </a>
+          </div>
+        </div>
+
+        {/* 選手の募集状況への導線 */}
+        {!RECRUIT_OPEN && (
+          <p className="reveal" style={{ fontSize: 12.5, color: "rgba(255,255,255,0.4)", lineHeight: 1.9, marginTop: 32 }}>
+            ※ 選手（プレイヤー）としての募集は現在休止しています。
+            <a href="#recruit" style={{ color: "#d4a82a", textDecoration: "underline", marginLeft: 4 }}>選手の募集状況はこちら →</a>
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ── RecruitSection ───────────────────────────────────── */
 const TARGETS = [
   "野球をやってみたい初心者（代表も初心者）",
@@ -730,7 +837,8 @@ function RecruitSection() {
     <section id="recruit" className="bg-white border-b border-line-2 relative overflow-hidden">
       <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
-        <SectionTitle jp="メンバー募集" en="Recruit" />
+        {/* マネージャー募集と区別がつくよう、ここは「選手の募集」と呼ぶ */}
+        <SectionTitle jp={RECRUIT_OPEN ? "メンバー募集" : "選手の募集"} en="Recruit" />
         {/* 休止中は、セクションの先頭に状況・理由・再開の案内をはっきり置く */}
         {!RECRUIT_OPEN && <RecruitStatusPanel />}
         <div className={`grid gap-10 md:gap-12 items-start grid-cols-1 ${RECRUIT_OPEN ? "md:[grid-template-columns:1fr_380px]" : ""}`}>
@@ -998,13 +1106,20 @@ function ContactSection() {
               {RECRUIT_OPEN ? (
                 <>下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
               ) : (
-                <>下記フォームから、質問・練習試合のご相談・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
+                <>下記フォームから、{MANAGER_OPEN && <><a href="#manager" className="text-red font-bold">マネージャーのご応募</a>・</>}質問・練習試合のご相談・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
               )}
             </p>
-            {!RECRUIT_OPEN && (
+            {/* いま応募できるもの／できないものを、フォームのすぐ横で並べて示す */}
+            {MANAGER_OPEN && (
               <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", color: "rgba(255,255,255,0.7)" }}>
-                <p className="font-bold mb-1" style={{ color: "#fff" }}>メンバー募集は休止中です</p>
-                {RECRUIT_STATUS_LINE}そのため、入団・見学・体験参加のお受付はできません。再開を知りたい方は、<a href="#recruit" style={{ color: "#ffd45e", fontWeight: 700 }}>募集状況</a>をご覧ください。
+                <p className="font-bold mb-1" style={{ color: "#ffd45e" }}>マネージャーを募集しています</p>
+                撮影・イベント企画・選手データの管理をお願いする役割です。野球の経験は不要、月会費・入会費はいただきません。<a href="#manager" style={{ color: "#ffd45e", fontWeight: 700 }}>くわしく →</a>
+              </div>
+            )}
+            {!RECRUIT_OPEN && (
+              <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #5b6373", padding: "16px 20px", color: "#3a3f4a" }}>
+                <p className="font-bold text-navy mb-1">選手（プレイヤー）の募集は休止中です</p>
+                入団・見学・体験参加のお受付はできません。再開を知りたい方は、<a href="#recruit" className="text-red font-bold">選手の募集状況</a>をご覧ください。
               </div>
             )}
             <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
@@ -1056,12 +1171,12 @@ function Footer() {
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em", marginTop: 3 }}>{TEAM_NAME_EN}</p>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。{RECRUIT_STATUS_LINE}</p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", lineHeight: 1.85, maxWidth: 340 }}>福岡市を拠点に活動する、初心者中心の草野球チーム。{RECRUIT_SUMMARY_LINE}</p>
           </div>
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],["#recruit",RECRUIT_OPEN ? "メンバー募集" : "メンバー募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -1122,13 +1237,14 @@ export default async function Home() {
       <main>
         <HeroSection memberCount={MEMBER_COUNT} />
         {/* 募集を休止している間は、ヒーローの直下に必ず出す（見落とされないように） */}
-        {!RECRUIT_OPEN && <RecruitStatusBar />}
+        {(MANAGER_OPEN || !RECRUIT_OPEN) && <RecruitStatusBar />}
         <NewsSection news={news} />
         <ScheduleSection practices={practices} />
         <AboutSection />
         <AppSection />
         <VisionSection />
         <ActivitySection />
+        {MANAGER_OPEN && <ManagerSection />}
         <RecruitSection />
         <SupportSection />
         <SponsorsSection />

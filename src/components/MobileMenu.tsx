@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RECRUIT_OPEN } from "@/data/recruit";
+import { MANAGER_OPEN, RECRUIT_OPEN } from "@/data/recruit";
 
 const MENU: [string, string][] = [
   ["#news", "お知らせ"],
@@ -11,7 +11,8 @@ const MENU: [string, string][] = [
   ["#vision", "目標・ビジョン"],
   ["#activity", "活動概要"],
   ["/uniform", "ユニフォーム紹介"],
-  ["#recruit", RECRUIT_OPEN ? "メンバー募集" : "メンバー募集（休止中）"],
+  ...(MANAGER_OPEN ? [["#manager", "マネージャー募集中"] as [string, string]] : []),
+  ["#recruit", RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],
   ["#support", "支援"],
   ["#sponsors", "公式スポンサー"],
   ["#faq", "FAQ"],
@@ -140,11 +141,15 @@ export default function MobileMenu() {
           transform: open ? "translateY(0)" : "translateY(16px)",
           transition: `opacity 0.4s ease ${open ? 0.55 : 0}s, transform 0.4s cubic-bezier(0.22,1,0.36,1) ${open ? 0.55 : 0}s`,
         }}>
+          {/* いま応募できるものをボタンにする。選手を休止中にここを
+              「メンバーに応募する」にしておくと行き違いになる */}
           <a
-            href="#contact"
+            href={MANAGER_OPEN && !RECRUIT_OPEN ? "/?inquiry=manager#contact" : "#contact"}
             onClick={() => setOpen(false)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "#d10024", color: "#fff", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.12em", boxShadow: "0 8px 24px rgba(209,0,36,0.3)" }}>
-            メンバーに応募する →
+            style={MANAGER_OPEN && !RECRUIT_OPEN
+              ? { display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "#d4a82a", color: "#0b1e3f", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.12em", boxShadow: "0 8px 24px rgba(212,168,42,0.3)" }
+              : { display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", background: "#d10024", color: "#fff", textDecoration: "none", fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.12em", boxShadow: "0 8px 24px rgba(209,0,36,0.3)" }}>
+            {MANAGER_OPEN && !RECRUIT_OPEN ? "マネージャーに応募する →" : RECRUIT_OPEN ? "メンバーに応募する →" : "お問い合わせ →"}
           </a>
         </div>
 

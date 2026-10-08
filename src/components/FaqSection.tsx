@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  MANAGER_OPEN,
   RECRUIT_OPEN,
   RECRUIT_PAUSED_SINCE,
   RECRUIT_PAUSE_PENDING,
@@ -11,13 +12,34 @@ import {
 
 const X_URL = "https://x.com/SK_rookies_FK";
 
-/** 募集を休止している間だけ、FAQの先頭に出す項目 */
+/** マネージャーを募集している間だけ、FAQの先頭に出す項目 */
+const MANAGER_FAQS = [
+  {
+    q: "マネージャーは募集していますか？",
+    a: "はい、積極的に募集しています。選手（プレイヤー）の募集は休止していますが、マネージャーは別枠で受け付けています。お問い合わせフォームの「ご相談内容」で「マネージャー応募」を選んでご連絡ください。",
+  },
+  {
+    q: "マネージャーは何をするんですか？",
+    a: "主に3つです。①撮影 — 練習や試合の写真・動画を撮って、サイトやSNSでの発信に使います（スマホでOK）。②イベントの企画 — ごはん会・合宿・応援企画など、チームが盛り上がることを一緒に考えます。③選手データの管理 — スコアや打率などの記録をメンバー専用アプリに入力します。全部を一人でやる必要はなく、できることからで大丈夫です。",
+  },
+  {
+    q: "マネージャーも費用がかかりますか？",
+    a: "月会費はいただきません。入会費（選手は2,000円）も免除です。ご負担いただくのは、参加した日のグラウンド代（1人400〜500円）だけです。",
+  },
+  {
+    q: "野球を知らなくてもマネージャーはできますか？",
+    a: "できます。野球の経験・知識は必要ありません。記録のつけ方は入ってから教えますし、代表自身も初心者スタートなので「分からない」が当たり前の雰囲気です。男女は問いません。",
+  },
+];
+
+/** 選手の募集を休止している間だけ、FAQに出す項目 */
 const PAUSE_FAQ = {
-  q: "いまメンバーに応募できますか？",
-  a: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
+  q: "いま選手（プレイヤー）として応募できますか？",
+  a: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、マネージャーのご応募・練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
 };
 
 const faqs = [
+  ...(MANAGER_OPEN ? MANAGER_FAQS : []),
   ...(RECRUIT_OPEN ? [] : [PAUSE_FAQ]),
   {
     q: "本当に未経験・初心者でも大丈夫ですか？",
@@ -41,7 +63,7 @@ const faqs = [
   },
   {
     q: "女性も参加できますか？マネージャー希望でもOK？",
-    a: "もちろんです。男女問わず、野球を楽しみたい方はどなたでも歓迎します。プレイヤーとしてだけでなく、スコア記録・撮影・練習サポートなどを担当してくれるマネージャーとしての参加も大歓迎です。",
+    a: "もちろんです。男女問わず歓迎します。とくにマネージャー（撮影・イベント企画・選手データの管理）は現在積極的に募集しており、月会費・入会費もいただきません。プレイヤーとしてのご参加は、いまは募集を休止しています。",
   },
   {
     q: "代表が19歳（10代）と若いけど、20代〜40代でも大丈夫？",
@@ -59,7 +81,7 @@ const faqs = [
     q: "見学だけでもできますか？",
     a: RECRUIT_OPEN
       ? "もちろん可能です。応募フォームかX（@SK_rookies_FK）のDMで「見学希望」とお伝えください。次回の活動日時と場所をご案内します。"
-      : "申し訳ありません。新規メンバーの募集を休止している間は、見学・体験参加のお受付もできません。再開しだい、このサイトのお知らせと公式X（@SK_rookies_FK）でご案内しますので、よろしければフォローしてお待ちください。",
+      : "申し訳ありません。選手の募集を休止している間は、見学・体験参加のお受付もできません。再開しだい、このサイトのお知らせと公式X（@SK_rookies_FK）でご案内しますので、よろしければフォローしてお待ちください。なお、マネージャーをご希望の方は別途受け付けていますので、お気軽にご連絡ください。",
   },
   {
     q: "対戦相手（他のチーム）も募集していますか？",
@@ -98,13 +120,16 @@ export default function FaqSection() {
           までお気軽にどうぞ。
         </p>
 
-        {/* 入団・費用・見学などの回答は「募集している前提」で書かれているため、
+        {/* 入団・費用・見学などの回答は「選手を募集している前提」で書かれているため、
             休止中はここで一度まとめてお断りしておく（回答ごとに注記を足すより読みやすい） */}
         {!RECRUIT_OPEN && (
           <div className="reveal mb-8 text-[13.5px] leading-[1.95]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a", maxWidth: 760 }}>
-            <p className="font-bold text-navy mb-1">現在、新規メンバーの募集は休止しています</p>
-            入団・費用・道具・見学などについての以下の回答は、募集を再開したときのご案内です。いまはお受付ができませんので、ご了承ください。
-            <a href="#recruit" className="text-red font-bold underline decoration-dotted underline-offset-4" style={{ marginLeft: 4 }}>募集状況のくわしい説明 →</a>
+            <p className="font-bold text-navy mb-1">
+              {MANAGER_OPEN ? "マネージャーは募集中／選手の募集は休止中です" : "現在、新規メンバーの募集は休止しています"}
+            </p>
+            入団・費用・道具・見学などについての以下の回答は、<strong>選手</strong>として参加する場合のもので、募集を再開したときのご案内です。いまはお受付ができませんので、ご了承ください。
+            {MANAGER_OPEN && <><a href="#manager" className="text-red font-bold underline decoration-dotted underline-offset-4" style={{ marginLeft: 4 }}>マネージャー募集について →</a></>}
+            <a href="#recruit" className="text-red font-bold underline decoration-dotted underline-offset-4" style={{ marginLeft: 4 }}>選手の募集状況 →</a>
           </div>
         )}
 

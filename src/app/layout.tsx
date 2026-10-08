@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Zen_Kaku_Gothic_New, Oswald, RocknRoll_One } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import {
+  MANAGER_OPEN,
   RECRUIT_OPEN,
   RECRUIT_PAUSED_SINCE,
   RECRUIT_PAUSE_PENDING,
@@ -51,7 +52,9 @@ export const metadata: Metadata = {
   // （「サイトでは募集中と書いてあった」という行き違いを防ぐため）
   description: RECRUIT_OPEN
     ? "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しむ仲間を募集中。月額500円、グローブがあれば始められます。"
-    : "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しんでいます。※現在、新規メンバーの募集は休止中です（練習試合・スポンサー・道具のご支援のご相談は受付中）。",
+    : MANAGER_OPEN
+      ? "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。マネージャー募集中（撮影・イベント企画・選手データ管理／野球経験不要・月会費と入会費は無料）。※選手の募集は休止中です。"
+      : "福岡市を拠点に活動する草野球チーム『博多SKルーキーズ』。初心者中心、10〜40代まで、野球を全力で楽しんでいます。※現在、新規メンバーの募集は休止中です（練習試合・スポンサー・道具のご支援のご相談は受付中）。",
   applicationName: "博多SKルーキーズ",
   authors: [{ name: "博多SKルーキーズ" }],
   creator: "博多SKルーキーズ",
@@ -63,6 +66,8 @@ export const metadata: Metadata = {
     "福岡市",
     "博多",
     "メンバー募集",
+    "マネージャー募集",
+    "草野球 マネージャー",
     "初心者歓迎",
     "草野球 初心者",
     "博多SKルーキーズ",
@@ -87,7 +92,9 @@ export const metadata: Metadata = {
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
     description: RECRUIT_OPEN
       ? "福岡市の草野球チーム『博多SKルーキーズ』メンバー募集中。初心者歓迎・10〜40代。"
-      : "福岡市の草野球チーム『博多SKルーキーズ』。初心者中心・10〜40代。※現在、新規メンバーの募集は休止中です。",
+      : MANAGER_OPEN
+        ? "福岡市の草野球チーム『博多SKルーキーズ』マネージャー募集中。撮影・イベント企画・データ管理／野球経験不要・月会費と入会費は無料。※選手の募集は休止中。"
+        : "福岡市の草野球チーム『博多SKルーキーズ』。初心者中心・10〜40代。※現在、新規メンバーの募集は休止中です。",
     url: SITE_URL,
     siteName: "博多SKルーキーズ",
     locale: "ja_JP",
@@ -99,7 +106,9 @@ export const metadata: Metadata = {
     title: "博多SKルーキーズ | HAKATA SK ROOKIES",
     description: RECRUIT_OPEN
       ? "福岡市の草野球チーム。初心者歓迎・メンバー募集中。"
-      : "福岡市の草野球チーム。初心者中心。※現在、新規メンバーの募集は休止中です。",
+      : MANAGER_OPEN
+        ? "福岡市の草野球チーム。マネージャー募集中（野球経験不要・月会費と入会費は無料）。※選手の募集は休止中。"
+        : "福岡市の草野球チーム。初心者中心。※現在、新規メンバーの募集は休止中です。",
     images: ["/sk_logo.png"],
   },
   robots: {
@@ -173,13 +182,21 @@ const jsonLd = [
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: [
-      // 休止中は、検索結果のFAQにも先頭で出るようにしておく
-      ...(RECRUIT_OPEN ? [] : [{
+      // いま募集しているもの・していないものは、検索結果のFAQにも先頭で出す
+      ...(MANAGER_OPEN ? [{
         "@type": "Question",
-        name: "いまメンバーに応募できますか？",
+        name: "マネージャーは募集していますか？",
         acceptedAnswer: {
           "@type": "Answer",
-          text: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
+          text: "はい、積極的に募集しています。主な活動は、練習や試合の撮影、イベントの企画、選手データの管理です。野球の経験は必要ありません。月会費はいただかず、入会費も免除で、ご負担は参加した日のグラウンド代（1人400〜500円）だけです。なお、選手（プレイヤー）としての募集は現在休止しています。",
+        },
+      }] : []),
+      ...(RECRUIT_OPEN ? [] : [{
+        "@type": "Question",
+        name: "いま選手（プレイヤー）として応募できますか？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、マネージャーのご応募・練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
         },
       }]),
       {
@@ -227,7 +244,7 @@ const jsonLd = [
         name: "女性も参加できますか？マネージャー希望でもOK？",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "もちろんです。プレイヤーとしてだけでなく、スコア記録・撮影・練習サポートなどを担当するマネージャーとしての参加も大歓迎です。",
+          text: "もちろんです。男女問わず歓迎します。とくにマネージャー（撮影・イベント企画・選手データの管理）は現在積極的に募集しており、月会費・入会費もいただきません。プレイヤーとしてのご参加は、いまは募集を休止しています。",
         },
       },
       {
