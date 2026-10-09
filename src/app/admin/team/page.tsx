@@ -33,7 +33,7 @@ function isKatakanaName(name: string): boolean {
 
 const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "polls" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "polls" | "opponents" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -196,6 +196,26 @@ type GameRow = {
   homeErrors: number;
   awayErrors: number;
   winner: string;
+  note: string;
+  /** 対戦相手マスタ（opponents）のID。ロゴを引くために使う */
+  opponentId: string;
+  /** 自チームがホームだったか */
+  isHome: boolean;
+  /** "live" = アプリで記録中 / それ以外 = 確定済み */
+  status: string;
+  /** ライブ中の回。例 "3回表" */
+  inning: string;
+  updatedAt: string;
+  _row: number;
+};
+
+/** 対戦相手（公式サイトに出るロゴつき） */
+type OpponentRow = {
+  id: string;
+  name: string;
+  shortName: string;
+  logo: string;
+  color: string;
   note: string;
   _row: number;
 };
@@ -485,6 +505,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   const [batting, setBatting] = useState<BattingRow[]>([]);
   const [lineups, setLineups] = useState<LineupRow[]>([]);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [opponents, setOpponents] = useState<OpponentRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
@@ -815,8 +836,27 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       awayErrors: num(r.data[9]),
       winner: r.data[10] ?? "",
       note: r.data[11] ?? "",
+      opponentId: r.data[12] ?? "",
+      isHome: (r.data[13] ?? "1") !== "0",
+      status: r.data[14] ?? "",
+      inning: r.data[15] ?? "",
+      updatedAt: r.data[16] ?? "",
       _row: r.rowIndex,
     })));
+    });
+  }, [listCached]);
+
+  const loadOpponents = useCallback(async () => {
+    await listCached("opponents", (rows) => {
+      setOpponents(rows.map(r => ({
+        id: r.data[0] ?? "",
+        name: r.data[1] ?? "",
+        shortName: r.data[2] ?? "",
+        logo: r.data[3] ?? "",
+        color: r.data[4] ?? "",
+        note: r.data[5] ?? "",
+        _row: r.rowIndex,
+      })));
     });
   }, [listCached]);
 
@@ -1085,6 +1125,10 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   }, [tab, batting.length, pitching.length, catching.length, fielding.length, evaluations.length, attendance.length,
       loadBatting, loadPitching, loadCatching, loadFielding, loadEvaluations, loadAttendance]);
   useEffect(() => { if (tab === "scoreboard" && games.length === 0) loadGames(); }, [tab, games.length, loadGames]);
+  // 対戦相手はスコアボードでも選ぶので、どちらのタブでも読む
+  useEffect(() => { if ((tab === "opponents" || tab === "scoreboard") && opponents.length === 0) loadOpponents(); }, [tab, opponents.length, loadOpponents]);
+  // ライブ中の試合をタブに出すため、試合カテゴリにいる間は常に把握しておく
+  useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { if (tab === "payments" && payments.length === 0) loadPayments(); }, [tab, payments.length, loadPayments]);
   useEffect(() => {
     if (tab === "stats") {
@@ -1124,6 +1168,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       {(() => {
         // 承認待ち・パスワードリセット申請があればタブに赤ドットを出す
         const acctAlerts = accounts.filter(a => a.status === "pending" || a.status === "reset_requested").length;
+        // アプリで記録中の試合があればスコアボードのタブに赤ドットを出す
+        const liveGames = games.filter(g => g.status === "live").length;
         const groups: { key: string; label: string; items: [Tab, string, number | undefined, boolean][] }[] = [
           { key: "team", label: "チーム", items: [
             ["members", "名簿", members.length, false],
@@ -1134,7 +1180,8 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           ] },
           { key: "game", label: "試合", items: [
             ["lineup", "スタメン", lineups.length, false],
-            ["scoreboard", "スコアボード", games.length, false],
+            ["scoreboard", "スコアボード", games.length, liveGames > 0],
+            ["opponents", "対戦相手", opponents.length, false],
             ["batting", "打席記録", batting.length, false],
             ["pitching", "投手記録", pitching.length, false],
             ["catching", "捕手記録", catching.length, false],
@@ -1256,9 +1303,22 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         {tab === "scoreboard" && (
           <ScoreboardTab
             games={games}
+            opponents={opponents}
             loading={!!loading.games}
             api={api}
             reload={loadGames}
+            showToast={showToast}
+          />
+        )}
+        {tab === "opponents" && (
+          <OpponentsTab
+            opponents={opponents}
+            games={games}
+            loading={!!loading.opponents}
+            saving={saving}
+            api={api}
+            reload={loadOpponents}
+            uploadImage={uploadImage}
             showToast={showToast}
           />
         )}
@@ -2447,9 +2507,10 @@ function LineupTab({
 // スコアボードタブ
 // ────────────────────────────────────────────────────────
 function ScoreboardTab({
-  games, loading, api, reload, showToast,
+  games, opponents, loading, api, reload, showToast,
 }: {
   games: GameRow[];
+  opponents: OpponentRow[];
   loading: boolean;
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
   reload: () => void;
@@ -2458,6 +2519,10 @@ function ScoreboardTab({
   const [date, setDate] = useState(todayIso());
   const [homeTeam, setHomeTeam] = useState("SK ROOKIES");
   const [awayTeam, setAwayTeam] = useState("対戦相手");
+  // 対戦相手マスタから選ぶ。選ぶとチーム名が自動で入り、公式サイトにロゴが出る
+  const [opponentId, setOpponentId] = useState("");
+  // 自チームがホームだったか。スコアボードの上下と「ホーム／ビジター」の表示が入れ替わる
+  const [isHome, setIsHome] = useState(true);
   const [innings, setInnings] = useState(9);
   const [homeScores, setHomeScores] = useState<number[]>(() => Array(9).fill(0));
   const [awayScores, setAwayScores] = useState<number[]>(() => Array(9).fill(0));
@@ -2568,17 +2633,24 @@ function ScoreboardTab({
   async function save() {
     if (!date) { showToast(false, "日付は必須です。"); return; }
     const winner = homeTotal > awayTotal ? homeTeam : awayTotal > homeTotal ? awayTeam : "引き分け";
-    const id = genId("g");
+    const id = games.find(g => g.status === "live" && g.date === date)?.id || genId("g");
     const row = [
       id, date, homeTeam, awayTeam,
       homeScores.join(","), awayScores.join(","),
       String(homeHits), String(awayHits),
       String(homeErrors), String(awayErrors),
       winner, note,
+      opponentId, isHome ? "1" : "0", "final", "",
+      new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " "),
     ];
-    const ok = await api("/api/admin/append", { sheet: "games", row });
+    // 同じ日にアプリで記録中の試合があれば、新しく作らずそれを確定させる。
+    // そうしないと「試合中」と「試合終了」が2件並んでしまう。
+    const live = games.find(g => g.status === "live" && g.date === date);
+    const ok = live
+      ? await api("/api/admin/update", { sheet: "games", rowIndex: live._row, row })
+      : await api("/api/admin/append", { sheet: "games", row });
     if (ok) {
-      showToast(true, `${winner === "引き分け" ? "引き分け" : winner + " 勝利"}！試合を記録しました。`);
+      showToast(true, `${winner === "引き分け" ? "引き分け" : winner + " 勝利"}！試合を${live ? "確定" : "記録"}しました。`);
       reload();
     }
   }
@@ -2587,6 +2659,53 @@ function ScoreboardTab({
     if (!window.confirm(`${formatDateJp(g.date)} の試合（${g.homeTeam} vs ${g.awayTeam}）を削除しますか？`)) return;
     const ok = await api("/api/admin/delete", { sheet: "games", rowIndex: g._row });
     if (ok) { showToast(true, "削除しました。"); reload(); }
+  }
+
+  // アプリで記録中の試合。新しい順に出す
+  const liveGames = useMemo(
+    () => games.filter(g => g.status === "live").sort((a, b) => b.date.localeCompare(a.date)),
+    [games],
+  );
+
+  /** ライブ中の試合を「試合終了」にする。ここを通って初めて戦績に入る */
+  async function finalize(g: GameRow) {
+    const our = g.homeScores.reduce((a, b) => a + b, 0);
+    const opp = g.awayScores.reduce((a, b) => a + b, 0);
+    const winner = our > opp ? g.homeTeam : opp > our ? g.awayTeam : "引き分け";
+    if (!window.confirm(`${formatDateJp(g.date)} vs ${g.awayTeam}（${our}-${opp}）を確定しますか？
+確定すると公式サイトが「試合終了」になり、戦績に入ります。`)) return;
+    const row = [
+      g.id, g.date, g.homeTeam, g.awayTeam,
+      g.homeScores.join(","), g.awayScores.join(","),
+      String(g.homeHits), String(g.awayHits),
+      String(g.homeErrors), String(g.awayErrors),
+      winner, g.note,
+      g.opponentId, g.isHome ? "1" : "0", "final", "",
+      new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " "),
+    ];
+    const ok = await api("/api/admin/update", { sheet: "games", rowIndex: g._row, row });
+    if (ok) {
+      showToast(true, `${winner === "引き分け" ? "引き分け" : winner + " 勝利"}！試合を確定しました。`);
+      reload();
+    }
+  }
+
+  /** ライブ中の内容を上のフォームに読み込んで、直してから確定できるようにする */
+  function loadIntoForm(g: GameRow) {
+    setDate(g.date);
+    setHomeTeam(g.homeTeam);
+    setAwayTeam(g.awayTeam);
+    setOpponentId(g.opponentId);
+    setIsHome(g.isHome);
+    const n = Math.max(g.homeScores.length, g.awayScores.length, 7);
+    setInnings(n);
+    setHomeScores(Array.from({ length: n }, (_, i) => g.homeScores[i] ?? 0));
+    setAwayScores(Array.from({ length: n }, (_, i) => g.awayScores[i] ?? 0));
+    setHomeHits(g.homeHits); setAwayHits(g.awayHits);
+    setHomeErrors(g.homeErrors); setAwayErrors(g.awayErrors);
+    setNote(g.note);
+    showToast(true, "フォームに読み込みました。直したら「試合を記録する」で保存してください。");
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
@@ -2601,12 +2720,56 @@ function ScoreboardTab({
             <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>{formatDateJp(date) || "—"}</p>
           </div>
           <div>
-            <label style={labelStyle}>ビジター（相手 / 上段）</label>
-            <input value={awayTeam} onChange={e => setAwayTeam(e.target.value)} style={inputStyle} />
+            <label style={labelStyle}>対戦相手</label>
+            <select
+              value={opponentId}
+              onChange={e => {
+                const id = e.target.value;
+                setOpponentId(id);
+                const o = opponents.find(x => x.id === id);
+                if (o) setAwayTeam(o.name);
+              }}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              <option value="">（登録済みから選ぶ）</option>
+              {opponents.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+            <input
+              value={awayTeam}
+              onChange={e => { setAwayTeam(e.target.value); setOpponentId(""); }}
+              placeholder="直接入力もできます"
+              style={{ ...inputStyle, marginTop: 6 }}
+            />
+            <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>
+              {opponentId ? "公式サイトにロゴが出ます" : "「対戦相手」タブで登録するとロゴが出ます"}
+            </p>
           </div>
           <div>
-            <label style={labelStyle}>ホーム（自チーム / 下段）</label>
+            <label style={labelStyle}>自チーム名</label>
             <input value={homeTeam} onChange={e => setHomeTeam(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>ホーム / ビジター</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {([[true, "ホーム"], [false, "ビジター"]] as [boolean, string][]).map(([v, lbl]) => (
+                <button
+                  key={lbl}
+                  onClick={() => setIsHome(v)}
+                  style={{
+                    flex: 1, padding: "10px 8px", borderRadius: 8, cursor: "pointer",
+                    border: `1px solid ${isHome === v ? "#E5B84B" : "#38383A"}`,
+                    background: isHome === v ? "rgba(229,184,75,0.15)" : "#1C1C1E",
+                    color: isHome === v ? "#E5B84B" : "rgba(235,235,245,0.60)",
+                    fontWeight: 700, fontSize: 13,
+                  }}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>
+              {isHome ? "自チームが下段（後攻）" : "自チームが上段（先攻）"}
+            </p>
           </div>
           <div>
             <label style={labelStyle}>回数</label>
@@ -2733,6 +2896,52 @@ function ScoreboardTab({
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
       </section>
+
+      {/* アプリから記録中の試合 */}
+      {liveGames.length > 0 && (
+        <section style={{ ...cardStyle, border: "1px solid #E5B84B" }}>
+          <H3>🔴 アプリで記録中の試合（{liveGames.length}）</H3>
+          <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 16px" }}>
+            メンバーがアプリのライブ記録でつけている試合です。点数は
+            <strong style={{ color: "#E5B84B" }}>いま公式サイトに「試合中」として出ています</strong>。
+            試合が終わったら<strong style={{ color: "#67e088" }}>確定</strong>してください。確定すると「試合終了」になり、戦績に入ります。
+            内容がおかしいときは、確定せずに<strong style={{ color: "#ff6982" }}>取り消す</strong>と公式サイトから消えます。
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {liveGames.map(g => {
+              const our = g.homeScores.reduce((a, b) => a + b, 0);
+              const opp = g.awayScores.reduce((a, b) => a + b, 0);
+              return (
+                <div key={g.id || g._row} style={{ background: "#1C1C1E", border: "1px solid #38383A", borderRadius: 12, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#0F1626", background: "#E5B84B", padding: "3px 9px", borderRadius: 4 }}>
+                      試合中{g.inning ? ` ${g.inning}` : ""}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: "rgba(235,235,245,0.75)" }}>{formatDateJp(g.date)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>
+                      {g.isHome ? "ホーム" : "ビジター"} / vs {g.awayTeam}
+                    </span>
+                    <span style={{ marginLeft: "auto", fontFamily: "var(--font-oswald),sans-serif", fontSize: 22, fontWeight: 700, color: "#E5B84B" }}>
+                      {our} - {opp}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "rgba(235,235,245,0.30)", marginBottom: 12 }}>
+                    回別 {g.homeScores.join("・") || "—"} ／ 相手 {g.awayScores.join("・") || "—"}
+                    {g.updatedAt && `　最終更新 ${g.updatedAt}`}
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => finalize(g)} disabled={loading} style={btnPrimaryStyle}>
+                      ✓ 確定する（試合終了）
+                    </button>
+                    <button onClick={() => loadIntoForm(g)} style={btnSubStyle}>上のフォームに読み込んで直す</button>
+                    <button onClick={() => remove(g)} style={{ ...btnSubStyle, color: "#ff6982" }}>取り消す</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 過去の試合 */}
       <section style={cardStyle}>
@@ -4462,6 +4671,161 @@ function ImagePick({ value, onChange, uploadImage, label }: {
       </button>
       <input ref={ref} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
     </>
+  );
+}
+
+/* ── 対戦相手タブ（登録した相手が公式サイトの試合ページに出る） ──── */
+function OpponentsTab({
+  opponents, games, loading, saving, api, reload, uploadImage, showToast,
+}: {
+  opponents: OpponentRow[];
+  games: GameRow[];
+  loading: boolean;
+  saving: boolean;
+  api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
+  reload: () => void;
+  uploadImage: (file: File) => Promise<string | null>;
+  showToast: (ok: boolean, text: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [shortName, setShortName] = useState("");
+  const [logo, setLogo] = useState("");
+  const [color, setColor] = useState("#0b1e3f");
+  const [note, setNote] = useState("");
+  const [editing, setEditing] = useState<OpponentRow | null>(null);
+
+  // 何試合やった相手かを出す（削除していいか判断できるように）
+  const playedCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of games) {
+      if (!g.opponentId) continue;
+      m.set(g.opponentId, (m.get(g.opponentId) ?? 0) + 1);
+    }
+    return m;
+  }, [games]);
+
+  function clear() {
+    setEditing(null); setName(""); setShortName(""); setLogo(""); setColor("#0b1e3f"); setNote("");
+  }
+
+  function startEdit(o: OpponentRow) {
+    setEditing(o);
+    setName(o.name); setShortName(o.shortName); setLogo(o.logo);
+    setColor(o.color || "#0b1e3f"); setNote(o.note);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function save() {
+    const n = name.trim();
+    if (!n) { showToast(false, "チーム名は必須です。"); return; }
+    const row = [
+      editing ? editing.id : genId("op"),
+      n, shortName.trim(), logo, color, note.trim(),
+    ];
+    const ok = editing
+      ? await api("/api/admin/update", { sheet: "opponents", rowIndex: editing._row, row })
+      : await api("/api/admin/append", { sheet: "opponents", row });
+    if (ok) {
+      showToast(true, editing ? "対戦相手を更新しました。" : `${n} を登録しました。`);
+      clear(); reload();
+    }
+  }
+
+  async function remove(o: OpponentRow) {
+    const played = playedCount.get(o.id) ?? 0;
+    const warn = played > 0
+      ? `${o.name} は ${played} 試合で使われています。削除すると、その試合からロゴが消えます。削除しますか？`
+      : `${o.name} を削除しますか？`;
+    if (typeof window !== "undefined" && !window.confirm(warn)) return;
+    const ok = await api("/api/admin/delete", { sheet: "opponents", rowIndex: o._row });
+    if (ok) { showToast(true, "削除しました。"); if (editing?.id === o.id) clear(); reload(); }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* 登録フォーム */}
+      <section style={cardStyle}>
+        <H3>{editing ? `対戦相手を編集 — ${editing.name}` : "対戦相手を登録"}</H3>
+        <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 16px" }}>
+          ここで登録した相手は、スコアボードとアプリのライブ記録で選べるようになり、
+          <strong style={{ color: "#E5B84B" }}>公式サイトの試合ページにロゴつきで出ます</strong>。
+          ロゴが無い相手は、本家と同じ「NO IMAGE」の枠になります。
+        </p>
+
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>チーム名（必須）</label>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="例: 福岡ベイスターズJr." style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>略称（スコアボード用・任意）</label>
+            <input value={shortName} onChange={e => setShortName(e.target.value)} placeholder="例: 福岡BJ" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>チームカラー（任意）</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input type="color" value={color} onChange={e => setColor(e.target.value)}
+                style={{ width: 48, height: 40, padding: 2, background: "#1C1C1E", border: "1px solid #38383A", borderRadius: 8, cursor: "pointer" }} />
+              <input value={color} onChange={e => setColor(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>ロゴ画像（任意）</label>
+          <ImagePick value={logo} onChange={setLogo} uploadImage={uploadImage} label="＋ ロゴを選ぶ" />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>メモ（任意・公式サイトには出ません）</label>
+          <input value={note} onChange={e => setNote(e.target.value)} placeholder="例: 連絡先、リーグ名など" style={inputStyle} />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={save} disabled={saving} style={btnPrimaryStyle}>
+            {saving ? "保存中…" : editing ? "更新する" : "登録する"}
+          </button>
+          {editing && <button onClick={clear} style={btnSubStyle}>編集をやめる</button>}
+        </div>
+      </section>
+
+      {/* 一覧 */}
+      <section style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+          <H3>登録済み（{opponents.length}）</H3>
+          <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読み込み"}</button>
+        </div>
+        {opponents.length === 0 ? (
+          <p style={{ color: "rgba(235,235,245,0.45)", fontSize: 13, textAlign: "center", padding: "32px 0" }}>
+            {loading ? "確認中…" : "まだ登録がありません。上のフォームから登録してください。"}
+          </p>
+        ) : (
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+            {opponents.map(o => (
+              <div key={o.id || o._row} style={{ background: "#1C1C1E", border: "1px solid #38383A", borderRadius: 12, padding: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ width: 54, height: 54, flexShrink: 0, background: "#fff", borderRadius: 8, display: "grid", placeItems: "center", overflow: "hidden" }}>
+                  {o.logo
+                    // Supabase Storage 上の画像。外部URLのため next/image は使わない
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={o.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    : <span style={{ fontSize: 8, color: "#9a9a9a", textAlign: "center", lineHeight: 1.3 }}>NO<br />IMAGE</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 2, wordBreak: "break-word" }}>{o.name}</p>
+                  <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.45)", marginBottom: 8 }}>
+                    {o.shortName && `${o.shortName}／`}{playedCount.get(o.id) ?? 0} 試合
+                  </p>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => startEdit(o)} style={{ ...btnSubStyle, padding: "5px 11px", fontSize: 12 }}>編集</button>
+                    <button onClick={() => remove(o)} style={{ ...btnSubStyle, padding: "5px 11px", fontSize: 12, color: "#ff6982" }}>削除</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

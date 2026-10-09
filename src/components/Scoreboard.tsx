@@ -32,6 +32,14 @@ export type ScoreboardData = {
   } | null;
   /** 中央上に出る小さな見出し。本家でいうリーグ名の位置 */
   label?: string;
+  /** 自チームがホームだったか。false なら自チームが上段（先攻）になる */
+  isHome?: boolean;
+  /** アプリで記録中。true なら「試合中」と回を出す */
+  live?: boolean;
+  /** ライブ中の回。例 "3回表" */
+  inning?: string;
+  /** 相手のロゴ（opponents に登録があるときだけ） */
+  awayLogo?: string;
 };
 
 const GOLD = "#d4a82a";
@@ -56,6 +64,8 @@ function formatDate(iso: string): string {
 export default function Scoreboard({ data }: { data: ScoreboardData }) {
   const innings = inningCount(data);
   const r = data.result;
+  // ビジターが先攻＝上段、ホームが後攻＝下段。野球のスコアボードの約束。
+  const weAreHome = data.isHome !== false;
   const homeTotal = r ? sum(r.homeScores) : 0;
   const awayTotal = r ? sum(r.awayScores) : 0;
 
@@ -79,10 +89,12 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
         {/* 上段：ホーム / 状況 / ビジター */}
         <div style={{ maxWidth: 820, margin: "0 auto", paddingTop: 10 }}>
           <div className="grid items-start" style={{ gridTemplateColumns: "1fr minmax(0,1.3fr) 1fr", gap: 10 }}>
-            {/* ホーム（自チーム） */}
+            {/* 左の枠。ホームのチームを出す（自分たちがビジターなら相手） */}
             <div style={{ textAlign: "center" }}>
               <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, marginBottom: 12 }}>ホーム</p>
-              <TeamBox name={data.homeTeam} logo />
+              {weAreHome
+                ? <TeamBox name={data.homeTeam} ourLogo />
+                : <TeamBox name={data.awayTeam} logoUrl={data.awayLogo} />}
             </div>
 
             {/* 中央 */}
@@ -93,9 +105,19 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
               {r ? (
                 <>
                   <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, color: "#fff", fontSize: "clamp(34px,6vw,52px)", lineHeight: 1 }}>
-                    {homeTotal}<span style={{ color: "rgba(255,255,255,0.4)", margin: "0 12px" }}>-</span>{awayTotal}
+                    {/* 左の枠＝ホーム、右の枠＝ビジターの順に合わせる */}
+                    {weAreHome ? homeTotal : awayTotal}
+                    <span style={{ color: "rgba(255,255,255,0.4)", margin: "0 12px" }}>-</span>
+                    {weAreHome ? awayTotal : homeTotal}
                   </p>
-                  <p style={{ color: GOLD, fontSize: 15, fontWeight: 700, marginTop: 10 }}>試合終了</p>
+                  {data.live ? (
+                    <p style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#ff4d4d", fontSize: 15, fontWeight: 700, marginTop: 10 }}>
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: "#ff4d4d", display: "inline-block" }} />
+                      試合中{data.inning ? ` ${data.inning}` : ""}
+                    </p>
+                  ) : (
+                    <p style={{ color: GOLD, fontSize: 15, fontWeight: 700, marginTop: 10 }}>試合終了</p>
+                  )}
                 </>
               ) : (
                 <>
@@ -109,10 +131,12 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
               )}
             </div>
 
-            {/* ビジター（相手） */}
+            {/* 右の枠。ビジターのチームを出す */}
             <div style={{ textAlign: "center" }}>
               <p style={{ color: "#fff", fontSize: 13, fontWeight: 700, marginBottom: 12 }}>ビジター</p>
-              <TeamBox name={data.awayTeam} />
+              {weAreHome
+                ? <TeamBox name={data.awayTeam} logoUrl={data.awayLogo} />
+                : <TeamBox name={data.homeTeam} ourLogo />}
             </div>
           </div>
 
@@ -136,23 +160,29 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
               </tr>
             </thead>
             <tbody>
-              <ScoreRow
-                label={data.awayTeam}
-                scores={r?.awayScores ?? []}
-                innings={innings}
-                runs={r ? awayTotal : 0}
-                hits={r?.awayHits ?? 0}
-                errors={r?.awayErrors ?? 0}
-              />
-              <ScoreRow
-                label={data.homeTeam}
-                scores={r?.homeScores ?? []}
-                innings={innings}
-                runs={r ? homeTotal : 0}
-                hits={r?.homeHits ?? 0}
-                errors={r?.homeErrors ?? 0}
-                logo
-              />
+              {/* 先攻（ビジター）が上、後攻（ホーム）が下 */}
+              {(weAreHome
+                ? [
+                    { key: "away", label: data.awayTeam, scores: r?.awayScores ?? [], runs: r ? awayTotal : 0, hits: r?.awayHits ?? 0, errors: r?.awayErrors ?? 0, ours: false },
+                    { key: "home", label: data.homeTeam, scores: r?.homeScores ?? [], runs: r ? homeTotal : 0, hits: r?.homeHits ?? 0, errors: r?.homeErrors ?? 0, ours: true },
+                  ]
+                : [
+                    { key: "home", label: data.homeTeam, scores: r?.homeScores ?? [], runs: r ? homeTotal : 0, hits: r?.homeHits ?? 0, errors: r?.homeErrors ?? 0, ours: true },
+                    { key: "away", label: data.awayTeam, scores: r?.awayScores ?? [], runs: r ? awayTotal : 0, hits: r?.awayHits ?? 0, errors: r?.awayErrors ?? 0, ours: false },
+                  ]
+              ).map(row => (
+                <ScoreRow
+                  key={row.key}
+                  label={row.label}
+                  scores={row.scores}
+                  innings={innings}
+                  runs={row.runs}
+                  hits={row.hits}
+                  errors={row.errors}
+                  ourLogo={row.ours}
+                  logoUrl={row.ours ? undefined : data.awayLogo}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -162,12 +192,16 @@ export default function Scoreboard({ data }: { data: ScoreboardData }) {
 }
 
 /* ── チーム枠 ─────────────────────────────────────────── */
-function TeamBox({ name, logo = false }: { name: string; logo?: boolean }) {
+function TeamBox({ name, ourLogo = false, logoUrl }: { name: string; ourLogo?: boolean; logoUrl?: string }) {
   return (
     <div style={{ background: "#fff", width: "100%", maxWidth: 160, aspectRatio: "1 / 0.82", margin: "0 auto", display: "grid", placeItems: "center", padding: 10 }}>
-      {logo ? (
+      {ourLogo ? (
         <Image src="/sk_logo_crop.png" alt={name} width={160} height={132}
           style={{ width: "88%", height: "auto", objectFit: "contain" }} />
+      ) : logoUrl ? (
+        // 管理画面でアップロードしたロゴ。外部URLのため next/image は使わない
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logoUrl} alt={name} style={{ width: "88%", height: "88%", objectFit: "contain" }} />
       ) : (
         <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, color: "#0b1e3f", fontSize: 14, lineHeight: 1.45, wordBreak: "break-word" }}>
           {name}
@@ -179,17 +213,21 @@ function TeamBox({ name, logo = false }: { name: string; logo?: boolean }) {
 
 /* ── スコアの行 ───────────────────────────────────────── */
 function ScoreRow({
-  label, scores, innings, runs, hits, errors, logo = false,
+  label, scores, innings, runs, hits, errors, ourLogo = false, logoUrl,
 }: {
   label: string; scores: number[]; innings: number;
-  runs: number; hits: number; errors: number; logo?: boolean;
+  runs: number; hits: number; errors: number; ourLogo?: boolean; logoUrl?: string;
 }) {
   return (
     <tr>
       <th style={{ ...cell, background: "#fff", padding: 0, height: 54 }}>
-        {logo ? (
+        {ourLogo ? (
           <Image src="/sk_mark.png" alt={label} width={82} height={46}
             style={{ width: 42, height: "auto", margin: "0 auto", objectFit: "contain" }} />
+        ) : logoUrl ? (
+          // 管理画面でアップロードしたロゴ。外部URLのため next/image は使わない
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt={label} style={{ width: 42, height: 40, margin: "0 auto", objectFit: "contain", display: "block" }} />
         ) : (
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, color: "#9a9a9a", letterSpacing: "0.06em", lineHeight: 1.3, display: "block" }}>
             NO<br />IMAGE

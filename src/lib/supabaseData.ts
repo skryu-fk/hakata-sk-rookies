@@ -28,7 +28,9 @@ const COLUMNS: Record<string, string[]> = {
   pending: ["id", "kind", "date", "opponent", "member_id", "member_name", "data", "created_at_text"],
   accounts: ["id", "name", "name_key", "hash", "salt", "status", "created_at_text", "member_id", "user_id"],
   lineups: ["id", "date", "team", "batting_order", "member_id", "member_name", "position"],
-  games: ["id", "date", "home_team", "away_team", "home_scores", "away_scores", "home_hits", "away_hits", "home_errors", "away_errors", "winner", "note"],
+  // 列は末尾に足すこと。前の並びを変えると既存のコードが別の列を読んでしまう。
+  games: ["id", "date", "home_team", "away_team", "home_scores", "away_scores", "home_hits", "away_hits", "home_errors", "away_errors", "winner", "note", "opponent_id", "is_home", "status", "inning", "updated_at_text"],
+  opponents: ["id", "name", "short_name", "logo", "color", "note"],
   payments: ["id", "date", "member_id", "member_name", "amount", "note"],
   news: ["date", "category", "title", "body", "slug"],
   tweets: ["date", "text", "url"],

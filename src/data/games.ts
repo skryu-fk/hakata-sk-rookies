@@ -50,7 +50,22 @@ export type Game = {
   homeRunCount: number;
   /** 当日のXの投稿 */
   tweetUrl?: string;
+  /** 自チームがホームだったか。スコアボードの上下と「ホーム／ビジター」の表示が決まる */
+  isHome: boolean;
+  /** "live" = アプリで記録中（試合中）。それ以外は確定済み */
+  status: string;
+  /** ライブ中の回。例 "3回表" */
+  inning: string;
+  /** 対戦相手のロゴ（opponents に登録があるときだけ） */
+  opponentLogo?: string;
+  /** opponents のID。ロゴを引くのに使う */
+  opponentId?: string;
 };
+
+/** アプリで記録中かどうか */
+export function isLive(g: Game): boolean {
+  return g.status === "live";
+}
 
 export type GameOutcome = "win" | "lose" | "draw";
 
@@ -73,9 +88,14 @@ export function outcome(g: Game): GameOutcome {
 }
 
 /** 通算成績。指定した試合まで（含む）の勝-敗-分 */
+/**
+ * 通算成績。アプリで記録中（試合中）の試合は数えない。
+ * 管理者が確定して初めて戦績に入る、という約束を守るため。
+ */
 export function record(games: Game[]): { win: number; lose: number; draw: number } {
   const r = { win: 0, lose: 0, draw: 0 };
   for (const g of games) {
+    if (g.status === "live") continue;
     const o = outcome(g);
     if (o === "win") r.win++;
     else if (o === "lose") r.lose++;
@@ -133,6 +153,10 @@ export async function getGames(): Promise<Game[]> {
         note: (r[11] ?? "").trim(),
         homeRuns: [],
         homeRunCount: 0,
+        isHome: (r[13] ?? "1") !== "0",
+        status: (r[14] ?? "").trim(),
+        inning: (r[15] ?? "").trim(),
+        opponentId: (r[12] ?? "").trim(),
       };
     })
     .filter((g): g is Game => g !== null)
@@ -147,9 +171,10 @@ async function decorate(games: Game[]): Promise<void> {
   if (games.length === 0) return;
   const dates = new Set(games.map(g => g.date));
 
-  const [practices, tweets, batting, probables, pitching] = await Promise.all([
+  const [practices, tweets, opponents, batting, probables, pitching] = await Promise.all([
     safeRows("practices"),
     safeRows("tweets"),
+    safeRows("opponents"),
     // 本塁打は本数だけでも出すので、名前を出さない設定でも読む
     safeRows("batting"),
     SHOW_PLAYER_NAMES ? safeRows("probables") : Promise.resolve([]),
@@ -220,7 +245,16 @@ async function decorate(games: Game[]): Promise<void> {
     if (name && (!prev || outs > prev.outs)) longest.set(d, { name, outs });
   }
 
+  // 対戦相手のロゴ
+  const logo = new Map<string, string>();
+  for (const r of opponents) {
+    const id = (r[0] ?? "").trim();
+    const url = (r[3] ?? "").trim();
+    if (id && url) logo.set(id, url);
+  }
+
   for (const g of games) {
+    if (g.opponentId) g.opponentLogo = logo.get(g.opponentId);
     const p = place.get(g.date);
     if (p) { g.place = p.place || undefined; g.time = p.time || undefined; }
     g.tweetUrl = tweet.get(g.date);

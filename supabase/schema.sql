@@ -154,6 +154,21 @@ create index if not exists idx_accounts_member_id on accounts (member_id);
 create index if not exists idx_evaluations_member on evaluations (member_id);
 create index if not exists idx_poll_votes_poll on poll_votes (poll_id);
 
+
+-- 対戦相手（公式サイトに出すロゴつき）
+create table if not exists opponents (
+  row_id bigint generated always as identity primary key,
+  id text, name text, short_name text, logo text, color text, note text
+);
+
+-- games に「どの相手か・ホームかビジターか・ライブ中か」を足す。
+-- 既存の列はそのままなので、入っているデータは消えない。
+alter table games add column if not exists opponent_id text;
+alter table games add column if not exists is_home text;
+alter table games add column if not exists status text;
+alter table games add column if not exists inning text;
+alter table games add column if not exists updated_at_text text;
+
 -- セキュリティ: RLSを有効化し、ポリシーは作らない。
 -- → 公開(anon)キーでは一切読み書きできず、サーバー側のサービスロールキー経由のみ許可される。
 do $$
@@ -163,7 +178,7 @@ begin
     'members','attendance','batting','pitching','catching','fielding','practices',
     'participants','probables','announcements','settings','pending','accounts',
     'lineups','games','payments','news','tweets','blog','subscriptions','evaluations',
-    'polls','poll_votes'
+    'polls','poll_votes','opponents'
   ] loop
     execute format('alter table %I enable row level security', t);
   end loop;

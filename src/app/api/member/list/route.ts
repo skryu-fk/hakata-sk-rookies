@@ -28,6 +28,8 @@ const MEMBER_ALLOWED_SHEETS = new Set([
   "pending",       // スコアラー記録の確認用
   "polls",         // 管理者が作った投票の表示用
   "poll_votes",    // 投票結果（誰が何に入れたか）の表示用
+  "opponents",     // ライブ記録で対戦相手を選ぶ用
+  "games",         // 試合結果・ライブ中の試合の確認用
 ]);
 
 export async function POST(request: Request) {

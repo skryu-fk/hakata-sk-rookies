@@ -39,13 +39,17 @@ function weekdayOf(iso: string): string {
   return WEEK[new Date(`${iso}T00:00:00+09:00`).getDay()] ?? "";
 }
 
-export default function GameResults({ games }: { games: Game[] }) {
+export default function GameResults({ games, focusDate = "" }: { games: Game[]; focusDate?: string }) {
+  // スケジュールから来たときは、その試合の月を開いて、その行を開いた状態にする
+  const focused = focusDate ? games.find(g => g.date === focusDate) : undefined;
   /** その試合を終えた時点での通算成績。古い順に数える必要があるので一度だけ作る */
   const recordAt = useMemo(() => {
     const asc = [...games].sort((a, b) => a.date.localeCompare(b.date));
     const map = new Map<string, { w: number; l: number; d: number }>();
     let w = 0, l = 0, d = 0;
     for (const g of asc) {
+      // 試合中はまだ戦績に入れない（管理者が確定してから数える）
+      if (g.status === "live") continue;
       const o = outcomeOf(g);
       if (o === "win") w++; else if (o === "lose") l++; else d++;
       map.set(g.id || g.date, { w, l, d });
@@ -58,14 +62,14 @@ export default function GameResults({ games }: { games: Game[] }) {
     () => [...new Set(games.map(g => g.date.slice(0, 4)))].sort((a, b) => b.localeCompare(a)),
     [games],
   );
-  const [year, setYear] = useState(() => years[0] ?? String(new Date().getFullYear()));
+  const [year, setYear] = useState(() => focused?.date.slice(0, 4) ?? years[0] ?? String(new Date().getFullYear()));
 
   const monthsOfYear = useMemo(
     () => [...new Set(games.filter(g => g.date.startsWith(year)).map(g => g.date.slice(5, 7)))]
       .sort((a, b) => b.localeCompare(a)),
     [games, year],
   );
-  const [month, setMonth] = useState(() => games[0]?.date.slice(5, 7) ?? "");
+  const [month, setMonth] = useState(() => focused?.date.slice(5, 7) ?? games[0]?.date.slice(5, 7) ?? "");
 
   // 年を変えたとき、その年に無い月が選ばれたままにならないようにする
   const activeMonth = monthsOfYear.includes(month) ? month : (monthsOfYear[0] ?? "");
@@ -76,7 +80,9 @@ export default function GameResults({ games }: { games: Game[] }) {
   );
 
   // 本家と同じく、最新の1件だけ開いた状態で出す
-  const [open, setOpen] = useState<string | null>(games[0]?.id || games[0]?.date || null);
+  const [open, setOpen] = useState<string | null>(
+    focused ? (focused.id || focused.date) : (games[0]?.id || games[0]?.date || null),
+  );
 
   return (
     <div>
@@ -131,15 +137,17 @@ export default function GameResults({ games }: { games: Game[] }) {
                     {g.time && (
                       <span style={{ fontSize: 13, color: NAVY, fontWeight: 700 }}>{g.time}開始</span>
                     )}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: OUTCOME_COLOR[o], padding: "2px 8px" }}>
-                      試合終了
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: g.status === "live" ? "#d10024" : OUTCOME_COLOR[o], padding: "2px 8px" }}>
+                      {g.status === "live" ? `試合中${g.inning ? ` ${g.inning}` : ""}` : "試合終了"}
                     </span>
                     <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: NAVY }}>
                       {sum(g.homeScores)}-{sum(g.awayScores)}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: OUTCOME_COLOR[o] }}>
-                      {OUTCOME_LABEL[o]}
-                    </span>
+                    {g.status !== "live" && (
+                      <span style={{ fontSize: 12, fontWeight: 700, color: OUTCOME_COLOR[o] }}>
+                        {OUTCOME_LABEL[o]}
+                      </span>
+                    )}
                   </span>
                   <span style={{ display: "block", fontSize: 12.5, color: "#5b6373", marginTop: 3 }}>
                     vs {g.awayTeam}{g.place ? ` ／ ${g.place}` : ""}
@@ -155,7 +163,9 @@ export default function GameResults({ games }: { games: Game[] }) {
                 <div className="grid gap-5 grid-cols-1 md:[grid-template-columns:260px_1fr]" style={{ paddingBottom: 22 }}>
                   {/* 結果カード */}
                   <div style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "18px 16px", textAlign: "center" }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#5b6373", marginBottom: 12 }}>試合終了</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: g.status === "live" ? "#d10024" : "#5b6373", marginBottom: 12 }}>
+                      {g.status === "live" ? "試合中" : "試合終了"}
+                    </p>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 10 }}>
                       <Image src="/sk_mark.png" alt={g.homeTeam} width={82} height={46}
                         style={{ width: 40, height: "auto", objectFit: "contain" }} />

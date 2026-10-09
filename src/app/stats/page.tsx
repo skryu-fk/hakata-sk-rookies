@@ -3253,9 +3253,27 @@ type Live = {
   inning: number; half: "top" | "bottom";
   outs: number; balls: number; strikes: number;
   bases: Bases; ourScore: number; oppScore: number;
+  /** 回ごとの得点。スコアボードをそのまま公式サイトに出すために持つ */
+  ourInnings: number[]; oppInnings: number[];
 };
 const emptyBases = (): Bases => ({ b1: null, b2: null, b3: null });
-const initLive = (): Live => ({ inning: 1, half: "top", outs: 0, balls: 0, strikes: 0, bases: emptyBases(), ourScore: 0, oppScore: 0 });
+const initLive = (): Live => ({ inning: 1, half: "top", outs: 0, balls: 0, strikes: 0, bases: emptyBases(), ourScore: 0, oppScore: 0, ourInnings: [], oppInnings: [] });
+
+/**
+ * 得点を加える。合計と「その回の得点」の両方を動かす。
+ * 回別で持っておかないと、公式サイトのスコアボードのマス目が埋められない。
+ */
+function liveScore(prev: Live, side: "our" | "opp", runs: number, patch: Partial<Live> = {}): Live {
+  const next = { ...prev, ...patch };
+  if (runs <= 0) return next;
+  const arr = [...(side === "our" ? prev.ourInnings : prev.oppInnings)];
+  const i = prev.inning - 1;
+  while (arr.length <= i) arr.push(0);
+  arr[i] += runs;
+  return side === "our"
+    ? { ...next, ourScore: prev.ourScore + runs, ourInnings: arr }
+    : { ...next, oppScore: prev.oppScore + runs, oppInnings: arr };
+}
 const occCount = (b: Bases) => (b.b1 ? 1 : 0) + (b.b2 ? 1 : 0) + (b.b3 ? 1 : 0);
 const inningLabel = (l: Live) => `${l.inning}回${l.half === "top" ? "表" : "裏"}`;
 const oppRunner = (): RunnerSlot => ({ id: "o" + Math.random().toString(36).slice(2, 7), name: "走者" });
@@ -3351,10 +3369,79 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
   const [mode, setMode] = useState<"live" | "simple">("live");
   const [live, setLive] = useState<Live>(initLive);
   const [weBatHalf, setWeBatHalf] = useState<"top" | "bottom">("bottom"); // 自チームが攻撃する回（既定：裏＝ホーム）
+
+  // ── 公式サイトへの配信 ──
+  // 点数（チームの記録）だけをライブで公式サイトに出す。個人成績は今までどおり承認制。
+  const [opponentList, setOpponentList] = useState<{ id: string; name: string }[]>([]);
+  const [opponentId, setOpponentId] = useState("");
+  const [publishing, setPublishing] = useState(false);
+  const [publishedAt, setPublishedAt] = useState<Date | null>(null);
+  const [publishErr, setPublishErr] = useState("");
+
+  // 対戦相手は管理画面で登録されたもの。ロゴを公式サイトに出すために id を送る
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/member/list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sheet: "opponents" }),
+      cache: "no-store",
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled || !d?.ok) return;
+        const rows = (d.rows ?? []) as { data: string[] }[];
+        setOpponentList(rows.map(r => ({ id: r.data[0] ?? "", name: r.data[1] ?? "" })).filter(o => o.name));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const [feed, setFeed] = useState<string[]>([]);
   const histRef = useRef<{ live: Live; batLines: Record<string, BLine>; pitchLines: Record<string, PUI>; batter: string; pitcher: string; feed: string[] }[]>([]);
   const [histLen, setHistLen] = useState(0);
   const ourTurn = live.half === weBatHalf;
+
+  /**
+   * いまの点数を公式サイトに送る。
+   * 送るのは回別の得点・安打・失策だけで、必ず「試合中」として保存される。
+   * 「試合終了」にできるのは管理者だけ（管理画面のスコアボードで確定する）。
+   */
+  const publishNow = useCallback(async () => {
+    if (!date) return;
+    try {
+      const res = await fetch("/api/member/live-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          opponentId,
+          opponentName: opponent,
+          isHome: weBatHalf === "bottom",
+          ourScores: live.ourInnings,
+          oppScores: live.oppInnings,
+          ourHits: Object.values(batLines).reduce((a, b) => a + b.hits, 0),
+          oppHits: 0,
+          ourErrors: 0,
+          oppErrors: 0,
+          inning: inningLabel(live),
+        }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok || !d?.ok) { setPublishErr(d?.error || "配信に失敗しました。"); return; }
+      setPublishErr("");
+      setPublishedAt(new Date());
+    } catch {
+      setPublishErr("通信に失敗しました。電波の良いところでもう一度お試しください。");
+    }
+  }, [date, opponentId, opponent, weBatHalf, live, batLines]);
+
+  // 配信中は、点数が動くたびに自動で送る。
+  // 1打席ごとに何度も叩かないよう、少し待ってからまとめて送る。
+  useEffect(() => {
+    if (!publishing) return;
+    const t = setTimeout(() => { void publishNow(); }, 1200);
+    return () => clearTimeout(t);
+  }, [publishing, publishNow]);
 
   function snap() {
     histRef.current.push(JSON.parse(JSON.stringify({ live, batLines, pitchLines, batter, pitcher, feed })));
@@ -3406,7 +3493,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
     if (baseReached === 2) deltas.doubles = 1; else if (baseReached === 3) deltas.triples = 1; else if (baseReached === 4) deltas.hr = 1;
     if (runs > 0) deltas.rbi = runs;
     addBatStat(batter, deltas);
-    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "our", runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} ${runner.name} ${label}${runs ? `・${runs}点` : ""}`);
   }
   function ourOut(kind: "so" | "go" | "fo" | "sh") {
@@ -3426,7 +3513,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
     const deltas: Partial<BLine> = hbp ? { hbp: 1 } : { bb: 1 };
     if (runs > 0) deltas.rbi = runs;
     addBatStat(batter, deltas);
-    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "our", runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} ${runner.name} ${hbp ? "死球" : "四球"}`);
   }
   function ourReachError() {
@@ -3435,7 +3522,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
     const runner: RunnerSlot = { id: batter, name: membersById.get(batter)?.name || "" };
     const adv = advanceRunners(live.bases, 1); const bases = adv.bases; bases.b1 = runner;
     addBatStat(batter, { atBats: 1 });
-    setLive(prev => ({ ...prev, bases, ourScore: prev.ourScore + adv.runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "our", adv.runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} ${runner.name} 失策出塁`);
   }
   function ourBall() { if (live.balls + 1 >= 4) { ourWalk(false); return; } snap(); setLive(p => ({ ...p, balls: p.balls + 1 })); }
@@ -3455,7 +3542,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
       if (baseReached === 1) bases.b1 = r; else if (baseReached === 2) bases.b2 = r; else bases.b3 = r;
     }
     if (runs > 0) addPitchStat(pitcher, { runs, er: runs });
-    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "opp", runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} 相手 ${label}${runs ? `・${runs}失点` : ""}`);
   }
   function oppOut(kind: "go" | "fo") {
@@ -3475,19 +3562,19 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
     setErr(""); snap(); addPitchStat(pitcher, hbp ? { hbp: 1 } : { bb: 1 });
     const { bases, runs } = forcePush(live.bases, oppRunner());
     if (runs > 0) addPitchStat(pitcher, { runs, er: runs });
-    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "opp", runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} ${hbp ? "与死球" : "与四球"}`);
   }
   function oppRun() {
     if (!pitcher) { setErr("投手を選んでください。"); return; }
     setErr(""); snap(); addPitchStat(pitcher, { runs: 1, er: 1 });
-    setLive(prev => ({ ...prev, oppScore: prev.oppScore + 1 }));
+    setLive(prev => liveScore(prev, "opp", 1));
     pushFeed(`${inningLabel(live)} 失点 +1`);
   }
   function oppError() {
     setErr(""); snap();
     const adv = advanceRunners(live.bases, 1); const bases = adv.bases; bases.b1 = oppRunner();
-    setLive(prev => ({ ...prev, bases, oppScore: prev.oppScore + adv.runs, balls: 0, strikes: 0 }));
+    setLive(prev => liveScore(prev, "opp", adv.runs, { bases, balls: 0, strikes: 0 }));
     pushFeed(`${inningLabel(live)} 失策で出塁`);
   }
   function defBall() { if (live.balls + 1 >= 4) { oppWalk(false); return; } snap(); setLive(p => ({ ...p, balls: p.balls + 1 })); }
@@ -3507,9 +3594,7 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
       const to = base === "b1" ? "b2" : base === "b2" ? "b3" : null;
       let scoreRun = 0;
       if (to === null) scoreRun = 1; else bases[to] = r;
-      return ourTurn
-        ? { ...prev, bases, ourScore: prev.ourScore + scoreRun }
-        : { ...prev, bases, oppScore: prev.oppScore + scoreRun };
+      return liveScore(prev, ourTurn ? "our" : "opp", scoreRun, { bases });
     });
     pushFeed(`${inningLabel(live)} ${r.name} ${op === "steal" ? "盗塁" : op === "out" ? "走塁死" : base === "b3" ? "生還" : "進塁"}`);
   }
@@ -3628,6 +3713,83 @@ function Scorer({ date, defaultOpponent, members, membersById, onClose }: {
         );
         return (
         <>
+          {/* 公式サイトへの配信 */}
+          <section style={{ ...cardStyle, marginBottom: 14, padding: 16, border: publishing ? "1px solid #E5B84B" : "1px solid #38383A" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: publishing ? "#ff4d4d" : "#38383A", flexShrink: 0 }} />
+              <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14 }}>
+                {publishing ? "公式サイトに配信中" : "公式サイトに配信する"}
+              </span>
+            </div>
+            <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 12px" }}>
+              点数だけを公式サイトの試合ページに「試合中」として出します。打率などの個人成績は、
+              今までどおり管理者が承認してから反映されます。
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, color: "rgba(235,235,245,0.60)", marginBottom: 5, fontWeight: 700 }}>対戦相手</label>
+                <select
+                  value={opponentId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setOpponentId(id);
+                    const o = opponentList.find(x => x.id === id);
+                    if (o) setOpponent(o.name);
+                  }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "#1C1C1E", color: "#fff", border: "1px solid #38383A", fontSize: 14 }}
+                >
+                  <option value="">（登録済みから選ぶ）</option>
+                  {opponentList.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                {opponentList.length === 0 && (
+                  <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.30)", marginTop: 4 }}>
+                    管理画面の「対戦相手」で登録すると、ロゴつきで公式サイトに出ます。
+                  </p>
+                )}
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, color: "rgba(235,235,245,0.60)", marginBottom: 5, fontWeight: 700 }}>ホーム / ビジター</label>
+                <div style={{ display: "flex", gap: 7 }}>
+                  {([["bottom", "ホーム（後攻）"], ["top", "ビジター（先攻）"]] as const).map(([v, lbl]) => (
+                    <button key={v} onClick={() => setWeBatHalf(v)}
+                      style={{
+                        flex: 1, padding: "10px 6px", borderRadius: 9, cursor: "pointer", fontWeight: 700, fontSize: 12.5,
+                        border: "1px solid " + (weBatHalf === v ? "#E5B84B" : "#38383A"),
+                        background: weBatHalf === v ? "rgba(229,184,75,0.15)" : "#1C1C1E",
+                        color: weBatHalf === v ? "#E5B84B" : "rgba(235,235,245,0.60)",
+                      }}>
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => { setPublishing(p => !p); if (!publishing) void publishNow(); }}
+              style={{
+                width: "100%", padding: "13px", borderRadius: 10, cursor: "pointer",
+                fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14,
+                color: publishing ? "#fff" : "#000",
+                background: publishing ? "#38383A" : "linear-gradient(135deg,#E5B84B,#f0cf6a)",
+                border: "1px solid " + (publishing ? "#38383A" : "transparent"),
+              }}>
+              {publishing ? "配信を止める" : "▶ 配信を始める"}
+            </button>
+
+            {publishErr && (
+              <p style={{ fontSize: 11.5, color: "#ff6982", marginTop: 9, lineHeight: 1.7 }}>{publishErr}</p>
+            )}
+            {publishing && !publishErr && (
+              <p style={{ fontSize: 11, color: "rgba(235,235,245,0.45)", marginTop: 9, lineHeight: 1.7 }}>
+                {publishedAt
+                  ? `最終送信 ${publishedAt.getHours()}:${String(publishedAt.getMinutes()).padStart(2, "0")}:${String(publishedAt.getSeconds()).padStart(2, "0")}　公式サイトは数分おきに更新されます。`
+                  : "送信しています…"}
+              </p>
+            )}
+          </section>
+
           {/* スコアボード */}
           <section style={{ ...cardStyle, marginBottom: 14, padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

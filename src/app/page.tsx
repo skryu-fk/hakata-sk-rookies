@@ -291,6 +291,7 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
       ) : (
         <>
           {/* ── 次回練習のフィーチャーカード ── */}
+          {/* 試合・練習試合なら、カードごと試合ページ（スコアボード）へのリンクにする */}
           {(() => {
             const d = new Date(next.date + "T00:00:00");
             const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -298,8 +299,14 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
             const wd = WEEKDAY_JP[d.getDay()];
             const st = STATUS_STYLE[next.status];
             const typeColor = next.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[next.type];
+            const isGame = next.type === "試合" || next.type === "練習試合";
+            const Card = isGame ? Link : "div";
+            const cardProps = isGame ? { href: `/games?d=${next.date}` } : {};
             return (
-              <div className="practice-feature" style={{
+              <Card {...(cardProps as { href: string })} className="practice-feature" style={{
+                textDecoration: "none",
+                display: "block",
+                cursor: isGame ? "pointer" : "default",
                 margin: "14px 14px 10px",
                 background: "linear-gradient(135deg, rgba(212,168,42,0.07), rgba(209,0,36,0.05))",
                 border: "1px solid rgba(212,168,42,0.45)",
@@ -329,9 +336,14 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
                     <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>📍 {next.place}</div>
                     {next.time && <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 3, fontFamily: "var(--font-oswald),sans-serif", letterSpacing: "0.08em" }}>🕐 {next.time}</div>}
                     {next.note && <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, marginTop: 5 }}>※ {next.note}</div>}
+                    {isGame && (
+                      <div style={{ fontSize: 12, color: "#d4a82a", marginTop: 8, fontWeight: 700 }}>
+                        スコアボードを見る →
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })()}
 
@@ -345,8 +357,11 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
                 const wd = WEEKDAY_JP[d.getDay()];
                 const st = STATUS_STYLE[p.status];
                 const dotColor = p.status === "canceled" ? "rgba(255,255,255,0.25)" : PRACTICE_TYPE_COLOR[p.type];
+                const isGame = p.type === "試合" || p.type === "練習試合";
+                const Row = isGame ? Link : "li";
+                const rowProps = isGame ? { href: `/games?d=${p.date}` } : {};
                 return (
-                  <li key={p.date + p.place} className="practice-item" style={{ padding: "13px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1, borderLeft: `3px solid ${dotColor}` }}>
+                  <Row key={p.date + p.place} {...(rowProps as { href: string })} className="practice-item" style={{ textDecoration: "none", padding: "13px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "flex-start", gap: 14, opacity: p.status === "canceled" ? 0.55 : 1, borderLeft: `3px solid ${dotColor}`, cursor: isGame ? "pointer" : "default" }}>
                     <div style={{ minWidth: 50, textAlign: "center" }}>
                       <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 19, color: "#fff", lineHeight: 1 }}>{mm}.{dd}</div>
                       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4, letterSpacing: "0.05em" }}>{wd}曜日</div>
@@ -363,7 +378,7 @@ function UpcomingPractices({ practices }: { practices: Practice[] }) {
                         <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.6 }}>※ {p.note}</div>
                       )}
                     </div>
-                  </li>
+                  </Row>
                 );
               })}
             </ul>
@@ -735,7 +750,8 @@ function ActivitySection() {
  * 試合が1件も記録されていないときはセクションごと出さない。
  */
 function GamesSection({ games }: { games: Game[] }) {
-  const latest = games[0];
+  // 試合中があればそれを最優先で出す
+  const latest = games.find(g => g.status === "live") ?? games[0];
   if (!latest) return null;
   const r = record(games);
   return (
@@ -743,7 +759,7 @@ function GamesSection({ games }: { games: Game[] }) {
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="試合結果" en="Games" />
         <p className="reveal text-muted text-[15px] leading-relaxed mb-10 max-w-lg" style={{ marginTop: -28 }}>
-          直近の試合のスコアボードです。通算成績は
+          {latest.status === "live" ? "いま行われている試合です。" : "直近の試合のスコアボードです。"}通算成績は
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d10024", fontWeight: 700, margin: "0 4px" }}>
             {r.win}勝 {r.lose}敗 {r.draw}分
           </span>
@@ -757,6 +773,10 @@ function GamesSection({ games }: { games: Game[] }) {
               place: latest.place,
               homeTeam: latest.homeTeam,
               awayTeam: latest.awayTeam,
+              isHome: latest.isHome,
+              live: latest.status === "live",
+              inning: latest.inning,
+              awayLogo: latest.opponentLogo,
               result: {
                 homeScores: latest.homeScores,
                 awayScores: latest.awayScores,

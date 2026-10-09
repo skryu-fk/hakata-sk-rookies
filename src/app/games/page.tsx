@@ -26,18 +26,49 @@ function todayJst(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-export default async function GamesPage() {
+export default async function GamesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ d?: string }>;
+}) {
+  // スケジュールの試合をクリックして来たときは ?d=YYYY-MM-DD が付く
+  const { d } = await searchParams;
+  const focusDate = typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "";
   const [games, practices] = await Promise.all([getGames(), getPractices()]);
   const r = record(games);
 
-  // 次の試合が決まっていればそれを、無ければ直近の試合結果をスコアボードに出す
+  // スコアボードに出す試合の優先順位:
+  //   1. アプリで記録中（試合中）  2. これから行う試合  3. 直近の結果
   const today = todayJst();
+  // ?d= で指定された試合があれば、それを最優先でスコアボードに出す
+  const focused = focusDate ? games.find(g => g.date === focusDate) : undefined;
+  const live = focused ?? games.find(g => g.status === "live");
   const next = practices
-    .filter(p => (p.type === "試合" || p.type === "練習試合") && p.date >= today && p.status !== "canceled")
+    .filter(p => (p.type === "試合" || p.type === "練習試合") && (focusDate ? p.date === focusDate : p.date >= today) && p.status !== "canceled")
     .sort((a, b) => a.date.localeCompare(b.date))[0];
-  const latest = games[0];
+  const latest = games.find(g => g.status !== "live") ?? games[0];
 
-  const board: ScoreboardData | null = next
+  const board: ScoreboardData | null = live
+    ? {
+        date: live.date,
+        time: live.time,
+        place: live.place,
+        homeTeam: live.homeTeam,
+        awayTeam: live.awayTeam,
+        isHome: live.isHome,
+        live: live.status === "live",
+        inning: live.inning,
+        awayLogo: live.opponentLogo,
+        result: {
+          homeScores: live.homeScores,
+          awayScores: live.awayScores,
+          homeHits: live.homeHits,
+          awayHits: live.awayHits,
+          homeErrors: live.homeErrors,
+          awayErrors: live.awayErrors,
+        },
+      }
+    : next
     ? {
         date: next.date,
         time: next.time?.split(/[〜~-]/)[0]?.trim(),
@@ -54,6 +85,8 @@ export default async function GamesPage() {
           place: latest.place,
           homeTeam: latest.homeTeam,
           awayTeam: latest.awayTeam,
+          isHome: latest.isHome,
+          awayLogo: latest.opponentLogo,
           result: {
             homeScores: latest.homeScores,
             awayScores: latest.awayScores,
@@ -95,12 +128,13 @@ export default async function GamesPage() {
             </h1>
             <p className="mt-5 text-white/65 text-[14px] leading-[1.9] max-w-2xl">
               回ごとのスコアと、月別の戦績です。記録した試合がそのまま反映されます。
+              {live && <><br />いま<strong style={{ color: "#ff8080" }}>試合中</strong>です。点数はアプリから届きしだい更新されます。</>}
             </p>
             <div style={{ display: "flex", gap: 26, marginTop: 24, flexWrap: "wrap" }}>
               <Stat label="WIN" value={r.win} color="#d4a82a" />
               <Stat label="LOSE" value={r.lose} />
               <Stat label="DRAW" value={r.draw} />
-              <Stat label="GAMES" value={games.length} />
+              <Stat label="GAMES" value={r.win + r.lose + r.draw} />
             </div>
           </div>
         </section>
@@ -119,7 +153,7 @@ export default async function GamesPage() {
         {/* 月別の日程・結果 */}
         {games.length > 0 && (
           <section className="max-w-[1080px] mx-auto px-5 md:px-8" style={{ paddingBottom: 70 }}>
-            <GameResults games={games} />
+            <GameResults games={games} focusDate={focusDate} />
           </section>
         )}
       </main>

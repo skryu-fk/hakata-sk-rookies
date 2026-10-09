@@ -15,6 +15,7 @@ export const ALLOWED_SHEETS = new Set([
   // 試合・運営拡張
   "lineups",   // スタメン登録（紅白戦のA/B振り分けにも）
   "games",     // スコアボード／試合記録
+  "opponents", // 対戦相手（ロゴつき・公式サイトに出る）
   "payments",  // グラウンド代の集金記録
   "participants", // 練習への事前登録（参加予定）
   // 成績データ
