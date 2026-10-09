@@ -662,3 +662,21 @@ a[href]:active, button:active { transition-duration: 0.05s; }
   .grow-bar { transform: scaleX(1); }
   html { scroll-behavior: auto; }
 }
+
+/* ── スコアボードの更新ボタン ─────────────────────────── */
+/* 広い画面ではパネルの右上に浮かせる。狭い画面で浮かせたままにすると
+   「ビジター」の見出しに重なってしまうので、通常の位置に戻す。 */
+.sb-refresh {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+@media (min-width: 768px) {
+  .sb-refresh {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 1;
+    margin-bottom: 0;
+  }
+}

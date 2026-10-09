@@ -18,6 +18,8 @@ import {
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
 import { getBlogs, type BlogPost } from "@/data/blog";
+import { getGames, record, type Game } from "@/data/games";
+import Scoreboard from "@/components/Scoreboard";
 import { getPractices, PRACTICE_TYPE_COLOR, type Practice } from "@/data/practices";
 
 /** Googleスプレッドシート（ISR）由来のデータは5分で再検証 */
@@ -465,7 +467,8 @@ function RecentPractices({ practices }: { practices: Practice[] }) {
   );
 }
 
-function ScheduleSection({ practices }: { practices: Practice[] }) {
+function ScheduleSection({ practices, games }: { practices: Practice[]; games: Game[] }) {
+  const r = record(games);
   return (
     <section id="schedule" className="bg-navy text-white relative overflow-hidden" style={{ borderBottom: "4px solid #d10024" }}>
       <div className="field-grid absolute inset-0" />
@@ -493,7 +496,7 @@ function ScheduleSection({ practices }: { practices: Practice[] }) {
             <div>
               <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 10 }}>MATCH — 対戦相手 募集中</p>
               <h3 style={{ fontFamily: "var(--font-zen),sans-serif", color: "#fff", fontSize: "clamp(17px,2.2vw,22px)", fontWeight: 900, lineHeight: 1.4, marginBottom: 8 }}>練習試合の対戦相手を募集しています。</h3>
-              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>メンバーも集まり、いよいよ実戦へ。練習試合の対戦相手を募集中です。日程などのご相談は、公式XのDM、または公式サイトのお問い合わせフォーム（種別「練習試合・リーグのご相談」）からお気軽にどうぞ。戦績：<span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "rgba(255,255,255,0.85)" }}>0勝 0敗 0分</span></p>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 13, lineHeight: 1.8 }}>メンバーも集まり、いよいよ実戦へ。練習試合の対戦相手を募集中です。日程などのご相談は、公式XのDM、または公式サイトのお問い合わせフォーム（種別「練習試合・リーグのご相談」）からお気軽にどうぞ。戦績：<a href="/games" style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d4a82a", fontWeight: 700, textDecoration: "none", borderBottom: "1px solid rgba(212,168,42,0.5)" }}>{r.win}勝 {r.lose}敗 {r.draw}分 →</a></p>
             </div>
             <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
               対戦のご相談はこちら →
@@ -718,6 +721,58 @@ function ActivitySection() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── GamesSection ─────────────────────────────────────── */
+/**
+ * 直近の試合のスコアボード。
+ * プロ野球の公式サイトの「試合トップ」と同じ形にして、
+ * 中身は管理画面で記録した自分たちの試合を出している。
+ * 試合が1件も記録されていないときはセクションごと出さない。
+ */
+function GamesSection({ games }: { games: Game[] }) {
+  const latest = games[0];
+  if (!latest) return null;
+  const r = record(games);
+  return (
+    <section id="games" className="bg-base border-b border-line">
+      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
+        <SectionTitle jp="試合結果" en="Games" />
+        <p className="reveal text-muted text-[15px] leading-relaxed mb-10 max-w-lg" style={{ marginTop: -28 }}>
+          直近の試合のスコアボードです。通算成績は
+          <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d10024", fontWeight: 700, margin: "0 4px" }}>
+            {r.win}勝 {r.lose}敗 {r.draw}分
+          </span>
+          。
+        </p>
+        <div className="reveal">
+          <Scoreboard
+            data={{
+              date: latest.date,
+              time: latest.time,
+              place: latest.place,
+              homeTeam: latest.homeTeam,
+              awayTeam: latest.awayTeam,
+              result: {
+                homeScores: latest.homeScores,
+                awayScores: latest.awayScores,
+                homeHits: latest.homeHits,
+                awayHits: latest.awayHits,
+                homeErrors: latest.homeErrors,
+                awayErrors: latest.awayErrors,
+              },
+            }}
+          />
+        </div>
+        <div className="reveal" style={{ marginTop: 22 }}>
+          <Link href="/games" className="hover:bg-navy hover:text-white transition-colors"
+            style={{ display: "inline-flex", alignItems: "center", padding: "13px 28px", border: "1px solid #0b1e3f", color: "#0b1e3f", textDecoration: "none", fontSize: 13.5, fontWeight: 700, letterSpacing: "0.08em" }}>
+            月別の日程・結果をすべて見る →
+          </Link>
         </div>
       </div>
     </section>
@@ -1176,7 +1231,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -1228,7 +1283,7 @@ function Footer() {
 
 /* ── Page ─────────────────────────────────────────────── */
 export default async function Home() {
-  const [news, practices, blogs] = await Promise.all([getNews(), getPractices(), getBlogs()]);
+  const [news, practices, blogs, games] = await Promise.all([getNews(), getPractices(), getBlogs(), getGames()]);
   return (
     <>
       <ScrollReveal />
@@ -1239,7 +1294,8 @@ export default async function Home() {
         {/* 募集を休止している間は、ヒーローの直下に必ず出す（見落とされないように） */}
         {(MANAGER_OPEN || !RECRUIT_OPEN) && <RecruitStatusBar />}
         <NewsSection news={news} />
-        <ScheduleSection practices={practices} />
+        <ScheduleSection practices={practices} games={games} />
+        <GamesSection games={games} />
         <AboutSection />
         <AppSection />
         <VisionSection />

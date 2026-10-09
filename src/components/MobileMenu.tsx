@@ -5,6 +5,7 @@ import { MANAGER_OPEN, RECRUIT_OPEN } from "@/data/recruit";
 
 const MENU: [string, string][] = [
   ["#news", "お知らせ"],
+  ["/games", "試合結果・日程"],
   ["/blog", "ブログ"],
   ["#about", "チーム紹介"],
   ["#app", "公式アプリ"],
