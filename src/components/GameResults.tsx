@@ -190,7 +190,8 @@ export default function GameResults({ games }: { games: Game[] }) {
                     {g.starter && (
                       <Row label="先発"><span style={{ color: RED, fontWeight: 700 }}>{g.starter}</span></Row>
                     )}
-                    {g.homeRuns.length > 0 && (
+                    {/* 名前を出さない設定のときは、誰が打ったかではなく本数だけ出す */}
+                    {g.homeRuns.length > 0 ? (
                       <Row label="本塁打">
                         <span style={{ display: "inline-flex", flexWrap: "wrap", gap: "4px 14px" }}>
                           {g.homeRuns.map(h => (
@@ -198,7 +199,14 @@ export default function GameResults({ games }: { games: Game[] }) {
                           ))}
                         </span>
                       </Row>
-                    )}
+                    ) : g.homeRunCount > 0 ? (
+                      <Row label="本塁打">
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: RED, fontWeight: 700, fontSize: 15 }}>
+                          {g.homeRunCount}
+                        </span>
+                        <span style={{ color: RED, fontWeight: 700, marginLeft: 2 }}>本</span>
+                      </Row>
+                    ) : null}
                     <Row label="安打／失策">
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: NAVY }}>
                         {g.homeHits}安 {g.homeErrors}失

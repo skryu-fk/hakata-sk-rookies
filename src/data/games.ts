@@ -14,12 +14,13 @@
 import { fetchSheetCSV } from "@/lib/sheets";
 
 /**
- * 試合結果の詳細に選手名（先発・本塁打）を載せるか。
+ * 試合結果の詳細に選手名（先発・本塁打を打った人）を載せるか。
  *
- * 公開サイトはこれまで individual の名前をいっさい出していないので、
- * 載せたくない場合はここを false にすれば、スコアだけの表示に戻る。
+ * 公開サイトはメンバーの個人名をいっさい出さない方針なので false。
+ * 本塁打は名前の代わりに本数だけ出す。
+ * 名前も出してよくなったら true にすると、先発と「○○ 2号」が出るようになる。
  */
-export const SHOW_PLAYER_NAMES = true;
+export const SHOW_PLAYER_NAMES = false;
 
 export type Game = {
   id: string;
@@ -41,10 +42,12 @@ export type Game = {
   place?: string;
   /** practices から拾った開始時刻 */
   time?: string;
-  /** 先発投手（SHOW_PLAYER_NAMES が false なら空） */
+  /** 先発投手。SHOW_PLAYER_NAMES が false なら入れない */
   starter?: string;
-  /** 本塁打。"山田 2号" の形 */
+  /** 本塁打を打った人。"山田 2号" の形。SHOW_PLAYER_NAMES が false なら空 */
   homeRuns: string[];
+  /** 本塁打の本数。名前を出さないときはこちらだけ使う */
+  homeRunCount: number;
   /** 当日のXの投稿 */
   tweetUrl?: string;
 };
@@ -129,6 +132,7 @@ export async function getGames(): Promise<Game[]> {
         winner: (r[10] ?? "").trim(),
         note: (r[11] ?? "").trim(),
         homeRuns: [],
+        homeRunCount: 0,
       };
     })
     .filter((g): g is Game => g !== null)
@@ -146,7 +150,8 @@ async function decorate(games: Game[]): Promise<void> {
   const [practices, tweets, batting, probables, pitching] = await Promise.all([
     safeRows("practices"),
     safeRows("tweets"),
-    SHOW_PLAYER_NAMES ? safeRows("batting") : Promise.resolve([]),
+    // 本塁打は本数だけでも出すので、名前を出さない設定でも読む
+    safeRows("batting"),
     SHOW_PLAYER_NAMES ? safeRows("probables") : Promise.resolve([]),
     SHOW_PLAYER_NAMES ? safeRows("pitching") : Promise.resolve([]),
   ]);
@@ -171,9 +176,11 @@ async function decorate(games: Game[]): Promise<void> {
     if (dates.has(d) && url && !tweet.has(d)) tweet.set(d, url);
   }
 
-  // 本塁打。年ごとに通算して「N号」を出すため、日付の古い順に数える
+  // 本塁打。年ごとに通算して「N号」を出すため、日付の古い順に数える。
+  // 名前を出さない設定のときは本数だけ数える。
   const hrByDate = new Map<string, string[]>();
-  if (SHOW_PLAYER_NAMES) {
+  const hrCountByDate = new Map<string, number>();
+  {
     const seasonCount = new Map<string, number>(); // "2026|山田" → 本数
     const hits = batting
       .map(r => ({ date: normalizeDate(r[0] ?? ""), name: (r[2] ?? "").trim(), hr: num(r[8]) }))
@@ -188,7 +195,10 @@ async function decorate(games: Game[]): Promise<void> {
         list.push(`${b.name} ${n}号`);
       }
       if (dates.has(b.date)) {
-        hrByDate.set(b.date, [...(hrByDate.get(b.date) ?? []), ...list]);
+        hrCountByDate.set(b.date, (hrCountByDate.get(b.date) ?? 0) + b.hr);
+        if (SHOW_PLAYER_NAMES) {
+          hrByDate.set(b.date, [...(hrByDate.get(b.date) ?? []), ...list]);
+        }
       }
     }
   }
@@ -215,7 +225,8 @@ async function decorate(games: Game[]): Promise<void> {
     if (p) { g.place = p.place || undefined; g.time = p.time || undefined; }
     g.tweetUrl = tweet.get(g.date);
     g.homeRuns = hrByDate.get(g.date) ?? [];
-    g.starter = starter.get(g.date) ?? longest.get(g.date)?.name;
+    g.homeRunCount = hrCountByDate.get(g.date) ?? 0;
+    g.starter = SHOW_PLAYER_NAMES ? (starter.get(g.date) ?? longest.get(g.date)?.name) : undefined;
   }
 }
 
