@@ -19,6 +19,7 @@ import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
 import { getBlogs, type BlogPost } from "@/data/blog";
 import { getGames, record, type Game } from "@/data/games";
+import { getMemberCount } from "@/data/members";
 import Scoreboard from "@/components/Scoreboard";
 import { getPractices, PRACTICE_TYPE_COLOR, type Practice } from "@/data/practices";
 
@@ -35,7 +36,6 @@ const IG_HANDLE     = "hakata_sk_rookies";
 const IG_URL        = `https://www.instagram.com/${IG_HANDLE}/`;
 const LINE_URL      = "https://line.me/ti/g/-buBk3SbuY";
 const FOUNDED       = "2026";
-const MEMBER_COUNT  = Number(process.env.NEXT_PUBLIC_MEMBER_COUNT ?? 13);
 
 /* ── shared inline styles ─────────────────────────────── */
 const S = {
@@ -1307,14 +1307,16 @@ function Footer() {
 
 /* ── Page ─────────────────────────────────────────────── */
 export default async function Home() {
-  const [news, practices, blogs, games] = await Promise.all([getNews(), getPractices(), getBlogs(), getGames()]);
+  const [news, practices, blogs, games, memberCount] = await Promise.all([
+    getNews(), getPractices(), getBlogs(), getGames(), getMemberCount(),
+  ]);
   return (
     <>
       <ScrollReveal />
       <TopBar />
       <Header />
       <main>
-        <HeroSection memberCount={MEMBER_COUNT} />
+        <HeroSection memberCount={memberCount} />
         {/* 募集を休止している間は、ヒーローの直下に必ず出す（見落とされないように） */}
         {(MANAGER_OPEN || !RECRUIT_OPEN) && <RecruitStatusBar />}
         <NewsSection news={news} />
