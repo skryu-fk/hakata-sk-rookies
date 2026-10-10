@@ -90,7 +90,7 @@ export function RecruitStatusBar() {
               </div>
               <p style={{ fontSize: 13.5, lineHeight: 1.9, color: "rgba(255,255,255,0.78)", marginBottom: 14 }}>
                 撮影・イベント企画・選手データの管理をお願いします。野球の経験は不要、
-                <strong style={{ color: "#ffd45e" }}>月会費・入会費はいただきません</strong>。
+                <strong style={{ color: "#ffd45e" }}>完全ボランティアで費用は一切かかりません</strong>。
               </p>
               <Link
                 href="/#manager"

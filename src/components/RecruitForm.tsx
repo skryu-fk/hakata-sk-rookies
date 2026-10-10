@@ -174,7 +174,7 @@ export default function RecruitForm() {
         {isManager && (
           <div style={{ background: "rgba(212,168,42,0.1)", borderLeft: "4px solid #d4a82a", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "#3a3f4a" }}>
             <p style={{ fontWeight: 700, color: "#0b1e3f", marginBottom: 4 }}>マネージャーは募集中です</p>
-            野球の経験は必要ありません。月会費・入会費はいただかず、ご負担は参加した日のグラウンド代（1人500〜800円）だけです。まずは聞くだけでも大丈夫です。
+            野球の経験は必要ありません。完全ボランティアなので、月会費・入会費・球場代など費用は一切いただきません。まずは聞くだけでも大丈夫です。
           </div>
         )}
         {/* 休止中に「選手として応募」を選んだ人には、送る前にはっきり伝える。

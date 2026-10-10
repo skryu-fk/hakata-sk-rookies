@@ -61,6 +61,3 @@ export const FEE_GAME_NOTE = `試合の日は1人 +${GROUND_FEE.gameExtra}円`;
 export const FEE_SENTENCE =
   `活動参加ごとのグラウンド代は、人数に関わらず1人一律で${FEE_SHORT}です。` +
   `${FEE_STUDENT_NOTE}。${FEE_GAME_NOTE}（学生も同じ）。`;
-
-/** マネージャー向け（いちばん安い〜高い金額の範囲） */
-export const FEE_RANGE_TEXT = `1人${GROUND_FEE.student}〜${GROUND_FEE.adult.h4 + GROUND_FEE.gameExtra}円`;

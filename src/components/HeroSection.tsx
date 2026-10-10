@@ -228,7 +228,7 @@ export default function HeroSection({ memberCount }: { memberCount: number }) {
               // 選手の募集を休止中は「大歓迎」の類を流さない。流れている文字だけ見て
               // 選手として応募できると思われてしまうため。
               : MANAGER_OPEN
-                ? ["マネージャー募集中","撮影・イベント企画・データ管理","野球の経験は不要","月会費・入会費なし","選手の募集は休止中","福岡市拠点","HAKATA SK ROOKIES"]
+                ? ["マネージャー募集中","撮影・イベント企画・データ管理","野球の経験は不要","費用は一切なし（完全ボランティア）","選手の募集は休止中","福岡市拠点","HAKATA SK ROOKIES"]
                 : [RECRUIT_BADGE,"初心者中心のチーム","練習試合の対戦相手 募集中","道具・防具のご支援歓迎","福岡市拠点",`EST. ${FOUNDED}`,"HAKATA SK ROOKIES"]
           ).map((t, i) => (
             <span key={i} className="font-display tracking-[0.25em] uppercase inline-flex items-center" style={{ fontSize: 14, padding: "0 32px" }}>

@@ -847,7 +847,11 @@ function ManagerSection() {
         <div className="grid gap-6 items-start grid-cols-1 lg:[grid-template-columns:1fr_360px]">
           <div className="reveal">
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, letterSpacing: "0.4em", color: "#d4a82a", marginBottom: 16 }}>
-              COST — 費用
+              COST — 費用はかかりません
+            </p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.9, marginBottom: 14 }}>
+              マネージャーは<strong style={{ color: "#ffd45e" }}>完全ボランティア</strong>です。
+              選手と違い、球場代もいただきません。お金の負担はゼロで参加できます。
             </p>
             <div style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
               {MANAGER_COST.map((c, i) => (
@@ -1188,7 +1192,7 @@ function ContactSection() {
             {MANAGER_OPEN && (
               <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", color: "rgba(255,255,255,0.7)" }}>
                 <p className="font-bold mb-1" style={{ color: "#ffd45e" }}>マネージャーを募集しています</p>
-                撮影・イベント企画・選手データの管理をお願いする役割です。野球の経験は不要、月会費・入会費はいただきません。<a href="#manager" style={{ color: "#ffd45e", fontWeight: 700 }}>くわしく →</a>
+                撮影・イベント企画・選手データの管理をお願いする役割です。野球の経験は不要、完全ボランティアで費用は一切かかりません。<a href="#manager" style={{ color: "#ffd45e", fontWeight: 700 }}>くわしく →</a>
               </div>
             )}
             {!RECRUIT_OPEN && (
