@@ -9,12 +9,15 @@
  * どの操作も hash/salt はサーバ側で保持したまま該当列だけ書き換える。
  */
 import { ensureAuth, callAppsScript } from "@/lib/admin-shared";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const auth = ensureAuth(request.headers);
   if (auth) return auth;
 

@@ -185,3 +185,37 @@ export function buildClearCookie(name: string): string {
   const secure = process.env.NODE_ENV === "production" ? " Secure;" : "";
   return `${name}=; Path=/; Max-Age=0; HttpOnly;${secure} SameSite=Strict`;
 }
+
+
+/**
+ * 書き込み系APIが「自分のサイトから呼ばれたか」を確かめる。
+ *
+ * Cookie は SameSite=Strict なので他サイトからは送られない。ただしそれは
+ * ブラウザ側の約束であって、古い端末や将来の仕様変更では保証にならない。
+ * データを消す・書き換える操作は、Origin も見て二重に防ぐ。
+ *
+ * Origin が付かないリクエスト（同一オリジンの一部や curl など）は、
+ * Cookie が無ければどのみち認証で弾かれるため、ここでは通す。
+ */
+export function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    const from = new URL(origin).host;
+    const host = request.headers.get("host");
+    if (host && from === host) return true;
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (site && from === new URL(site).host) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** 別サイトからの書き込みを断るときの返事 */
+export function crossOriginDenied(): Response {
+  return Response.json(
+    { ok: false, error: "不正なリクエストです。" },
+    { status: 403 },
+  );
+}

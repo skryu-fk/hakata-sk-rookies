@@ -9,6 +9,7 @@
 import { ensureAuth } from "@/lib/admin-shared";
 import { supabaseEnabled, uploadImage } from "@/lib/supabaseData";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ const MAX_BYTES = 6 * 1024 * 1024; // 6MB（スマホ写真がそのまま通る
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const rl = rateLimit(`admin-upload:${clientIp(request.headers)}`, { limit: 40, windowMs: 10 * 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 

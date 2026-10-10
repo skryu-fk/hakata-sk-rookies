@@ -155,6 +155,9 @@ create index if not exists idx_evaluations_member on evaluations (member_id);
 create index if not exists idx_poll_votes_poll on poll_votes (poll_id);
 
 
+-- 中学生・高校生はグラウンド代が一律のため、名簿に学生フラグを持つ
+alter table members add column if not exists is_student text;
+
 -- 対戦相手（公式サイトに出すロゴつき）
 create table if not exists opponents (
   row_id bigint generated always as identity primary key,

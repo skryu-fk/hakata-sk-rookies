@@ -52,11 +52,15 @@ export function ensureAuth(headers: Headers): Response | null {
       { status: 500 }
     );
   }
-  // 署名付き管理者セッション Cookie か、ヘッダのパスワード（定数時間比較）
+  // 認可は署名付きの管理者セッション Cookie のみ。
+  // 以前はリクエストごとに x-admin-password ヘッダでも通していたが、それだと
+  // 管理者パスワードそのものが毎回ブラウザから送られ、画面に残り続けることになる。
+  // パスワードを渡すのはログイン(/api/admin/verify)の1回だけにした。
   if (verifySession(readCookie(headers, ADMIN_COOKIE), "admin")) return null;
-  const pw = headers.get("x-admin-password") ?? "";
-  if (pw && safeEqual(pw, expected)) return null;
-  return Response.json({ ok: false, error: "パスワードが違います。" }, { status: 401 });
+  return Response.json(
+    { ok: false, error: "ログインの有効期限が切れました。もう一度ログインしてください。" },
+    { status: 401 },
+  );
 }
 
 /**

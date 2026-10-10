@@ -14,7 +14,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /** シート名 → 列の並び（スプレッドシートの列順と1対1で対応させる） */
 const COLUMNS: Record<string, string[]> = {
-  members: ["id", "name", "nickname", "jersey_number", "position", "joined_date", "active", "kana"],
+  members: ["id", "name", "nickname", "jersey_number", "position", "joined_date", "active", "kana", "is_student"],
   attendance: ["date", "member_id", "member_name", "status", "note"],
   batting: ["date", "member_id", "member_name", "opponent", "at_bats", "hits", "doubles", "triples", "hr", "rbi", "bb", "so", "hbp", "sh", "sb", "cs"],
   pitching: ["date", "member_id", "member_name", "opponent", "ip_outs", "hits", "runs", "er", "so", "bb", "hbp"],

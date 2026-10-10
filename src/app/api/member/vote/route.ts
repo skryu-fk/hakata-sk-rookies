@@ -8,6 +8,7 @@
  */
 import { ensureMemberAuth, callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,8 @@ export const maxDuration = 60;
 const ALLOWED_STATUS = new Set(["出席", "欠席"]);
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const rl = rateLimit(`member-vote:${clientIp(request.headers)}`, { limit: 40, windowMs: 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 

@@ -196,7 +196,7 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/list", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sheet: SHEET_FOR[t] }),
       });
       const data = await res.json().catch(() => ({}));
@@ -256,7 +256,7 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/delete", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sheet: SHEET_FOR[t], rowIndex: item.rowIndex }),
       });
       const data = await res.json().catch(() => ({}));
@@ -326,7 +326,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));

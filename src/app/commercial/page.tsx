@@ -62,8 +62,11 @@ const rows: { label: string; value: React.ReactNode }[] = [
         <li>
           <strong>練習参加費（グラウンド代）</strong>：参加人数に関わらず1人一律<br />
           <span style={{ fontSize: 12, color: "#5b6373" }}>
-            ・2時間練習：400円／回<br />
-            ・4時間練習：500円／回
+            ・2時間練習：600円／回<br />
+            ・4時間練習：700円／回<br />
+            ・中学生・高校生：時間に関係なく一律500円／回<br />
+            ・試合の日：上記に1人100円を加算（学生も同じ）<br />
+            <span style={{ fontSize: 12 }}>※ 2026年10月より上記に改定しました。</span>
           </span>
         </li>
       </ul>

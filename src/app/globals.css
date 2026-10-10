@@ -680,3 +680,24 @@ a[href]:active, button:active { transition-duration: 0.05s; }
     margin-bottom: 0;
   }
 }
+
+/* ── 管理画面をアプリらしく固定する ───────────────────── */
+/* ヘッダー(64px) + 下の赤い線(3px) のぶんだけ下げて、タブ帯を貼り付ける。
+   iPhone のノッチぶん(env)も足さないと、横向きなどで隠れてしまう。 */
+.admin-tabbar {
+  top: calc(67px + env(safe-area-inset-top));
+}
+/* タブの横スクロールバーは出さない（指で流せれば十分） */
+.admin-tabbar div::-webkit-scrollbar { height: 0; }
+.admin-tabbar div { scrollbar-width: none; }
+
+/* 管理画面は数値入力が多い。矢印（スピナー）は誤爆のもとなので消す */
+.admin-dark input[type="number"]::-webkit-outer-spin-button,
+.admin-dark input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.admin-dark input[type="number"] { -moz-appearance: textfield; }
+
+/* 読み込み中にカードの高さが変わって画面が飛ぶのを抑える */
+.admin-dark section { scroll-margin-top: 140px; }

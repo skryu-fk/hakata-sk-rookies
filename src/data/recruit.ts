@@ -67,7 +67,7 @@ export const MANAGER_ROLES: { title: string; body: string }[] = [
 export const MANAGER_COST: { label: string; value: string; note: string }[] = [
   { label: "月会費", value: "なし", note: "選手はいただいていますが、マネージャーは無料です。" },
   { label: "入会費", value: "免除", note: "選手は2,000円ですが、マネージャーは免除します。" },
-  { label: "実費", value: "球場代のみ", note: "参加した日のグラウンド代だけご負担ください（1人400〜500円）。" },
+  { label: "実費", value: "球場代のみ", note: "参加した日のグラウンド代だけご負担ください（1人500〜800円）。" },
 ];
 
 /* ── 表示用の文言 ─────────────────────────────────────── */

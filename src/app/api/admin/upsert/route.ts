@@ -13,12 +13,15 @@
  */
 import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Apps Script のコールドスタート＋リトライに余裕を持たせる
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const rl = rateLimit(`admin:${clientIp(request.headers)}`, { limit: 200, windowMs: 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 

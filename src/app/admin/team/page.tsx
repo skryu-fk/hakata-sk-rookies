@@ -11,7 +11,8 @@
  *
  * セキュリティ:
  *   - ページ表示前にパスワード認証（POST /api/admin/verify）
- *   - 認証後の各 API 呼び出しは x-admin-password ヘッダで毎回認可
+ *   - 認証後の各 API 呼び出しは、ログイン時に発行された HttpOnly Cookie で認可
+ *     （パスワードを毎回ブラウザから送らないようにしている）
  *   - パスワードはコンポーネント state のみに保持。ページ離脱で消える。
  */
 
@@ -22,6 +23,8 @@ import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
 import { suggestLineup, type AdvisorPlayer, type LineupSuggestion } from "@/lib/lineupAdvisor";
+import { GROUND_FEE, groundFee, type PracticeLength } from "@/data/fees";
+import NumberField from "@/components/NumberField";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -81,6 +84,8 @@ type Member = {
   active: boolean;
   /** カタカナ読み。メンバーが新規登録する際の本人照合に使う（例: ヤマダ　タロウ）。 */
   kana: string;
+  /** 中学生・高校生か。グラウンド代が一律になる */
+  isStudent: boolean;
   _row?: number;
 };
 
@@ -380,10 +385,26 @@ export default function TeamAdminPage() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    // 画面の状態を消すだけだと、ブラウザに残った管理者Cookieで入り直せてしまう。
+    // サーバー側でもCookieを無効にする。
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } catch {
+      // 通信に失敗しても、少なくとも画面は閉じる
+    }
     setVerifiedPw("");
     setAuthPw("");
   }
+
+  // すでにCookieが有効ならログイン画面を飛ばす（再読み込みのたびに打たせない）
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/verify", { method: "GET", cache: "no-store" })
+      .then(r => { if (!cancelled && r.ok) setVerifiedPw("cookie"); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   if (!verifiedPw) {
     return <LoginGate
@@ -395,7 +416,7 @@ export default function TeamAdminPage() {
     />;
   }
 
-  return <Dashboard pw={verifiedPw} onLogout={logout} />;
+  return <Dashboard onLogout={logout} />;
 }
 
 // ────────────────────────────────────────────────────────
@@ -498,7 +519,7 @@ function LoginGate({
 // ────────────────────────────────────────────────────────
 // 認証後のダッシュボード
 // ────────────────────────────────────────────────────────
-function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
+function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("members");
   const [members, setMembers] = useState<Member[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
@@ -551,10 +572,17 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
     try {
       const res = await fetch(path, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 401) {
+        // セッション切れ。黙って失敗させるとボタンが効かないだけに見えるので、
+        // はっきり伝えてログイン画面に戻す。
+        showToast(false, data?.error ?? "ログインの有効期限が切れました。");
+        onLogout();
+        return null;
+      }
       if (!res.ok || !data?.ok) {
         // silent: 裏での再取得など、失敗しても既存表示で困らない時はエラーを出さない
         if (!opts?.silent) showToast(false, data?.error ?? "リクエストに失敗しました。");
@@ -570,7 +598,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         if (writingCount.current === 0) setSaving(false);
       }
     }
-  }, [pw]);
+  }, [onLogout]);
 
   /** 画像をアップロードして、表示用のURLを受け取る（投票の添付画像用） */
   const uploadImage = useCallback(async (file: File): Promise<string | null> => {
@@ -579,7 +607,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       fd.append("file", file);
       const res = await fetch("/api/admin/upload", {
         method: "POST",
-        headers: { "x-admin-password": pw },   // FormData なので Content-Type は付けない
+        // FormData なので Content-Type は付けない（認可はログイン時に発行された Cookie）
         body: fd,
       });
       const data = await res.json().catch(() => null);
@@ -592,7 +620,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       showToast(false, "ネットワークエラーが発生しました。");
       return null;
     }
-  }, [pw]);
+  }, []);
 
   /**
    * 同じタイミングで要求されたシートを1リクエストにまとめて取得する。
@@ -668,6 +696,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
       joinedDate: normalizeDate(r.data[5] ?? ""),
       active: (r.data[6] ?? "TRUE").toString().toUpperCase() !== "FALSE",
       kana: r.data[7] ?? "",
+      isStudent: (r.data[8] ?? "").toString().toUpperCase() === "TRUE",
       _row: r.rowIndex,
     } as Member));
     setMembers(parsed);
@@ -1143,7 +1172,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
   return (
     <div className="admin-dark" style={{ minHeight: "100vh", fontFamily: IOS_FONT, background: "#000000", color: "#fff" }}>
       {/* Top bar */}
-      <header style={{ background: "#0b1e3f", borderBottom: "3px solid #d10024" }}>
+      <header style={{ background: "#0b1e3f", borderBottom: "3px solid #d10024", position: "sticky", top: 0, zIndex: 60, transform: "translateZ(0)", willChange: "transform", paddingTop: "env(safe-area-inset-top)" }}>
         <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 64, gap: 16 }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
             <Image src="/sk_logo_crop.png" alt="logo" width={44} height={36} className="object-contain" />
@@ -1203,7 +1232,7 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF4D6A", display: "inline-block", marginRight: 6, flexShrink: 0 }} />
         );
         return (
-          <div style={{ background: "#0F1626", borderBottom: "1px solid #38383A" }}>
+          <div className="admin-tabbar" style={{ background: "#0F1626", borderBottom: "1px solid #38383A", position: "sticky", zIndex: 50, transform: "translateZ(0)", willChange: "transform" }}>
             <div className="max-w-[1280px] mx-auto px-4 md:px-8" style={{ paddingTop: 12, paddingBottom: 12 }}>
               {/* カテゴリ */}
               <div style={{ display: "flex", gap: 4, background: "#2C2C2E", borderRadius: 12, padding: 4, width: "fit-content", maxWidth: "100%", overflowX: "auto" }}>
@@ -1373,7 +1402,6 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
             practices={practices}
             loading={!!loading.probables}
             saving={saving}
-            pw={pw}
             api={api}
             reload={loadProbables}
             reloadPractices={loadPractices}
@@ -1385,7 +1413,6 @@ function Dashboard({ pw, onLogout }: { pw: string; onLogout: () => void }) {
         )}
         {tab === "notify" && (
           <NotifyTab
-            pw={pw}
             announcements={announcements}
             loading={!!loading.announcements}
             api={api}
@@ -1621,7 +1648,7 @@ function MembersTab({
 }) {
   const [editing, setEditing] = useState<Member | null>(null);
   const [form, setForm] = useState({
-    id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true,
+    id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true, isStudent: false,
   });
 
   function startEdit(m: Member) {
@@ -1634,11 +1661,12 @@ function MembersTab({
       position: m.position || "未定",
       joinedDate: m.joinedDate || todayIso(),
       active: m.active,
+      isStudent: m.isStudent,
     });
   }
   function cancelEdit() {
     setEditing(null);
-    setForm({ id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true });
+    setForm({ id: "", name: "", nickname: "", jerseyNumber: "", position: "未定", joinedDate: todayIso(), active: true, isStudent: false });
   }
 
   async function submit() {
@@ -1651,6 +1679,7 @@ function MembersTab({
       id, form.name.trim(), form.nickname.trim(), form.jerseyNumber.trim(),
       form.position, form.joinedDate, form.active ? "TRUE" : "FALSE",
       editing?.kana ?? "",
+      form.isStudent ? "TRUE" : "FALSE",
     ];
     let ok;
     if (editing) {
@@ -1713,6 +1742,11 @@ function MembersTab({
           <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#1C1C1E", border: "1px solid #38383A", fontSize: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} style={{ accentColor: "#d10024" }} />
             <span>アクティブ（現役メンバー）</span>
+          </label>
+          {/* 学生はグラウンド代が一律になるので、集金画面で自動的に金額が変わる */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#1C1C1E", border: "1px solid #38383A", fontSize: 12, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.isStudent} onChange={e => setForm({ ...form, isStudent: e.target.checked })} style={{ accentColor: "#E5B84B" }} />
+            <span>中学生・高校生（グラウンド代が一律 {GROUND_FEE.student} 円）</span>
           </label>
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <button onClick={submit} style={btnPrimaryStyle}>
@@ -2805,19 +2839,19 @@ function ScoreboardTab({
                 </td>
                 {awayScores.map((s, i) => (
                   <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && isTop ? "#1e1d1a" : undefined }}>
-                    <input
-                      type="number" min={0} value={s}
-                      onChange={e => setAwayScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
+                    <NumberField
+                      value={s}
+                      onChange={n => setAwayScores(prev => prev.map((v, j) => j === i ? n : v))}
                       style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
                     />
                   </td>
                 ))}
                 <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{awayTotal}</td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={awayHits} onChange={e => setAwayHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <NumberField value={awayHits} onChange={setAwayHits} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={awayErrors} onChange={e => setAwayErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <NumberField value={awayErrors} onChange={setAwayErrors} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
               </tr>
               {/* 2行目: ホーム（裏 = home batting） */}
@@ -2831,19 +2865,19 @@ function ScoreboardTab({
                 </td>
                 {homeScores.map((s, i) => (
                   <td key={i} style={{ padding: 4, textAlign: "center", background: i === currentInning - 1 && !isTop ? "#1e1d1a" : undefined }}>
-                    <input
-                      type="number" min={0} value={s}
-                      onChange={e => setHomeScores(prev => prev.map((v, j) => j === i ? Math.max(0, Number(e.target.value) || 0) : v))}
+                    <NumberField
+                      value={s}
+                      onChange={n => setHomeScores(prev => prev.map((v, j) => j === i ? n : v))}
                       style={{ width: "100%", maxWidth: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 14 }}
                     />
                   </td>
                 ))}
                 <td style={{ padding: 8, textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, color: "#d10024" }}>{homeTotal}</td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={homeHits} onChange={e => setHomeHits(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <NumberField value={homeHits} onChange={setHomeHits} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
                 <td style={{ padding: 4, textAlign: "center" }}>
-                  <input type="number" min={0} value={homeErrors} onChange={e => setHomeErrors(Math.max(0, Number(e.target.value) || 0))} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
+                  <NumberField value={homeErrors} onChange={setHomeErrors} style={{ width: 44, padding: "4px 2px", background: "transparent", border: "1px solid #38383A", color: "#fff", textAlign: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 13 }} />
                 </td>
               </tr>
             </tbody>
@@ -3059,6 +3093,17 @@ function BSOCounter({ label, value, max, color, onClick, onReset }: {
 }
 
 // ────────────────────────────────────────────────────────
+/** 2択・3択のボタン（選択中は金色）。集金の時間・種別などで使う */
+function segStyle(on: boolean): React.CSSProperties {
+  return {
+    flex: 1, padding: "10px 8px", borderRadius: 8, cursor: "pointer",
+    border: `1px solid ${on ? "#E5B84B" : "#38383A"}`,
+    background: on ? "rgba(229,184,75,0.15)" : "#1C1C1E",
+    color: on ? "#E5B84B" : "rgba(235,235,245,0.60)",
+    fontWeight: 700, fontSize: 13, whiteSpace: "nowrap",
+  };
+}
+
 // 集金タブ（グラウンド代）
 // ────────────────────────────────────────────────────────
 function PaymentsTab({
@@ -3074,8 +3119,16 @@ function PaymentsTab({
   showToast: (ok: boolean, text: string) => void;
 }) {
   const [date, setDate] = useState(todayIso());
-  const [amount, setAmount] = useState(400);
+  // 金額は「練習時間 × 試合かどうか × 学生かどうか」で決まる。
+  // 一人ずつ電卓を叩かなくていいように、ここで選ぶと全員ぶん自動で計算される。
+  const [hours, setHours] = useState<PracticeLength>("h2");
+  const [isGame, setIsGame] = useState(false);
   const [draftMap, setDraftMap] = useState<Record<string, boolean>>({});  // memberId → 受領済みtoggle
+
+  const amountFor = useCallback(
+    (m: Member) => groundFee({ hours, isGame, isStudent: m.isStudent }),
+    [hours, isGame],
+  );
 
   const sortedPractices = useMemo(
     () => [...practices].filter(p => p.status !== "canceled").sort((a, b) => b.date.localeCompare(a.date)),
@@ -3108,6 +3161,7 @@ function PaymentsTab({
       const isChecked = !!draftMap[m.id];
       const existing = existingForDate[m.id];
 
+      const amount = amountFor(m);
       if (isChecked && !existing) {
         // 新規追加
         const id = genId("pm");
@@ -3143,7 +3197,8 @@ function PaymentsTab({
   }
 
   const checkedCount = activeMembers.filter(m => draftMap[m.id]).length;
-  const total = checkedCount * amount;
+  const total = activeMembers.filter(m => draftMap[m.id]).reduce((sum, m) => sum + amountFor(m), 0);
+  const studentCount = activeMembers.filter(m => draftMap[m.id] && m.isStudent).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -3166,12 +3221,44 @@ function PaymentsTab({
             </div>
           )}
           <div>
-            <label style={labelStyle}>1人あたり金額</label>
-            <input type="number" min={0} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value) || 0))} style={inputStyle} />
+            <label style={labelStyle}>練習時間</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {([["h2", "2時間"], ["h4", "4時間"]] as [PracticeLength, string][]).map(([v, lbl]) => (
+                <button key={v} onClick={() => setHours(v)} style={segStyle(hours === v)}>{lbl}</button>
+              ))}
+            </div>
           </div>
+          <div>
+            <label style={labelStyle}>種別</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {([[false, "練習"], [true, `試合 +${GROUND_FEE.gameExtra}`]] as [boolean, string][]).map(([v, lbl]) => (
+                <button key={lbl} onClick={() => setIsGame(v)} style={segStyle(isGame === v)}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* その日の単価。学生がいるときだけ2段で出す */}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <div style={{ background: "#1C1C1E", border: "1px solid #38383A", borderRadius: 10, padding: "10px 16px" }}>
+            <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.45)", marginBottom: 2 }}>一般</p>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 20, fontWeight: 700, color: "#E5B84B" }}>
+              ¥{groundFee({ hours, isGame })}
+            </p>
+          </div>
+          <div style={{ background: "#1C1C1E", border: "1px solid #38383A", borderRadius: 10, padding: "10px 16px" }}>
+            <p style={{ fontSize: 10.5, color: "rgba(235,235,245,0.45)", marginBottom: 2 }}>中高生</p>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 20, fontWeight: 700, color: "#67e088" }}>
+              ¥{groundFee({ hours, isGame, isStudent: true })}
+            </p>
+          </div>
+          <p style={{ fontSize: 11, color: "rgba(235,235,245,0.45)", lineHeight: 1.7, alignSelf: "center", flex: 1, minWidth: 200 }}>
+            名簿で「中学生・高校生」にチェックが入っている人は、自動で学生料金になります。
+          </p>
         </div>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginTop: 12 }}>
           <SummaryStat label="受領済み" v={checkedCount} unit="名" />
+          <SummaryStat label="うち中高生" v={studentCount} unit="名" />
           <SummaryStat label="未受領" v={activeMembers.length - checkedCount} unit="名" />
           <SummaryStat label="合計金額" v={total} unit="円" />
         </div>
@@ -3219,11 +3306,12 @@ function PaymentsTab({
                     <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, color: "#E5B84B", marginRight: 12 }}>{m.jerseyNumber || "—"}</span>
                     <span style={{ fontWeight: 700 }}>{m.name}</span>
                     {m.nickname && <span style={{ marginLeft: 8, color: "rgba(235,235,245,0.30)", fontSize: 12 }}>({m.nickname})</span>}
+                    {m.isStudent && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: "#0F1626", background: "#67e088", padding: "2px 6px", borderRadius: 4 }}>中高生</span>}
                   </div>
                   <div style={{ fontSize: 12, color: checked ? "#67e088" : "rgba(235,235,245,0.60)" }}>
-                    {checked ? `✓ ${amount}円 受領` : "—"}
-                    {existing && existing.amount !== amount && (
-                      <span style={{ marginLeft: 8, fontSize: 10, color: "#E5B84B" }}>（保存時に {existing.amount} → {amount}円に更新）</span>
+                    {checked ? `✓ ${amountFor(m)}円 受領` : `—（${amountFor(m)}円）`}
+                    {existing && existing.amount !== amountFor(m) && (
+                      <span style={{ marginLeft: 8, fontSize: 10, color: "#E5B84B" }}>（保存時に {existing.amount} → {amountFor(m)}円に更新）</span>
                     )}
                   </div>
                 </li>
@@ -3754,13 +3842,7 @@ function NumField({ label, v, on }: { label: string; v: number; on: (n: number) 
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <input
-        type="number"
-        min={0}
-        value={v}
-        onChange={e => on(Math.max(0, Number(e.target.value) || 0))}
-        style={inputStyle}
-      />
+      <NumberField value={v} onChange={on} style={inputStyle} />
     </div>
   );
 }
@@ -3911,14 +3993,13 @@ function FieldingTab({
 // 予告先発タブ
 // ────────────────────────────────────────────────────────
 function ProbablesTab({
-  members, probables, practices, loading, saving, pw, api, reload, reloadPractices, showToast,
+  members, probables, practices, loading, saving, api, reload, reloadPractices, showToast,
 }: {
   members: Member[];
   probables: ProbableRow[];
   practices: PracticeRow[];
   loading: boolean;
   saving: boolean;
-  pw: string;
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
   reload: () => void;
   reloadPractices: () => void;
@@ -3962,7 +4043,7 @@ function ProbablesTab({
       // プッシュ通知
       const r = await fetch("/api/push/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "📣 予告先発が発表されました", body, url: "/stats", tag: "probable" }),
       }).then(res => res.json()).catch(() => null);
       setSending(false);
@@ -4077,9 +4158,8 @@ function ProbablesTab({
 const ANN_CATEGORIES = ["お知らせ", "成績", "先発", "アップデート", "メンテナンス"] as const;
 
 function NotifyTab({
-  pw, announcements, loading, api, reload, showToast,
+  announcements, loading, api, reload, showToast,
 }: {
-  pw: string;
   announcements: AnnouncementRow[];
   loading: boolean;
   api: <T,>(path: string, body: Record<string, unknown>) => Promise<T | null>;
@@ -4095,7 +4175,7 @@ function NotifyTab({
   async function pushSend(t: string, b: string): Promise<{ ok: boolean; sent?: number; total?: number; error?: string } | null> {
     return fetch("/api/push/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: t, body: b, url: "/stats" }),
     }).then(res => res.json()).catch(() => null);
   }
@@ -5176,7 +5256,8 @@ function LinkTab({
   async function rename(m: Member, newName: string) {
     const nm = newName.trim();
     if (!nm) { showToast(false, "名前を入力してください。"); return; }
-    const row = [m.id, nm, m.nickname, m.jerseyNumber, m.position, m.joinedDate, m.active ? "TRUE" : "FALSE"];
+    // kana / is_student を落とすと、アカウント照合や集金の金額が壊れるので必ず引き継ぐ
+    const row = [m.id, nm, m.nickname, m.jerseyNumber, m.position, m.joinedDate, m.active ? "TRUE" : "FALSE", m.kana, m.isStudent ? "TRUE" : "FALSE"];
     const ok = await api("/api/admin/update", { sheet: "members", rowIndex: m._row, row });
     if (ok) { showToast(true, `名前を「${nm}」に変更しました。`); reloadMembers(); }
   }
@@ -5894,9 +5975,10 @@ function ReceiptTab({ members }: { members: Member[] }) {
           </div>
           <div>
             <label style={labelStyle}>金額（円）</label>
-            <input type="number" min={0} value={amount} onChange={e => setAmount(Math.max(0, Number(e.target.value) || 0))} style={inputStyle} />
+            <NumberField value={amount} onChange={setAmount} style={inputStyle} />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-              {[500, 1000, 2000, 400, 3000].map(v => (
+              {/* よく使う金額。グラウンド代は値上げ後の額に合わせている */}
+              {[GROUND_FEE.student, GROUND_FEE.adult.h2, GROUND_FEE.adult.h4, 1000, 2000].map(v => (
                 <button key={v} onClick={() => setAmount(v)} style={{ ...btnSubStyle, padding: "5px 10px", fontSize: 12 }}>¥{v.toLocaleString()}</button>
               ))}
             </div>

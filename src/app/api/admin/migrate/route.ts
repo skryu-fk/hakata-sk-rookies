@@ -8,6 +8,7 @@
  */
 import { ensureAuth, callAppsScriptLegacy } from "@/lib/admin-shared";
 import { supabaseEnabled, replaceAll, SUPABASE_TABLES, callSupabase } from "@/lib/supabaseData";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ type Row = { rowIndex: number; data: string[] };
 const SHEETS = SUPABASE_TABLES;
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const auth = ensureAuth(request.headers);
   if (auth) return auth;
 

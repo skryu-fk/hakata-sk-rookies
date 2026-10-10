@@ -11,6 +11,7 @@
 import { readSession, readCookie, MEMBER_COOKIE } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +71,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   const rl = rateLimit(`member-profile:${clientIp(request.headers)}`, { limit: 20, windowMs: 10 * 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 

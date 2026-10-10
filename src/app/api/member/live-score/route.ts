@@ -17,6 +17,7 @@
  */
 import { ensureMemberAuth, callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,8 @@ function cleanCount(v: unknown): number {
 }
 
 export async function POST(request: Request) {
+  // 別サイトからの書き込みを断る（Cookie の SameSite に加えた二重の防御）
+  if (!sameOrigin(request)) return crossOriginDenied();
   // ライブ中は何度も送られてくるので、上限は多めにしつつ歯止めは掛ける
   const rl = rateLimit(`live-score:${clientIp(request.headers)}`, { limit: 120, windowMs: 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
