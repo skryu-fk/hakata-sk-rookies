@@ -4,7 +4,8 @@
  */
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { safeEqual, verifySession, readCookie, MEMBER_COOKIE, ADMIN_COOKIE } from "@/lib/security";
+import { verifySession, readCookie, MEMBER_COOKIE, ADMIN_COOKIE } from "@/lib/security";
+import { sheetColumns } from "@/lib/supabaseData";
 import { callSupabase, supabaseEnabled } from "@/lib/supabaseData";
 
 export const ALLOWED_SHEETS = new Set([
@@ -249,6 +250,31 @@ export function flushCaches(sheet: string) {
     console.warn("[admin] revalidate warning:", e);
   }
 }
+
+/**
+ * 送られてきた row の長さが、その表の列数に収まっているか確かめる。
+ *
+ * 以前は「16列まで」と決め打ちだったが、games に列を足したときに
+ * 17列になり、スコアボードの保存が「row が不正です。」で弾かれてしまった。
+ * 表ごとの列数を見るようにして、列を増やしてもここが原因で壊れないようにする。
+ */
+export function rowLengthError(sheet: string | undefined, row: unknown): Response | null {
+  if (!Array.isArray(row) || row.length === 0) {
+    return Response.json({ ok: false, error: "row が不正です。" }, { status: 400 });
+  }
+  // 列定義が無い表（スプレッドシート運用）は、安全のための上限だけ掛ける
+  const limit = (sheet ? sheetColumns(sheet)?.length : null) ?? FALLBACK_MAX_COLUMNS;
+  if (row.length > limit) {
+    return Response.json(
+      { ok: false, error: `列数が合いません（${row.length} 列ですが、${sheet} は ${limit} 列です）。` },
+      { status: 400 },
+    );
+  }
+  return null;
+}
+
+/** 列定義を持たない表に掛ける上限 */
+const FALLBACK_MAX_COLUMNS = 32;
 
 export function safeRow(row: unknown[]): string[] {
   return row.map(v => {

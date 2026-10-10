@@ -11,7 +11,7 @@
  * Apps Script 側が upsert 未対応（旧デプロイ）の場合は
  * list → update / append に自動フォールバックする（再デプロイ前でも動く）。
  */
-import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow } from "@/lib/admin-shared";
+import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow, rowLengthError } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
@@ -43,10 +43,10 @@ export async function POST(request: Request) {
   if (!keyVal) {
     return Response.json({ ok: false, error: "keyVal が必要です。" }, { status: 400 });
   }
-  if (!Array.isArray(body.row) || body.row.length === 0 || body.row.length > 16) {
-    return Response.json({ ok: false, error: "row が不正です。" }, { status: 400 });
-  }
-  const row = safeRow(body.row);
+  const rowErr = rowLengthError(body.sheet, body.row);
+  if (rowErr) return rowErr;
+  // rowLengthError を通った時点で配列であることは確定している
+  const row = safeRow(body.row as unknown[]);
 
   // 1) Apps Script の upsert（冪等・原子的）を試す
   const result = await callAppsScript({ op: "upsert", sheet: body.sheet, keyCol, keyVal, row });

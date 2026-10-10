@@ -2,7 +2,7 @@
  * /api/admin/append — 新規行をシート先頭に追加する。
  */
 
-import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow } from "@/lib/admin-shared";
+import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow, rowLengthError } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
@@ -29,14 +29,15 @@ export async function POST(request: Request) {
   const sheetErr = ensureSheet(body.sheet);
   if (sheetErr) return sheetErr;
 
-  if (!Array.isArray(body.row) || body.row.length === 0 || body.row.length > 16) {
-    return Response.json({ ok: false, error: "row が不正です。" }, { status: 400 });
-  }
+  const rowErr = rowLengthError(body.sheet, body.row);
+  if (rowErr) return rowErr;
+  // rowLengthError を通った時点で配列であることは確定している
+  const row = body.row as unknown[];
 
   const result = await callAppsScript({
     op: "append",
     sheet: body.sheet,
-    row: safeRow(body.row),
+    row: safeRow(row),
   });
   if (!result.ok) {
     return Response.json({ ok: false, error: result.error }, { status: result.status });

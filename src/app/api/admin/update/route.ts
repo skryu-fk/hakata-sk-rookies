@@ -2,7 +2,7 @@
  * /api/admin/update — 既存行(rowIndex 指定)を上書きする。
  */
 
-import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow } from "@/lib/admin-shared";
+import { ensureAuth, ensureSheet, callAppsScript, flushCaches, safeRow, rowLengthError } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
@@ -37,15 +37,16 @@ export async function POST(request: Request) {
   if (!Number.isFinite(rowIndex) || rowIndex < 1) {
     return Response.json({ ok: false, error: "rowIndex が不正です。" }, { status: 400 });
   }
-  if (!Array.isArray(body.row) || body.row.length === 0 || body.row.length > 16) {
-    return Response.json({ ok: false, error: "row が不正です。" }, { status: 400 });
-  }
+  const rowErr = rowLengthError(body.sheet, body.row);
+  if (rowErr) return rowErr;
+  // rowLengthError を通った時点で配列であることは確定している
+  const row = body.row as unknown[];
 
   const result = await callAppsScript({
     op: "update",
     sheet: body.sheet,
     rowIndex,
-    row: safeRow(body.row),
+    row: safeRow(row),
   });
   if (!result.ok) {
     return Response.json({ ok: false, error: result.error }, { status: result.status });
