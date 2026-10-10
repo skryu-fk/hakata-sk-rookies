@@ -3556,7 +3556,7 @@ function PitchingTab({
   showToast: (ok: boolean, text: string) => void;
 }) {
   // 投球回は X.Y 形式（Y は 0/1/2）で入力させ、内部では outs（=X*3+Y）に変換する。
-  const [form, setForm] = useState({
+  const EMPTY_P = {
     date: todayIso(),
     memberId: "",
     opponent: "",
@@ -3568,7 +3568,26 @@ function PitchingTab({
     so: 0,
     bb: 0,
     hbp: 0,
-  });
+  };
+  const [form, setForm] = useState(EMPTY_P);
+  const [editingRow, setEditingRow] = useState<number | null>(null); // 編集中の行（_row）。null なら新規
+
+  function startEdit(p: PitchingRow) {
+    setEditingRow(p._row);
+    setForm({
+      date: p.date, memberId: p.memberId, opponent: p.opponent,
+      // outs から「完了回 + 端数」に戻す
+      ipWhole: Math.floor(p.ipOuts / 3),
+      ipFraction: p.ipOuts % 3,
+      hits: p.hits, runs: p.runs, er: p.er, so: p.so, bb: p.bb, hbp: p.hbp,
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingRow(null);
+    setForm(EMPTY_P);
+  }
 
   async function submit() {
     const member = members.find(m => m.id === form.memberId);
@@ -3583,26 +3602,39 @@ function PitchingTab({
       String(form.hits), String(form.runs), String(form.er),
       String(form.so), String(form.bb), String(form.hbp),
     ];
-    const ok = await api("/api/admin/append", { sheet: "pitching", row });
-    if (ok) {
-      showToast(true, `${member.name} の投球を記録しました。`);
-      setForm(prev => ({ ...prev, opponent: "", ipWhole: 0, ipFraction: 0, hits: 0, runs: 0, er: 0, so: 0, bb: 0, hbp: 0 }));
-      reload();
+    if (editingRow != null) {
+      const ok = await api("/api/admin/update", { sheet: "pitching", rowIndex: editingRow, row });
+      if (ok) {
+        showToast(true, `${member.name} の投手記録を更新しました。`);
+        cancelEdit();
+        reload();
+      }
+    } else {
+      const ok = await api("/api/admin/append", { sheet: "pitching", row });
+      if (ok) {
+        showToast(true, `${member.name} の投球を記録しました。`);
+        setForm(prev => ({ ...prev, opponent: "", ipWhole: 0, ipFraction: 0, hits: 0, runs: 0, er: 0, so: 0, bb: 0, hbp: 0 }));
+        reload();
+      }
     }
   }
 
   async function remove(p: PitchingRow) {
     if (!window.confirm(`${formatDateJp(p.date)} ${p.memberName} の投球記録を削除しますか？`)) return;
     const ok = await api("/api/admin/delete", { sheet: "pitching", rowIndex: p._row });
-    if (ok) { showToast(true, "削除しました。"); reload(); }
+    if (ok) {
+      showToast(true, "削除しました。");
+      if (editingRow === p._row) cancelEdit();
+      reload();
+    }
   }
 
   const sortedPitching = [...pitching].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="grid gap-5 grid-cols-1 lg:grid-cols-[420px_1fr]">
-      <section style={cardStyle}>
-        <H3>新しい投手記録</H3>
+      <section style={{ ...cardStyle, ...(editingRow != null ? { border: "1px solid #E5B84B" } : {}) }}>
+        <H3>{editingRow != null ? "✏️ 投手記録を編集中" : "新しい投手記録"}</H3>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
             <label style={labelStyle}>日付</label>
@@ -3642,9 +3674,14 @@ function PitchingTab({
           <p style={{ fontSize: 10, color: "rgba(235,235,245,0.30)", margin: "4px 0 0" }}>
             投球回は「完了回 + 端数アウト」で入力（例: 5.2 回 = 5回 + 2 out）。防御率は ER×27 / outs で計算します。
           </p>
-          <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, marginTop: 4, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
-            {saving ? "保存中…" : "記録する →"}
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <button onClick={submit} disabled={saving} style={{ ...btnPrimaryStyle, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "保存中…" : editingRow != null ? "更新する →" : "記録する →"}
+            </button>
+            {editingRow != null && (
+              <button onClick={cancelEdit} style={btnSubStyle}>編集をやめる</button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -3679,7 +3716,7 @@ function PitchingTab({
                 {sortedPitching.map((p, i) => {
                   const ipDisplay = `${Math.floor(p.ipOuts / 3)}.${p.ipOuts % 3}`;
                   return (
-                    <tr key={i} style={{ borderBottom: "1px solid #38383A" }}>
+                    <tr key={i} style={{ borderBottom: "1px solid #38383A", background: editingRow === p._row ? "rgba(229,184,75,0.10)" : undefined }}>
                       <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateShort(p.date)}</span></Td>
                       <Td><strong>{p.memberName}</strong></Td>
                       <Td><span style={{ color: "rgba(235,235,245,0.60)", fontSize: 11 }}>{p.opponent || "—"}</span></Td>
@@ -3691,7 +3728,10 @@ function PitchingTab({
                       <Td>{p.bb}</Td>
                       <Td>{p.hbp}</Td>
                       <Td>
-                        <button onClick={() => remove(p)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          <button onClick={() => startEdit(p)} style={{ padding: "3px 8px", background: "transparent", color: "#E5B84B", border: "1px solid #5b4c1f", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}>編集</button>
+                          <button onClick={() => remove(p)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button>
+                        </div>
                       </Td>
                     </tr>
                   );
