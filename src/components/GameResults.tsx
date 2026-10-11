@@ -48,8 +48,8 @@ export default function GameResults({ games, focusDate = "" }: { games: Game[]; 
     const map = new Map<string, { w: number; l: number; d: number }>();
     let w = 0, l = 0, d = 0;
     for (const g of asc) {
-      // 試合中はまだ戦績に入れない（管理者が確定してから数える）
-      if (g.status === "live") continue;
+      // まだ終わっていない試合（開始前・試合中）は戦績に入れない
+      if (g.status === "live" || g.status === "scheduled") continue;
       const o = outcomeOf(g);
       if (o === "win") w++; else if (o === "lose") l++; else d++;
       map.set(g.id || g.date, { w, l, d });
@@ -137,13 +137,20 @@ export default function GameResults({ games, focusDate = "" }: { games: Game[]; 
                     {g.time && (
                       <span style={{ fontSize: 13, color: NAVY, fontWeight: 700 }}>{g.time}開始</span>
                     )}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: g.status === "live" ? "#d10024" : OUTCOME_COLOR[o], padding: "2px 8px" }}>
-                      {g.status === "live" ? `試合中${g.inning ? ` ${g.inning}` : ""}` : "試合終了"}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#fff", background: g.status === "live" ? "#d10024" : g.status === "scheduled" ? "#4a6fa5" : OUTCOME_COLOR[o], padding: "2px 8px" }}>
+                      {g.status === "live" ? `試合中${g.inning ? ` ${g.inning}` : ""}`
+                        : g.status === "scheduled" ? "試合開始前" : "試合終了"}
                     </span>
-                    <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: NAVY }}>
-                      {sum(g.homeScores)}-{sum(g.awayScores)}
-                    </span>
-                    {g.status !== "live" && (
+                    {g.status === "scheduled" ? (
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 15, fontWeight: 700, color: "#4a6fa5" }}>
+                        {g.startTime || "時刻未定"}
+                      </span>
+                    ) : (
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, fontWeight: 700, color: NAVY }}>
+                        {sum(g.homeScores)}-{sum(g.awayScores)}
+                      </span>
+                    )}
+                    {g.status !== "live" && g.status !== "scheduled" && (
                       <span style={{ fontSize: 12, fontWeight: 700, color: OUTCOME_COLOR[o] }}>
                         {OUTCOME_LABEL[o]}
                       </span>
@@ -163,14 +170,16 @@ export default function GameResults({ games, focusDate = "" }: { games: Game[]; 
                 <div className="grid gap-5 grid-cols-1 md:[grid-template-columns:260px_1fr]" style={{ paddingBottom: 22 }}>
                   {/* 結果カード */}
                   <div style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "18px 16px", textAlign: "center" }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: g.status === "live" ? "#d10024" : "#5b6373", marginBottom: 12 }}>
-                      {g.status === "live" ? "試合中" : "試合終了"}
+                    <p style={{ fontSize: 12, fontWeight: 700, color: g.status === "live" ? "#d10024" : g.status === "scheduled" ? "#4a6fa5" : "#5b6373", marginBottom: 12 }}>
+                      {g.status === "live" ? "試合中" : g.status === "scheduled" ? "試合開始前" : "試合終了"}
                     </p>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 10 }}>
                       <Image src="/sk_mark.png" alt={g.homeTeam} width={82} height={46}
                         style={{ width: 40, height: "auto", objectFit: "contain" }} />
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 30, fontWeight: 700, color: NAVY, whiteSpace: "nowrap" }}>
-                        {sum(g.homeScores)}<span style={{ color: "#b8b2a6", margin: "0 7px" }}>-</span>{sum(g.awayScores)}
+                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: g.status === "scheduled" ? 20 : 30, fontWeight: 700, color: g.status === "scheduled" ? "#4a6fa5" : NAVY, whiteSpace: "nowrap" }}>
+                        {g.status === "scheduled"
+                          ? (g.startTime || "時刻未定")
+                          : <>{sum(g.homeScores)}<span style={{ color: "#b8b2a6", margin: "0 7px" }}>-</span>{sum(g.awayScores)}</>}
                       </span>
                       <span style={{ width: 40, fontSize: 10, fontWeight: 700, color: "#8a8a8a", lineHeight: 1.35 }}>
                         {g.awayTeam}
@@ -217,6 +226,7 @@ export default function GameResults({ games, focusDate = "" }: { games: Game[]; 
                         <span style={{ color: RED, fontWeight: 700, marginLeft: 2 }}>本</span>
                       </Row>
                     ) : null}
+                    {g.status !== "scheduled" && (
                     <Row label="安打／失策">
                       <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: NAVY }}>
                         {g.homeHits}安 {g.homeErrors}失
@@ -225,6 +235,7 @@ export default function GameResults({ games, focusDate = "" }: { games: Game[]; 
                         相手 {g.awayHits}安 {g.awayErrors}失
                       </span>
                     </Row>
+                    )}
                     {g.note && <Row label="メモ"><span style={{ color: "#3a3f4a" }}>{g.note}</span></Row>}
                   </dl>
                 </div>

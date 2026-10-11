@@ -211,6 +211,8 @@ type GameRow = {
   /** ライブ中の回。例 "3回表" */
   inning: string;
   updatedAt: string;
+  /** 開始予定時刻。"18:00" のような形。試合開始前の表示に使う */
+  startTime: string;
   _row: number;
 };
 
@@ -870,6 +872,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       status: r.data[14] ?? "",
       inning: r.data[15] ?? "",
       updatedAt: r.data[16] ?? "",
+      startTime: r.data[17] ?? "",
       _row: r.rowIndex,
     })));
     });
@@ -2537,6 +2540,30 @@ function LineupTab({
   );
 }
 
+/** 試合の状態。公式サイトの出方（試合開始前 / 試合中 / 試合終了）がこれで決まる */
+type GameStatus = "scheduled" | "live" | "final";
+
+const GAME_STATUS_LABEL: Record<GameStatus, string> = {
+  scheduled: "試合開始前",
+  live: "試合中",
+  final: "試合終了",
+};
+
+/** 一覧に出す状態のしるし */
+function GameStatusChip({ status, startTime }: { status: string; startTime: string }) {
+  const known: GameStatus = status === "scheduled" || status === "live" ? status : "final";
+  const color = known === "live" ? "#ff4d4d" : known === "scheduled" ? "#7fb3ff" : "#67e088";
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+      <span style={{ fontSize: 11, color }}>{GAME_STATUS_LABEL[known]}</span>
+      {known === "scheduled" && startTime && (
+        <span style={{ fontSize: 10, color: "rgba(235,235,245,0.45)", fontFamily: "var(--font-oswald),sans-serif" }}>{startTime}</span>
+      )}
+    </span>
+  );
+}
+
 // ────────────────────────────────────────────────────────
 // スコアボードタブ
 // ────────────────────────────────────────────────────────
@@ -2557,6 +2584,9 @@ function ScoreboardTab({
   const [opponentId, setOpponentId] = useState("");
   // 自チームがホームだったか。スコアボードの上下と「ホーム／ビジター」の表示が入れ替わる
   const [isHome, setIsHome] = useState(true);
+  // 試合の状態。開始前の試合も登録できるようにしている
+  const [status, setStatus] = useState<GameStatus>("final");
+  const [startTime, setStartTime] = useState("");
   const [innings, setInnings] = useState(9);
   const [homeScores, setHomeScores] = useState<number[]>(() => Array(9).fill(0));
   const [awayScores, setAwayScores] = useState<number[]>(() => Array(9).fill(0));
@@ -2666,25 +2696,35 @@ function ScoreboardTab({
 
   async function save() {
     if (!date) { showToast(false, "日付は必須です。"); return; }
-    const winner = homeTotal > awayTotal ? homeTeam : awayTotal > homeTotal ? awayTeam : "引き分け";
-    const id = games.find(g => g.status === "live" && g.date === date)?.id || genId("g");
+    // 開始前の試合は勝敗がまだ無い
+    const winner = status !== "final"
+      ? ""
+      : homeTotal > awayTotal ? homeTeam : awayTotal > homeTotal ? awayTeam : "引き分け";
+    // 同じ日に登録済みの試合（開始前・記録中）があれば、それを書き換える
+    const same = games.find(g => g.date === date && g.status !== "final");
+    const id = same?.id || genId("g");
     const row = [
       id, date, homeTeam, awayTeam,
       homeScores.join(","), awayScores.join(","),
       String(homeHits), String(awayHits),
       String(homeErrors), String(awayErrors),
       winner, note,
-      opponentId, isHome ? "1" : "0", "final", "",
+      opponentId, isHome ? "1" : "0", status,
+      // 開始前は回の表示を持たない
+      status === "live" ? (same?.inning ?? "") : "",
       new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " "),
+      startTime.trim(),
     ];
-    // 同じ日にアプリで記録中の試合があれば、新しく作らずそれを確定させる。
-    // そうしないと「試合中」と「試合終了」が2件並んでしまう。
-    const live = games.find(g => g.status === "live" && g.date === date);
-    const ok = live
-      ? await api("/api/admin/update", { sheet: "games", rowIndex: live._row, row })
+    // 同じ日に未確定の試合があれば、新しく作らずそれを書き換える。
+    // そうしないと「試合開始前」と「試合終了」が2件並んでしまう。
+    const ok = same
+      ? await api("/api/admin/update", { sheet: "games", rowIndex: same._row, row })
       : await api("/api/admin/append", { sheet: "games", row });
     if (ok) {
-      showToast(true, `${winner === "引き分け" ? "引き分け" : winner + " 勝利"}！試合を${live ? "確定" : "記録"}しました。`);
+      showToast(true,
+        status === "scheduled" ? "試合の予定を登録しました。公式サイトに「試合開始前」として出ます。"
+          : status === "live" ? "「試合中」として保存しました。"
+            : `${winner === "引き分け" ? "引き分け" : winner + " 勝利"}！試合を${same ? "確定" : "記録"}しました。`);
       reload();
     }
   }
@@ -2716,6 +2756,7 @@ function ScoreboardTab({
       winner, g.note,
       g.opponentId, g.isHome ? "1" : "0", "final", "",
       new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 19).replace("T", " "),
+      g.startTime,
     ];
     const ok = await api("/api/admin/update", { sheet: "games", rowIndex: g._row, row });
     if (ok) {
@@ -2738,6 +2779,8 @@ function ScoreboardTab({
     setHomeHits(g.homeHits); setAwayHits(g.awayHits);
     setHomeErrors(g.homeErrors); setAwayErrors(g.awayErrors);
     setNote(g.note);
+    setStatus((g.status === "scheduled" || g.status === "live") ? g.status : "final");
+    setStartTime(g.startTime);
     showToast(true, "フォームに読み込みました。直したら「試合を記録する」で保存してください。");
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -2813,8 +2856,35 @@ function ScoreboardTab({
           </div>
         </div>
 
-        {/* スコアテーブル: ビジターが上、ホームが下（標準のベースボールスコアボード） */}
-        <div style={{ overflowX: "auto", marginBottom: 16 }}>
+        {/* 試合の状態。公式サイトの出方がこれで決まる */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>試合の状態</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(["scheduled", "live", "final"] as GameStatus[]).map(v => (
+              <button key={v} onClick={() => setStatus(v)} style={{ ...segStyle(status === v), flex: "1 1 110px" }}>
+                {GAME_STATUS_LABEL[v]}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: "rgba(235,235,245,0.45)", marginTop: 6, lineHeight: 1.7 }}>
+            {status === "scheduled"
+              ? "公式サイトの試合トップに「試合開始 ○○:○○」と出ます。点数はまだ入れなくて大丈夫です。"
+              : status === "live"
+                ? "公式サイトに「試合中」と出ます。アプリのライブ配信を使う場合は、アプリ側から自動で更新されます。"
+                : "公式サイトに「試合終了」と出て、戦績（◯勝◯敗）に入ります。"}
+          </p>
+        </div>
+
+        {status !== "final" && (
+          <div style={{ marginBottom: 14, maxWidth: 220 }}>
+            <label style={labelStyle}>開始予定時刻</label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inputStyle} />
+          </div>
+        )}
+
+        {/* スコアテーブル: ビジターが上、ホームが下（標準のベースボールスコアボード）。
+            まだ始まっていない試合では、入れるものが無いので出さない。 */}
+        <div style={{ overflowX: "auto", marginBottom: 16, display: status === "scheduled" ? "none" : undefined }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
@@ -2884,8 +2954,9 @@ function ScoreboardTab({
           </table>
         </div>
 
-        {/* ライブ指標：B/S/O ＋ 塁ランナー */}
-        <div style={{ background: "#070a11", padding: "16px 18px", border: "1px solid #38383A", marginBottom: 14 }}>
+        {/* ライブ指標：B/S/O ＋ 塁ランナー。
+            まだ始まっていない試合では使わないので出さない。 */}
+        <div style={{ background: "#070a11", padding: "16px 18px", border: "1px solid #38383A", marginBottom: 14, display: status === "scheduled" ? "none" : undefined }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em" }}>LIVE COUNT</p>
             <div style={{ fontSize: 12, color: "rgba(235,235,245,0.60)" }}>
@@ -2926,7 +2997,9 @@ function ScoreboardTab({
           <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="勝因・メンバー欠席・天候など" style={{ ...inputStyle, resize: "vertical", fontFamily: "var(--font-zen),sans-serif" }} />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-          <button onClick={save} style={btnPrimaryStyle}>💾 試合を記録する →</button>
+          <button onClick={save} style={btnPrimaryStyle}>
+            {status === "scheduled" ? "📅 試合の予定を登録する →" : status === "live" ? "💾 試合中として保存 →" : "💾 試合を記録する →"}
+          </button>
           <button onClick={reload} style={btnSubStyle}>{loading ? "..." : "🔄 再読込"}</button>
         </div>
       </section>
@@ -2988,6 +3061,7 @@ function ScoreboardTab({
               <thead>
                 <tr style={{ borderBottom: "1px solid #38383A" }}>
                   <Th>日付</Th>
+                  <Th>状態</Th>
                   <Th>カード（ビジター vs ホーム）</Th>
                   <Th>スコア</Th>
                   <Th>勝者</Th>
@@ -2999,15 +3073,25 @@ function ScoreboardTab({
                 {[...games].sort((a, b) => b.date.localeCompare(a.date)).map(g => (
                   <tr key={g.id} style={{ borderBottom: "1px solid #38383A" }}>
                     <Td><span style={{ color: "rgba(235,235,245,0.75)", fontSize: 12 }}>{formatDateJp(g.date)}</span></Td>
+                    <Td><GameStatusChip status={g.status} startTime={g.startTime} /></Td>
                     <Td><strong>{g.awayTeam}</strong> <span style={{ color: "rgba(235,235,245,0.30)" }}>vs</span> <strong>{g.homeTeam}</strong></Td>
                     <Td>
-                      <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
-                        {g.awayScores.reduce((a, b) => a + b, 0)} - {g.homeScores.reduce((a, b) => a + b, 0)}
-                      </span>
+                      {g.status === "scheduled" ? (
+                        <span style={{ color: "rgba(235,235,245,0.30)", fontSize: 12 }}>—</span>
+                      ) : (
+                        <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 18, fontWeight: 700, color: "#E5B84B" }}>
+                          {g.awayScores.reduce((a, b) => a + b, 0)} - {g.homeScores.reduce((a, b) => a + b, 0)}
+                        </span>
+                      )}
                     </Td>
                     <Td>{g.winner}</Td>
                     <Td><span style={{ fontSize: 11, color: "rgba(235,235,245,0.60)" }}>{g.note || "—"}</span></Td>
-                    <Td><button onClick={() => remove(g)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button></Td>
+                    <Td>
+                      <div style={{ display: "flex", gap: 5 }}>
+                        <button onClick={() => loadIntoForm(g)} style={{ padding: "3px 8px", background: "transparent", color: "#E5B84B", border: "1px solid #5b4c1f", fontSize: 10, cursor: "pointer", whiteSpace: "nowrap" }}>編集</button>
+                        <button onClick={() => remove(g)} style={{ padding: "3px 8px", background: "transparent", color: "#ff6982", border: "1px solid #460a1c", fontSize: 10, cursor: "pointer" }}>×</button>
+                      </div>
+                    </Td>
                   </tr>
                 ))}
               </tbody>

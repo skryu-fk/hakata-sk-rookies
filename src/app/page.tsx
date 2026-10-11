@@ -750,8 +750,11 @@ function ActivitySection() {
  * 試合が1件も記録されていないときはセクションごと出さない。
  */
 function GamesSection({ games }: { games: Game[] }) {
-  // 試合中があればそれを最優先で出す
-  const latest = games.find(g => g.status === "live") ?? games[0];
+  // 試合中 → これから行う試合 → 直近の結果 の順に出す
+  const upcoming = [...games]
+    .filter(g => g.status === "scheduled")
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const latest = games.find(g => g.status === "live") ?? upcoming ?? games[0];
   if (!latest) return null;
   const r = record(games);
   return (
@@ -759,7 +762,9 @@ function GamesSection({ games }: { games: Game[] }) {
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="試合結果" en="Games" />
         <p className="reveal text-muted text-[15px] leading-relaxed mb-10 max-w-lg" style={{ marginTop: -28 }}>
-          {latest.status === "live" ? "いま行われている試合です。" : "直近の試合のスコアボードです。"}通算成績は
+          {latest.status === "live" ? "いま行われている試合です。"
+            : latest.status === "scheduled" ? "次の試合の予定です。"
+              : "直近の試合のスコアボードです。"}通算成績は
           <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#d10024", fontWeight: 700, margin: "0 4px" }}>
             {r.win}勝 {r.lose}敗 {r.draw}分
           </span>
@@ -769,7 +774,7 @@ function GamesSection({ games }: { games: Game[] }) {
           <Scoreboard
             data={{
               date: latest.date,
-              time: latest.time,
+              time: latest.startTime || latest.time,
               place: latest.place,
               homeTeam: latest.homeTeam,
               awayTeam: latest.awayTeam,
@@ -777,7 +782,7 @@ function GamesSection({ games }: { games: Game[] }) {
               live: latest.status === "live",
               inning: latest.inning,
               awayLogo: latest.opponentLogo,
-              result: {
+              result: latest.status === "scheduled" ? null : {
                 homeScores: latest.homeScores,
                 awayScores: latest.awayScores,
                 homeHits: latest.homeHits,

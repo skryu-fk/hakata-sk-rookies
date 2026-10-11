@@ -40,18 +40,22 @@ export default async function GamesPage({
   // スコアボードに出す試合の優先順位:
   //   1. アプリで記録中（試合中）  2. これから行う試合  3. 直近の結果
   const today = todayJst();
-  // ?d= で指定された試合があれば、それを最優先でスコアボードに出す
+  // ?d= で指定された試合があれば、それを最優先でスコアボードに出す。
+  // そうでなければ「試合中 → これから行う試合 → 直近の結果」の順。
   const focused = focusDate ? games.find(g => g.date === focusDate) : undefined;
-  const live = focused ?? games.find(g => g.status === "live");
+  const upcoming = games
+    .filter(g => g.status === "scheduled" && g.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const live = focused ?? games.find(g => g.status === "live") ?? upcoming;
   const next = practices
     .filter(p => (p.type === "試合" || p.type === "練習試合") && (focusDate ? p.date === focusDate : p.date >= today) && p.status !== "canceled")
     .sort((a, b) => a.date.localeCompare(b.date))[0];
-  const latest = games.find(g => g.status !== "live") ?? games[0];
+  const latest = games.find(g => g.status !== "live" && g.status !== "scheduled") ?? games[0];
 
   const board: ScoreboardData | null = live
     ? {
         date: live.date,
-        time: live.time,
+        time: live.startTime || live.time,
         place: live.place,
         homeTeam: live.homeTeam,
         awayTeam: live.awayTeam,
@@ -59,7 +63,8 @@ export default async function GamesPage({
         live: live.status === "live",
         inning: live.inning,
         awayLogo: live.opponentLogo,
-        result: {
+        // まだ始まっていない試合は点数を持たせない（「試合開始 ○○:○○」と出る）
+        result: live.status === "scheduled" ? null : {
           homeScores: live.homeScores,
           awayScores: live.awayScores,
           homeHits: live.homeHits,
@@ -128,7 +133,8 @@ export default async function GamesPage({
             </h1>
             <p className="mt-5 text-white/65 text-[14px] leading-[1.9] max-w-2xl">
               回ごとのスコアと、月別の戦績です。記録した試合がそのまま反映されます。
-              {live && <><br />いま<strong style={{ color: "#ff8080" }}>試合中</strong>です。点数はアプリから届きしだい更新されます。</>}
+              {live?.status === "live" && <><br />いま<strong style={{ color: "#ff8080" }}>試合中</strong>です。点数はアプリから届きしだい更新されます。</>}
+              {live?.status === "scheduled" && <><br />次の試合は<strong style={{ color: "#ffd45e" }}>{live.date.slice(5).replace("-", "/")}</strong>です。</>}
             </p>
             <div style={{ display: "flex", gap: 26, marginTop: 24, flexWrap: "wrap" }}>
               <Stat label="WIN" value={r.win} color="#d4a82a" />

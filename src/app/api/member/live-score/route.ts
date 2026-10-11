@@ -67,9 +67,9 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "日付が不正です。" }, { status: 400 });
   }
 
-  const opponentId = String(body.opponentId ?? "").slice(0, 60);
-  const opponentName = String(body.opponentName ?? "").trim().slice(0, 80) || "対戦相手";
-  const isHome = body.isHome === false ? "0" : "1";
+  const opponentIdInput = String(body.opponentId ?? "").slice(0, 60);
+  const opponentNameInput = String(body.opponentName ?? "").trim().slice(0, 80);
+  const isHomeInput = body.isHome === false ? "0" : "1";
   const ourScores = cleanScores(body.ourScores);
   const oppScores = cleanScores(body.oppScores);
   const inning = String(body.inning ?? "").slice(0, 20);
@@ -81,9 +81,19 @@ export async function POST(request: Request) {
   if (!list.ok) return Response.json({ ok: false, error: list.error }, { status: list.status });
 
   const rows = (list.data as { rows?: { rowIndex: number; data: string[] }[] }).rows ?? [];
-  const existing = rows.find(r => (r.data[1] ?? "").trim() === date && (r.data[14] ?? "") === "live");
+  // 管理画面で「試合開始前」として登録済みの試合があれば、それを試合中に切り替える。
+  // 新しく作ってしまうと、同じ試合が2件並んでしまうため。
+  const existing = rows.find(r => {
+    const sameDay = (r.data[1] ?? "").trim() === date;
+    const st = (r.data[14] ?? "").trim();
+    return sameDay && (st === "live" || st === "scheduled");
+  });
 
   const id = existing ? (existing.data[0] || genId()) : genId();
+  // 管理画面で先に登録してある内容を優先する（アプリで選び直さなくても崩れないように）
+  const opponentId = opponentIdInput || (existing?.data[12] ?? "");
+  const opponentName = opponentNameInput || (existing?.data[3] ?? "") || "対戦相手";
+  const isHome = opponentIdInput || !existing ? isHomeInput : (existing.data[13] ?? isHomeInput);
   const row = [
     id,
     date,
@@ -102,6 +112,7 @@ export async function POST(request: Request) {
     "live",
     inning,
     now,
+    existing ? (existing.data[17] ?? "") : "",  // 開始予定時刻は登録済みのものを引き継ぐ
   ];
 
   const res = existing

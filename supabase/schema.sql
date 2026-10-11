@@ -171,6 +171,8 @@ alter table games add column if not exists is_home text;
 alter table games add column if not exists status text;
 alter table games add column if not exists inning text;
 alter table games add column if not exists updated_at_text text;
+-- 「試合開始前」の試合を登録できるように、開始予定時刻を持つ
+alter table games add column if not exists start_time text;
 
 -- セキュリティ: RLSを有効化し、ポリシーは作らない。
 -- → 公開(anon)キーでは一切読み書きできず、サーバー側のサービスロールキー経由のみ許可される。

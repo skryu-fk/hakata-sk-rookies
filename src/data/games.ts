@@ -56,6 +56,8 @@ export type Game = {
   status: string;
   /** ライブ中の回。例 "3回表" */
   inning: string;
+  /** 開始予定時刻（試合開始前の試合だけ）。"18:00" のような形 */
+  startTime: string;
   /** 対戦相手のロゴ（opponents に登録があるときだけ） */
   opponentLogo?: string;
   /** opponents のID。ロゴを引くのに使う */
@@ -65,6 +67,16 @@ export type Game = {
 /** アプリで記録中かどうか */
 export function isLive(g: Game): boolean {
   return g.status === "live";
+}
+
+/** まだ始まっていない試合か */
+export function isScheduled(g: Game): boolean {
+  return g.status === "scheduled";
+}
+
+/** 終わっている（＝戦績に数える）試合か */
+export function isFinal(g: Game): boolean {
+  return g.status !== "live" && g.status !== "scheduled";
 }
 
 export type GameOutcome = "win" | "lose" | "draw";
@@ -95,7 +107,8 @@ export function outcome(g: Game): GameOutcome {
 export function record(games: Game[]): { win: number; lose: number; draw: number } {
   const r = { win: 0, lose: 0, draw: 0 };
   for (const g of games) {
-    if (g.status === "live") continue;
+    // まだ終わっていない試合（開始前・試合中）は数えない
+    if (g.status === "live" || g.status === "scheduled") continue;
     const o = outcome(g);
     if (o === "win") r.win++;
     else if (o === "lose") r.lose++;
@@ -156,6 +169,7 @@ export async function getGames(): Promise<Game[]> {
         isHome: (r[13] ?? "1") !== "0",
         status: (r[14] ?? "").trim(),
         inning: (r[15] ?? "").trim(),
+        startTime: (r[17] ?? "").trim(),
         opponentId: (r[12] ?? "").trim(),
       };
     })

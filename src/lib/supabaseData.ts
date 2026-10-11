@@ -29,7 +29,7 @@ const COLUMNS: Record<string, string[]> = {
   accounts: ["id", "name", "name_key", "hash", "salt", "status", "created_at_text", "member_id", "user_id"],
   lineups: ["id", "date", "team", "batting_order", "member_id", "member_name", "position"],
   // 列は末尾に足すこと。前の並びを変えると既存のコードが別の列を読んでしまう。
-  games: ["id", "date", "home_team", "away_team", "home_scores", "away_scores", "home_hits", "away_hits", "home_errors", "away_errors", "winner", "note", "opponent_id", "is_home", "status", "inning", "updated_at_text"],
+  games: ["id", "date", "home_team", "away_team", "home_scores", "away_scores", "home_hits", "away_hits", "home_errors", "away_errors", "winner", "note", "opponent_id", "is_home", "status", "inning", "updated_at_text", "start_time"],
   opponents: ["id", "name", "short_name", "logo", "color", "note"],
   payments: ["id", "date", "member_id", "member_name", "amount", "note"],
   news: ["date", "category", "title", "body", "slug"],
