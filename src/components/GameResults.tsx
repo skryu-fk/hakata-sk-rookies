@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import type { Game } from "@/data/games";
+import type { Game } from "@/lib/gameRows";
 
 /**
  * 月別の日程・結果

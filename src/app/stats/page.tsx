@@ -14,6 +14,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
+import { parseGames, decorateGames, record as gameRecord, type Game } from "@/lib/gameRows";
+import Scoreboard from "@/components/Scoreboard";
+import GameResults from "@/components/GameResults";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
 import { parsePoll, isPollLive } from "@/lib/polls";
@@ -973,6 +976,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [polls, setPolls] = useState<PollRow[]>([]);
   const [pollVotes, setPollVotes] = useState<PollVoteRow[]>([]);
+  // 公式サイトと同じスコアボードをアプリでも出すための試合データ
+  const [scoreGames, setScoreGames] = useState<Game[]>([]);
   const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
   const [me, setMe] = useState<string>("");  // 自分の memberId（localStorage 記憶）
   const [loading, setLoading] = useState(true);
@@ -999,6 +1004,21 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const applySheets = useCallback((map: Record<string, ListRow[]>) => {
     {
       const rowsOf = (name: string): ListRow[] => map[name] ?? [];
+      const dataOf = (name: string): string[][] => rowsOf(name).map(r => r.data);
+
+      // 試合（スコアボード）。球場・ロゴ・本塁打は他の表から日付で引き当てる。
+      // 組み立ては公式サイトと同じ部品を使っているので、見え方がズレない。
+      {
+        const built = parseGames(dataOf("games"));
+        decorateGames(built, {
+          practices: dataOf("practices"),
+          opponents: dataOf("opponents"),
+          batting: dataOf("batting"),
+          probables: dataOf("probables"),
+          pitching: dataOf("pitching"),
+        });
+        setScoreGames(built);
+      }
 
       setMembers(rowsOf("members").map(r => ({
         id: r.data[0] ?? "",
@@ -1118,7 +1138,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
       const map = await fetchSheets([
         "members", "batting", "pitching", "catching", "fielding",
         "practices", "probables", "announcements", "participants", "settings", "attendance",
-        "polls", "poll_votes",
+        "polls", "poll_votes", "games", "opponents",
       ]);
       // 取得できた時だけ反映（失敗時はキャッシュ表示を保つ）
       if (Object.keys(map).length > 0) {
@@ -1521,7 +1541,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         ) : tab === "polls" ? (
           <PollsView polls={polls} pollVotes={pollVotes} me={me} onVote={castVote} />
         ) : tab === "schedule" ? (
-          <ScheduleView upcoming={upcoming} pastGames={pastGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
+          <ScheduleView upcoming={upcoming} pastGames={pastGames} games={scoreGames} probableByDate={probableByDate} participantsByDate={participantsByDate} membersById={membersById} attendanceByDate={attendanceByDate} members={members} me={me} onPickMe={pickMe} onVote={vote} />
         ) : tab === "ai" ? (
           <FormCheckView />
         ) : tab === "mypage" ? (
@@ -2838,10 +2858,68 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
   );
 }
 
+/* ── 試合（公式サイトと同じスコアボード＋月別の結果） ────────── */
+/**
+ * 公式サイトの「試合トップ」と同じものを、アプリの日程タブにも出す。
+ * 部品（Scoreboard / GameResults）は公式サイトと共通なので、
+ * 片方だけ直って見え方がズレることがない。
+ */
+function AppGames({ games }: { games: Game[] }) {
+  if (games.length === 0) return null;
+
+  // 試合中 → これから行う試合 → 直近の結果 の順に出す
+  const upcomingGame = [...games]
+    .filter(g => g.status === "scheduled")
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  const shown = games.find(g => g.status === "live") ?? upcomingGame ?? games[0];
+  const r = gameRecord(games);
+
+  return (
+    <section style={{ marginBottom: 18 }}>
+      <H sub="GAMES">試合</H>
+      <p style={{ fontSize: 12, color: "rgba(235,235,245,0.60)", lineHeight: 1.8, margin: "0 0 12px" }}>
+        通算{" "}
+        <span style={{ fontFamily: "var(--font-oswald),sans-serif", color: "#E5B84B", fontWeight: 700 }}>
+          {r.win}勝 {r.lose}敗 {r.draw}分
+        </span>
+        {shown.status === "live" && <span style={{ color: "#ff6982", fontWeight: 700 }}>　🔴 いま試合中です</span>}
+      </p>
+
+      <Scoreboard
+        data={{
+          date: shown.date,
+          time: shown.startTime || shown.time,
+          place: shown.place,
+          homeTeam: shown.homeTeam,
+          awayTeam: shown.awayTeam,
+          isHome: shown.isHome,
+          live: shown.status === "live",
+          inning: shown.inning,
+          awayLogo: shown.opponentLogo,
+          result: shown.status === "scheduled" ? null : {
+            homeScores: shown.homeScores,
+            awayScores: shown.awayScores,
+            homeHits: shown.homeHits,
+            awayHits: shown.awayHits,
+            homeErrors: shown.homeErrors,
+            awayErrors: shown.awayErrors,
+          },
+        }}
+      />
+
+      {/* 月別の結果。公式サイトは白地だが、アプリは黒地なので枠だけ用意する */}
+      <div className="app-games-list" style={{ background: "#fff", padding: "14px 14px 4px", marginTop: 14 }}>
+        <GameResults games={games} />
+      </div>
+    </section>
+  );
+}
+
 /* ── 日程ビュー（練習・試合 + 予告先発） ──────────────────── */
-function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate, membersById, attendanceByDate, members, me, onPickMe, onVote }: {
+function ScheduleView({ upcoming, pastGames, games, probableByDate, participantsByDate, membersById, attendanceByDate, members, me, onPickMe, onVote }: {
   upcoming: PracticeRow[];
   pastGames: PracticeRow[];
+  games: Game[];
   probableByDate: Map<string, ProbableRow>;
   participantsByDate: Map<string, ParticipantRow[]>;
   membersById: Map<string, Member>;
@@ -2881,6 +2959,9 @@ function ScheduleView({ upcoming, pastGames, probableByDate, participantsByDate,
 
   return (
     <div>
+      {/* 試合（公式サイトと同じスコアボード・月別の結果） */}
+      <AppGames games={games} />
+
       {/* 次回 */}
       {next ? (
         <section className="stx-row" style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
