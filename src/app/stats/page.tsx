@@ -20,7 +20,7 @@ import GameResults from "@/components/GameResults";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/components/PollCard";
 import { parsePoll, isPollLive } from "@/lib/polls";
-import { QUALIFY, PRIOR, splitByQualified, rankingRate } from "@/lib/ranking";
+import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 
 const MEMBER_PW_KEY = "skr_member_pw";
@@ -2598,10 +2598,12 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
   const teamSb = active.reduce((s, x) => s + x.sb, 0);
   const teamAvg = teamAb > 0 ? teamH / teamAb : 0;
 
-  // 同じ打率なら打数が多いほうを上に（表示する打率は本物のまま）
-  const sortKey = (x: BattingStat) => rankingRate(x.avg, x.ab, teamAvg, PRIOR.ab);
+  // 「確かな打率」＋「打数の多さ」の総合スコアで並べる（表示する打率は本物のまま）。
+  // 規定打数はチーム最多打数から決まるので、試合をこなすほど自然に上がる。
+  const basis = rankBasis(active.map(s => s.ab), MIN_QUALIFY.ab);
+  const sortKey = (x: BattingStat) => rankScore(x.avg, x.ab, teamAvg, basis, VOLUME_WEIGHT.ab);
   const { ranked, qualifiedCount } = splitByQualified(
-    active, s => s.ab >= QUALIFY.ab, (a, b) => sortKey(b) - sortKey(a));
+    active, s => s.ab >= basis.qualify, (a, b) => sortKey(b) - sortKey(a));
 
   return (
     <div>
@@ -2623,7 +2625,7 @@ function BattingStatsView({ stats, scopeLabel, isGame }: { stats: BattingStat[];
         <IosGroup>
           {ranked.flatMap((s, i) => [
             ...(i === qualifiedCount
-              ? [<QualDivider key="qual-div" first={i === 0} text="規定打数（3打数）に届いていない選手" />]
+              ? [<QualDivider key="qual-div" first={i === 0} text={`規定打数（${basis.qualify}打数）に届いていない選手`} />]
               : []),
             <PlayerRow
               key={s.m.id}
@@ -2676,9 +2678,10 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
   const teamEra = teamOuts > 0 ? (teamEr * 27) / teamOuts : 0;
 
   // 同じ防御率なら投球回が多いほうを上に（防御率は低いほど良い）
-  const sortKey = (x: PitchingStat) => rankingRate(x.era, x.ipOuts, teamEra, PRIOR.ipOuts);
+  const basis = rankBasis(active.map(s => s.ipOuts), MIN_QUALIFY.ipOuts);
+  const sortKey = (x: PitchingStat) => rankScore(x.era, x.ipOuts, teamEra, basis, VOLUME_WEIGHT.ipOuts, true);
   const { ranked, qualifiedCount } = splitByQualified(
-    active, s => s.ipOuts >= QUALIFY.ipOuts, (a, b) => sortKey(a) - sortKey(b));
+    active, s => s.ipOuts >= basis.qualify, (a, b) => sortKey(a) - sortKey(b));
 
   return (
     <div>
@@ -2699,7 +2702,7 @@ function PitchingStatsView({ stats, scopeLabel }: { stats: PitchingStat[]; scope
         <IosGroup>
           {ranked.flatMap((s, i) => [
             ...(i === qualifiedCount
-              ? [<QualDivider key="qual-div" first={i === 0} text="規定投球回（1回）に届いていない選手" />]
+              ? [<QualDivider key="qual-div" first={i === 0} text={`規定投球回（${Math.floor(basis.qualify / 3)}回${basis.qualify % 3 ? `${basis.qualify % 3}/3` : ""}）に届いていない選手`} />]
               : []),
             <PlayerRow
               key={s.m.id}
@@ -2743,9 +2746,10 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
   const teamRate = teamSba > 0 ? teamCs / teamSba : 0;
 
   // 同じ阻止率なら企図数が多いほうを上に
-  const sortKey = (x: CatchingStat) => rankingRate(x.rate, x.sba, teamRate, PRIOR.sba);
+  const basis = rankBasis(active.map(s => s.sba), MIN_QUALIFY.sba);
+  const sortKey = (x: CatchingStat) => rankScore(x.rate, x.sba, teamRate, basis, VOLUME_WEIGHT.sba);
   const { ranked, qualifiedCount } = splitByQualified(
-    active, s => s.sba >= QUALIFY.sba, (a, b) => sortKey(b) - sortKey(a));
+    active, s => s.sba >= basis.qualify, (a, b) => sortKey(b) - sortKey(a));
 
   return (
     <div>
@@ -2765,7 +2769,7 @@ function CatchingStatsView({ stats, scopeLabel }: { stats: CatchingStat[]; scope
         <IosGroup>
           {ranked.flatMap((s, i) => [
             ...(i === qualifiedCount
-              ? [<QualDivider key="qual-div" first={i === 0} text="規定（盗塁企図3回）に届いていない選手" />]
+              ? [<QualDivider key="qual-div" first={i === 0} text={`規定（盗塁企図${basis.qualify}回）に届いていない選手`} />]
               : []),
             <PlayerRow
               key={s.m.id}
@@ -2805,9 +2809,10 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
   const teamRate = teamCh > 0 ? (teamPo + teamA) / teamCh : 0;
 
   // 同じ守備率なら守備機会が多いほうを上に
-  const sortKey = (x: FieldingStat) => rankingRate(x.rate, x.chances, teamRate, PRIOR.chances);
+  const basis = rankBasis(active.map(s => s.chances), MIN_QUALIFY.chances);
+  const sortKey = (x: FieldingStat) => rankScore(x.rate, x.chances, teamRate, basis, VOLUME_WEIGHT.chances);
   const { ranked, qualifiedCount } = splitByQualified(
-    active, s => s.chances >= QUALIFY.chances, (a, b) => sortKey(b) - sortKey(a));
+    active, s => s.chances >= basis.qualify, (a, b) => sortKey(b) - sortKey(a));
 
   return (
     <div>
@@ -2828,7 +2833,7 @@ function FieldingStatsView({ stats, scopeLabel }: { stats: FieldingStat[]; scope
         <IosGroup>
           {ranked.flatMap((s, i) => [
             ...(i === qualifiedCount
-              ? [<QualDivider key="qual-div" first={i === 0} text="規定（守備機会3回）に届いていない選手" />]
+              ? [<QualDivider key="qual-div" first={i === 0} text={`規定（守備機会${basis.qualify}回）に届いていない選手`} />]
               : []),
             <PlayerRow
               key={s.m.id}
