@@ -174,6 +174,70 @@ alter table games add column if not exists updated_at_text text;
 -- 「試合開始前」の試合を登録できるように、開始予定時刻を持つ
 alter table games add column if not exists start_time text;
 
+
+-- ── 首脳陣（コーチ陣）向け ──────────────────────────────
+-- ログインは既存のメンバーアカウントをそのまま使い、役割だけを足す。
+-- role: 1=コーチ / 2=キャプテン・総合コーチ / 3=副代表 / 4=代表（空＝ふつうのメンバー）
+alter table accounts add column if not exists role text;
+alter table accounts add column if not exists staff_title text;
+alter table accounts add column if not exists staff_area text;
+
+-- 指導レポート（各コーチが担当分野の活動を記録する）
+create table if not exists staff_reports (
+  row_id bigint generated always as identity primary key,
+  id text, date text, author_id text, author_name text,
+  member_id text, member_name text, area text,
+  content text, good text, improve text, next_task text,
+  rating text, published text, created_at_text text
+);
+
+-- 練習メニュー（首脳陣が作り、代表が承認するとメンバーに公開される）
+create table if not exists practice_menus (
+  row_id bigint generated always as identity primary key,
+  id text, date text, place text, time_text text, title text,
+  items text, coach_id text, coach_name text, targets text,
+  gear text, purpose text, status text, created_at_text text
+);
+
+-- オーダー案（首脳陣がそれぞれ作り、代表が確定する）
+create table if not exists order_plans (
+  row_id bigint generated always as identity primary key,
+  id text, date text, title text, author_id text, author_name text,
+  lineup text, pitchers text, memo text, review text,
+  status text, created_at_text text
+);
+
+-- 首脳陣会議（議題とコメント・投票）
+create table if not exists staff_topics (
+  row_id bigint generated always as identity primary key,
+  id text, title text, body text, author_id text, author_name text,
+  status text, decision text, created_at_text text
+);
+create table if not exists staff_comments (
+  row_id bigint generated always as identity primary key,
+  id text, topic_id text, author_id text, author_name text,
+  body text, vote text, created_at_text text
+);
+
+-- 代表への承認申請。首脳陣の重要な変更はここを通す
+create table if not exists staff_approvals (
+  row_id bigint generated always as identity primary key,
+  id text, kind text, ref_id text, title text, summary text,
+  requester_id text, requester_name text,
+  status text, decided_by text, decided_at text, comment text,
+  created_at_text text
+);
+
+-- 操作履歴。誰が何をしたかを残す（代表のみ閲覧）
+create table if not exists staff_audit (
+  row_id bigint generated always as identity primary key,
+  id text, at_text text, actor_id text, actor_name text,
+  action text, target text, detail text
+);
+
+create index if not exists idx_staff_comments_topic on staff_comments (topic_id);
+create index if not exists idx_staff_approvals_status on staff_approvals (status);
+
 -- セキュリティ: RLSを有効化し、ポリシーは作らない。
 -- → 公開(anon)キーでは一切読み書きできず、サーバー側のサービスロールキー経由のみ許可される。
 do $$
@@ -183,7 +247,9 @@ begin
     'members','attendance','batting','pitching','catching','fielding','practices',
     'participants','probables','announcements','settings','pending','accounts',
     'lineups','games','payments','news','tweets','blog','subscriptions','evaluations',
-    'polls','poll_votes','opponents'
+    'polls','poll_votes','opponents',
+    'staff_reports','practice_menus','order_plans','staff_topics',
+    'staff_comments','staff_approvals','staff_audit'
   ] loop
     execute format('alter table %I enable row level security', t);
   end loop;
