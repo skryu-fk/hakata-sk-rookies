@@ -10,6 +10,7 @@ const MENU: [string, string][] = [
   ["#about", "チーム紹介"],
   ["#app", "公式アプリ"],
   ["#vision", "目標・ビジョン"],
+  ["#league", "博多ルーキーリーグ"],
   ["#activity", "活動概要"],
   ["/uniform", "ユニフォーム紹介"],
   ...(MANAGER_OPEN ? [["#manager", "マネージャー募集中"] as [string, string]] : []),

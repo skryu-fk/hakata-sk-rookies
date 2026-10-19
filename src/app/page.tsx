@@ -7,6 +7,7 @@ import RecruitForm  from "@/components/RecruitForm";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
 import { RecruitStatusBar, RecruitStatusPanel } from "@/components/RecruitStatus";
+import LeagueSection from "@/components/LeagueSection";
 import {
   MANAGER_COST,
   MANAGER_LEAD,
@@ -134,7 +135,7 @@ function Header() {
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
           {/* いま募集しているものをナビに出す。選手を休止中はマネージャー募集を載せる */}
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ（チーム募集中）"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -661,7 +662,7 @@ function AppSection() {
 /* ── VisionSection（目標・リーグ構想） ────────────────────── */
 const VISIONS = [
   { no: "01", icon: "🏟", eyebrow: "GOAL — DREAM STAGE", title: "みずほPayPayドーム福岡で試合する", body: "福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。" },
-  { no: "02", icon: "🏆", eyebrow: "LEAGUE — 2026.9 始動予定", title: "設立2年以内のチーム限定リーグを創設", body: "今あるリーグは強豪・古参チームばかりで、立ち上げたばかりのチームは練習試合でしか実戦を積めないのが現状。だからこそ“設立して2年以内のチーム限定”の公式リーグを、2026年9月の立ち上げをめどに準備を進めています。他のリーグに所属していても加入OK。同じスタートラインのチーム同士で、本気の公式戦を。" },
+  { no: "02", icon: "🏆", eyebrow: "LEAGUE — 2026.11 設立", title: "博多ルーキーリーグを創設", body: "立ち上げたばかりのチームが練習試合でしか実戦を積めない——その状況を変えるため、設立間もないチームと初心者のためのリーグを自分たちで作ります。2026年11月に設立し、2027年2月からプレリーグを開催。加盟チームを募集中です。他のリーグに所属していても加盟できます。" },
 ];
 
 function VisionSection() {
@@ -1260,7 +1261,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ（チーム募集中）"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -1330,6 +1331,7 @@ export default async function Home() {
         <AboutSection />
         <AppSection />
         <VisionSection />
+        <LeagueSection xUrl={X_URL} />
         <ActivitySection />
         {MANAGER_OPEN && <ManagerSection />}
         <RecruitSection />
