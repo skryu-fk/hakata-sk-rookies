@@ -978,6 +978,8 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [pollVotes, setPollVotes] = useState<PollVoteRow[]>([]);
   // 公式サイトと同じスコアボードをアプリでも出すための試合データ
   const [scoreGames, setScoreGames] = useState<Game[]>([]);
+  // 首脳陣に任命されている人にだけ、首脳陣コンソールへの入口を出す
+  const [staffTitle, setStaffTitle] = useState<string>("");
   const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
   const [me, setMe] = useState<string>("");  // 自分の memberId（localStorage 記憶）
   const [loading, setLoading] = useState(true);
@@ -985,6 +987,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("news");
   const [statKind, setStatKind] = useState<StatKind>("batting");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
+
+  // 首脳陣かどうかの確認。ふつうのメンバーなら 401 が返るだけで何も起きない。
+  useEffect(() => {
+    fetch("/api/staff/me", { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d?.ok) setStaffTitle(String(d.user?.title ?? "首脳陣")); })
+      .catch(() => {});
+  }, []);
 
   // 全シートを1回のリクエストでまとめて取得（読み込み高速化）。
   // 認証は Cookie（同一オリジンの fetch で自動送信）。パスワードは送らない。
@@ -1486,6 +1496,15 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               <span className={loading ? "stx-spin" : undefined} style={{ display: "inline-block", fontSize: 13, lineHeight: 1 }}>⟳</span>
               {loading ? "更新中…" : "更新"}
             </button>
+            {staffTitle && (
+              <Link
+                href="/staff"
+                title="首脳陣コンソール"
+                style={{ padding: "7px 13px", background: "#E5B84B", border: "1px solid #E5B84B", color: "#0b1e3f", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}
+              >
+                首脳陣
+              </Link>
+            )}
             <button
               onClick={onLogout}
               style={{ padding: "7px 13px", background: "transparent", border: "1px solid #38383A", color: "rgba(235,235,245,0.75)", fontSize: 11, cursor: "pointer", letterSpacing: "0.06em" }}

@@ -95,7 +95,7 @@ export default function StaffPage() {
   }, []);
 
   /* ── 本人確認 ── */
-  useEffect(() => {
+  const recheck = useCallback(() => {
     fetch("/api/staff/me", { cache: "no-store" })
       .then(r => r.json())
       .then(d => {
@@ -104,6 +104,8 @@ export default function StaffPage() {
       })
       .catch(() => setState("denied"));
   }, []);
+
+  useEffect(() => { recheck(); }, [recheck]);
 
   /* ── データ取得 ──
      取ってくる処理と画面への反映を分けている。
@@ -142,17 +144,9 @@ export default function StaffPage() {
     return <Center>読み込み中…</Center>;
   }
   if (state === "denied" || !me) {
-    return (
-      <Center>
-        <p style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>首脳陣専用ページです</p>
-        <p style={{ fontSize: 13.5, color: "rgba(235,235,245,0.6)", lineHeight: 1.9, marginBottom: 22 }}>
-          メンバーアプリでログインしたうえで、代表から首脳陣に任命されると使えます。
-        </p>
-        <Link href="/stats" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
-          メンバーアプリへ
-        </Link>
-      </Center>
-    );
+    // ログインしていないのか、ログイン済みだが首脳陣ではないのかで案内を変える。
+    // 「ログインしてから /staff に戻る」を手作業でやらせないよう、ここで直接ログインできる。
+    return <StaffGate onIn={() => { setState("loading"); recheck(); }} />;
   }
 
   const visibleTabs = TABS.filter(t => t.perm === null || allow(t.perm));
@@ -174,6 +168,12 @@ export default function StaffPage() {
             <div style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{me.name}</div>
             <div style={{ fontSize: 10.5, color: GOLD }}>{me.title}</div>
           </div>
+          <Link href="/stats" title="メンバーアプリへ" style={{
+            flexShrink: 0, textDecoration: "none", color: "rgba(255,255,255,0.65)",
+            border: "1px solid rgba(255,255,255,0.2)", borderRadius: 8, padding: "7px 10px", fontSize: 11,
+          }}>
+            アプリ
+          </Link>
         </div>
       </header>
 
@@ -270,6 +270,100 @@ function rowsOf(sheets: Sheets, name: string): Row[] {
 
 function todayIso(): string {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/* ── 入口（ログイン / 権限なしの案内） ───────────────────── */
+/**
+ * /staff を直接開いた人がここに来る。
+ *
+ * コーチにとっては「メンバーアプリでログイン → /staff に移動」は分かりにくいので、
+ * この画面でそのままログインできるようにしている。ログインの仕組み自体は
+ * メンバーアプリと同じ（同じユーザーID・パスワード）。
+ */
+function StaffGate({ onIn }: { onIn: () => void }) {
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // メンバーとしてログイン済みかどうかで、出す案内を変える
+  useEffect(() => {
+    fetch("/api/member/verify", { cache: "no-store" })
+      .then(r => setLoggedIn(r.ok))
+      .catch(() => setLoggedIn(false));
+  }, []);
+
+  async function doLogin() {
+    if (busy) return;
+    if (!userId.trim() || !pw) { setErr("ユーザーIDとパスワードを入れてください。"); return; }
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/member/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userId.trim(), password: pw }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok) onIn();
+      else if (res.status === 429) setErr("回数が多すぎます。しばらく待ってからお試しください。");
+      else setErr(d?.error ?? "ユーザーIDまたはパスワードが違います。");
+    } catch {
+      setErr("通信に失敗しました。");
+    } finally { setBusy(false); }
+  }
+
+  // ログイン済みなのにここに来た＝まだ首脳陣に任命されていない
+  if (loggedIn) {
+    return (
+      <Center>
+        <Image src="/sk_logo_crop.png" alt="" width={64} height={52} style={{ objectFit: "contain", margin: "0 auto 18px" }} />
+        <p style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>首脳陣専用ページです</p>
+        <p style={{ fontSize: 13.5, color: "rgba(235,235,245,0.6)", lineHeight: 1.9, marginBottom: 22 }}>
+          ログインはできていますが、まだ首脳陣に任命されていません。
+          代表に「首脳陣に入れてほしい」と伝えてください。
+        </p>
+        <Link href="/stats" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
+          メンバーアプリへ戻る
+        </Link>
+      </Center>
+    );
+  }
+
+  return (
+    <Center>
+      <Image src="/sk_logo_crop.png" alt="" width={64} height={52} style={{ objectFit: "contain", margin: "0 auto 14px" }} />
+      <p style={{ fontSize: 18, fontWeight: 900, marginBottom: 4 }}>首脳陣コンソール</p>
+      <p style={{ fontSize: 10.5, color: GOLD, letterSpacing: "0.25em", marginBottom: 20 }}>STAFF CONSOLE</p>
+      <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.55)", lineHeight: 1.9, marginBottom: 18 }}>
+        メンバーアプリと<strong style={{ color: "#fff" }}>同じユーザーID・パスワード</strong>です。
+      </p>
+
+      <div style={{ display: "grid", gap: 10, textAlign: "left" }}>
+        <div>
+          <label style={label}>ユーザーID</label>
+          <input value={userId} onChange={e => setUserId(e.target.value)} placeholder="例: SKR-8421"
+            autoComplete="username" style={input} />
+        </div>
+        <div>
+          <label style={label}>パスワード</label>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+            autoComplete="current-password"
+            onKeyDown={e => { if (e.key === "Enter") void doLogin(); }} style={input} />
+        </div>
+        {err && <p style={{ fontSize: 12.5, color: "#ff6982", lineHeight: 1.7 }}>{err}</p>}
+        <button onClick={doLogin} disabled={busy} style={{ ...btn, opacity: busy ? 0.5 : 1 }}>
+          {busy ? "確認中…" : "ログイン"}
+        </button>
+      </div>
+
+      <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.4)", lineHeight: 1.9, marginTop: 18 }}>
+        まだアカウントが無い方は、先に
+        <Link href="/stats" style={{ color: GOLD, textDecoration: "none" }}>メンバーアプリ</Link>
+        で登録してください。
+      </p>
+    </Center>
+  );
 }
 
 /* ── ① ダッシュボード ──────────────────────────────────── */
