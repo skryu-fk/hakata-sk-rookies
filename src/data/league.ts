@@ -9,7 +9,7 @@
  */
 
 /** リーグ公式サイト。公開したらここに URL を入れると、各所のボタンが有効になる */
-export const LEAGUE_SITE_URL = "";
+export const LEAGUE_SITE_URL = "https://hakata-rookie-league.vercel.app";
 
 /** 加盟チームを募集しているか */
 export const LEAGUE_RECRUIT_OPEN = true;
