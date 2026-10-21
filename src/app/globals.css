@@ -191,6 +191,18 @@ img { -webkit-user-drag: none; user-select: none; }
 }
 .ticker-track:hover { animation-play-state: paused; }
 
+/* スマホでは画面が狭いぶん、同じ速さでも文字が速く流れて見え、
+   画面全体が落ち着かない。幅が狭いときはゆっくりにする。 */
+@media (max-width: 767px) {
+  .ticker-track { animation-duration: 110s; }
+}
+
+/* 動きを減らす設定にしている人には流さない。
+   前庭障害などで、横に動き続けるものが体調に響くことがある。 */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+}
+
 /* ── Hero classes ─────────────────────────────────────── */
 .hero-badge  { animation: badgeIn     0.6s cubic-bezier(0.2,0.8,0.2,1) 0.2s  both; }
 .hero-line-1 { animation: heroBlurUp  0.85s cubic-bezier(0.16,1,0.3,1) 0.4s  both; }
@@ -357,6 +369,10 @@ img { -webkit-user-drag: none; user-select: none; }
   color: #fff;
   text-decoration: none;
   transition: background 0.2s;
+  /* 項目が増えて場所が足りなくなっても、1文字ずつ縦に折れないようにする。
+     これが無いと「お問い合わせ」が縦書きのように潰れる */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .nav-link-cta:hover { background: var(--red-2); }
 

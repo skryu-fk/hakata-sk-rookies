@@ -135,7 +135,7 @@ function Header() {
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
           {/* いま募集しているものをナビに出す。選手を休止中はマネージャー募集を載せる */}
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ（チーム募集中）"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -1261,7 +1261,7 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ（チーム募集中）"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>

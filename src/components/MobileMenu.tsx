@@ -77,7 +77,8 @@ export default function MobileMenu() {
           background: "rgba(0,0,0,0.5)",
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
-          transition: "opacity 0.3s ease",
+          visibility: open ? "visible" : "hidden",
+          transition: "opacity 0.3s ease, visibility 0.3s",
         }}
       />
 
@@ -90,8 +91,15 @@ export default function MobileMenu() {
           width: "min(88vw, 400px)",
           background: "#0b1e3f",
           transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
+          // 閉じている間は visibility で消す。transform で画面の外に置いただけだと、
+          // iOS Safari では画面外の領域が残り、横に引っ張れて画面が揺れる。
+          // transition に visibility を含めるのは、閉じるアニメーションが
+          // 終わってから消すため（含めないと動かずに瞬間的に消える）。
+          visibility: open ? "visible" : "hidden",
+          transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1), visibility 0.4s",
           overflowY: "auto",
+          // 画面の端で引っ張ったときに、裏のページまで動かさない
+          overscrollBehavior: "contain",
           display: "flex",
           flexDirection: "column",
           boxShadow: open ? "-20px 0 60px rgba(0,0,0,0.4)" : "none",
