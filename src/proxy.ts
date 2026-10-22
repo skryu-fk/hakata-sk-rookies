@@ -17,7 +17,10 @@ export function proxy(request: NextRequest) {
     return maintenanceResponse();
   }
 
-  return NextResponse.next({ request });
+  // ヘッダを書き換えないので request は渡さない。渡すと Next が受け取った
+  // ヘッダ全部を x-middleware-request-* として再送出し、
+  // x-middleware-override-headers で一覧を上書きするため、無駄に大きくなる。
+  return NextResponse.next();
 }
 
 export const config = {
