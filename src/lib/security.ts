@@ -219,3 +219,25 @@ export function crossOriginDenied(): Response {
     { status: 403 },
   );
 }
+
+/**
+ * セッションの残り時間（秒）。無効なら null。
+ *
+ * 「使っている間は切れない」ようにするために使う。残りが少なくなったら
+ * 発行し直すことで、作業中に突然ログアウトされるのを防ぐ。
+ * 一方、使われなくなればそのまま期限切れになるので、放置した端末に
+ * いつまでもログインが残ることはない。
+ */
+export function sessionRemaining(
+  token: string | undefined | null,
+  role: SessionRole,
+): number | null {
+  if (!verifySession(token, role)) return null;
+  try {
+    const payload = token!.slice(0, token!.indexOf("."));
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return Math.max(0, data.exp - Math.floor(Date.now() / 1000));
+  } catch {
+    return null;
+  }
+}

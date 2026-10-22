@@ -5,7 +5,9 @@
  *
  * 総当たり対策として IP 単位のレート制限＋ロックアウトを行う。
  */
-import { safeEqual, issueSession, verifySession, readCookie, buildSetCookie, ADMIN_COOKIE } from "@/lib/security";
+import {
+  safeEqual, issueSession, sessionRemaining, readCookie, buildSetCookie, ADMIN_COOKIE,
+} from "@/lib/security";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -13,11 +15,26 @@ export const dynamic = "force-dynamic";
 
 const TTL = 60 * 60 * 12; // 12時間（管理者は短め）
 
+/**
+ * GET — いまのログインが有効かを返す。
+ *
+ * 残りが半分を切っていたら、その場で発行し直す（使っている間は切れない）。
+ * 管理画面は開いたときとこまめに、この窓口を叩いている。
+ * 使われなくなればそのまま期限切れになるので、放置した端末に
+ * いつまでもログインが残ることはない。
+ */
 export async function GET(request: Request) {
-  if (verifySession(readCookie(request.headers, ADMIN_COOKIE), "admin")) {
-    return Response.json({ ok: true });
+  const left = sessionRemaining(readCookie(request.headers, ADMIN_COOKIE), "admin");
+  if (left === null) return Response.json({ ok: false }, { status: 401 });
+
+  if (left < TTL / 2) {
+    const token = issueSession("admin", TTL);
+    return Response.json(
+      { ok: true, renewed: true },
+      { headers: { "Set-Cookie": buildSetCookie(ADMIN_COOKIE, token, TTL) } },
+    );
   }
-  return Response.json({ ok: false }, { status: 401 });
+  return Response.json({ ok: true });
 }
 
 export async function POST(request: Request) {

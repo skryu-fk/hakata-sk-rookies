@@ -399,13 +399,21 @@ export default function TeamAdminPage() {
     setAuthPw("");
   }
 
-  // すでにCookieが有効ならログイン画面を飛ばす（再読み込みのたびに打たせない）
+  // すでにCookieが有効ならログイン画面を飛ばす（再読み込みのたびに打たせない）。
+  //
+  // あわせて30分ごとに確認する。サーバー側は残りが半分を切っていたら
+  // その場で発行し直すので、画面を開いて作業している間は期限切れにならない。
+  // 閉じれば確認も止まるため、放置した端末のログインはそのまま期限切れになる。
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/verify", { method: "GET", cache: "no-store" })
-      .then(r => { if (!cancelled && r.ok) setVerifiedPw("cookie"); })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    const ping = () => {
+      fetch("/api/admin/verify", { method: "GET", cache: "no-store" })
+        .then(r => { if (!cancelled && r.ok) setVerifiedPw("cookie"); })
+        .catch(() => {});
+    };
+    ping();
+    const timer = setInterval(ping, 30 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
   if (!verifiedPw) {
