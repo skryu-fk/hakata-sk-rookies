@@ -13,7 +13,7 @@ import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TTL = 60 * 60 * 12; // 12時間（管理者は短め）
+const TTL = 60 * 60 * 24 * 7; // 7日間。開いている間は半分を切ったら発行し直す
 
 /**
  * GET — いまのログインが有効かを返す。

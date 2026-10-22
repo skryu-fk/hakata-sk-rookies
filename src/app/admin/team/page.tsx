@@ -363,6 +363,9 @@ export default function TeamAdminPage() {
   const [verifiedPw, setVerifiedPw] = useState("");  // 認証済みパスワード
   const [authError, setAuthError] = useState("");
   const [verifying, setVerifying] = useState(false);
+  // ログアウト済みの目印。遅れて返ってきた確認リクエストが
+  // 勝手にログイン状態へ戻してしまうのを防ぐ。
+  const signedOut = useRef(false);
 
   async function verify() {
     setVerifying(true);
@@ -375,6 +378,7 @@ export default function TeamAdminPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data?.ok) {
+        signedOut.current = false;
         setVerifiedPw(authPw);
         setAuthPw("");
       } else {
@@ -387,17 +391,20 @@ export default function TeamAdminPage() {
     }
   }
 
-  async function logout() {
+  const logout = useCallback(async () => {
+    // 先に画面を閉じる。サーバーの応答を待ってから閉じると、その間に
+    // 走っている読み込みがさらに 401 を拾ってしまう。
+    signedOut.current = true;
+    setVerifiedPw("");
+    setAuthPw("");
     // 画面の状態を消すだけだと、ブラウザに残った管理者Cookieで入り直せてしまう。
     // サーバー側でもCookieを無効にする。
     try {
       await fetch("/api/admin/logout", { method: "POST" });
     } catch {
-      // 通信に失敗しても、少なくとも画面は閉じる
+      // 通信に失敗しても、少なくとも画面は閉じている
     }
-    setVerifiedPw("");
-    setAuthPw("");
-  }
+  }, []);
 
   // すでにCookieが有効ならログイン画面を飛ばす（再読み込みのたびに打たせない）。
   //
@@ -407,8 +414,9 @@ export default function TeamAdminPage() {
   useEffect(() => {
     let cancelled = false;
     const ping = () => {
+      if (signedOut.current) return;  // ログアウト後は確認しない
       fetch("/api/admin/verify", { method: "GET", cache: "no-store" })
-        .then(r => { if (!cancelled && r.ok) setVerifiedPw("cookie"); })
+        .then(r => { if (!cancelled && !signedOut.current && r.ok) setVerifiedPw("cookie"); })
         .catch(() => {});
     };
     ping();
@@ -566,6 +574,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   // list 系（読み取り）は loading flag のみ、append/update/delete（書き込み）は saving を立てる。
   // 連続して呼ばれる可能性があるので Symbol で参照カウントせず、各呼び出しの try/finally で確実に下げる。
   const writingCount = useRef(0);
+  // 期限切れを知らせたかどうか。画面を開いた直後は読み込みが何本も同時に走るため、
+  // 全部が 401 を拾うと同じトーストが何度も出てログイン画面との往復になる。
+  const expiredNotified = useRef(false);
   const api = useCallback(async <T,>(path: string, body: Record<string, unknown>, opts?: { silent?: boolean }): Promise<T | null> => {
     // 読み取り（list / verify / アカウント一覧）は saving 扱いにしない。
     // ※ ここを書き込み扱いにすると、ページを開くたびに保存ローダーが回り
@@ -589,8 +600,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       if (res.status === 401) {
         // セッション切れ。黙って失敗させるとボタンが効かないだけに見えるので、
         // はっきり伝えてログイン画面に戻す。
-        showToast(false, data?.error ?? "ログインの有効期限が切れました。");
-        onLogout();
+        // 並行して走っている他の読み込みも同じ 401 を受けるので、知らせるのは最初の1本だけ。
+        if (!expiredNotified.current) {
+          expiredNotified.current = true;
+          showToast(false, data?.error ?? "ログインの有効期限が切れました。");
+          onLogout();
+        }
         return null;
       }
       if (!res.ok || !data?.ok) {
