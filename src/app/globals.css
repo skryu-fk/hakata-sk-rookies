@@ -241,6 +241,14 @@ img { -webkit-user-drag: none; user-select: none; }
               transform 0.7s cubic-bezier(0.2,0.8,0.2,1);
 }
 .reveal-right.visible { opacity: 1; transform: none; }
+/* 横からのスライドは、狭い画面だと要素が画面幅を超えて右にはみ出し、
+   ページ全体が横に動いてしまう（お問い合わせフォームで発生）。
+   body は clip しているが iOS Safari はこれを取りこぼす。html には
+   掛けられない（上のコメント参照）ので、はみ出す原因のほうをなくす。
+   スマホでは縦に出す動きへ差し替える。 */
+@media (max-width: 767px) {
+  .reveal-left, .reveal-right { transform: translateY(40px); }
+}
 
 /* 拡大しながら現れるバリエーション（.reveal と併用ではなく単独で使う） */
 .reveal-scale {
@@ -375,6 +383,25 @@ img { -webkit-user-drag: none; user-select: none; }
   flex-shrink: 0;
 }
 .nav-link-cta:hover { background: var(--red-2); }
+/* 320px 級の狭い端末では、このボタンと三本線だけでヘッダーが 375px を
+   必要としてしまい、ページが横にずれる。文字は折らない方針のままで、
+   余白と文字を詰めて収める。 */
+@media (max-width: 374px) {
+  .nav-link-cta { padding: 0 12px; font-size: 11px; letter-spacing: 0.02em; }
+}
+
+/* ヘッダーのロゴは flex-shrink-0 で縮まないため、狭い端末ではロゴと
+   右側のボタンだけで 376px 必要になり、ページが横にずれていた。
+   幅は page.tsx のインラインスタイルで指定されているので !important で上書きする。 */
+@media (max-width: 767px) {
+  .logo-pop { padding-right: 10px !important; gap: 8px !important; }
+  .logo-pop > img { width: 36px !important; }
+  .logo-pop div img { width: clamp(104px, 30vw, 160px) !important; }
+}
+/* 320px 級ではワードマークだけにする（同じ内容なので意味は失われない） */
+@media (max-width: 359px) {
+  .logo-pop > img { display: none; }
+}
 
 /* ── About card hover ─────────────────────────────────── */
 .about-card {
