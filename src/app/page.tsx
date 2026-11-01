@@ -14,6 +14,7 @@ import {
   MANAGER_OPEN,
   MANAGER_ROLES,
   RECRUIT_OPEN,
+  RECRUIT_NO_REPLY,
   RECRUIT_SUMMARY_LINE,
 } from "@/data/recruit";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
@@ -1205,6 +1206,9 @@ function ContactSection() {
               <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #5b6373", padding: "16px 20px", color: "#3a3f4a" }}>
                 <p className="font-bold text-navy mb-1">選手（プレイヤー）の募集は休止中です</p>
                 入団・見学・体験参加のお受付はできません。再開を知りたい方は、<a href="#recruit" className="text-red font-bold">選手の募集状況</a>をご覧ください。
+                {/* 休止中もご連絡が途切れず、返事ができていない。フォームのすぐ横にも書く */}
+                <p className="font-bold text-navy mt-3 mb-1">選手の応募に関するお問い合わせには、お返事ができません</p>
+                {RECRUIT_NO_REPLY}
               </div>
             )}
             <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
@@ -1221,7 +1225,10 @@ function ContactSection() {
                 ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
                 ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
               ] : []),
-              ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>, "返信が遅い場合はDMください。"]
+              ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>,
+                RECRUIT_OPEN
+                  ? "返信が遅い場合はDMください。"
+                  : "返信が遅い場合はDMください。※ 選手の応募に関するお問い合わせには、お返事ができません。"]
             ].map(([eyebrow, content, sub]) => (
               <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.4em", marginBottom: 10 }}>{eyebrow}</p>

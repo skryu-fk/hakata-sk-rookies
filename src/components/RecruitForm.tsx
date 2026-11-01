@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MANAGER_OPEN, RECRUIT_OPEN, RECRUIT_PAUSE_RESUME } from "@/data/recruit";
+import { MANAGER_OPEN, RECRUIT_NO_REPLY, RECRUIT_OPEN, RECRUIT_PAUSE_RESUME } from "@/data/recruit";
 
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "";
 const ENDPOINT = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : "";
@@ -178,12 +178,21 @@ export default function RecruitForm() {
           </div>
         )}
         {/* 休止中に「選手として応募」を選んだ人には、送る前にはっきり伝える。
-            そのうえで、再開のご案内希望としては受け取れるようにしておく。 */}
+            返事を待たせてしまうので、返信できないことを先に書く。 */}
         {!RECRUIT_OPEN && isMember && (
-          <div style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.72)" }}>
-            <p style={{ fontWeight: 700, color: "#fff", marginBottom: 4 }}>現在、選手（プレイヤー）の募集は休止しています</p>
-            {RECRUIT_PAUSE_RESUME}このままお送りいただいた場合は「再開時のご案内希望」として承ります。
-            {MANAGER_OPEN && "なお、マネージャーは募集中です。上の「ご相談内容」から選べます。"}
+          <div style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024", padding: "16px 20px", fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.72)" }}>
+            <p style={{ fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+              選手の応募についてのお問い合わせには、お返事ができません
+            </p>
+            {RECRUIT_NO_REPLY}
+            <p style={{ marginTop: 10 }}>
+              {RECRUIT_PAUSE_RESUME}
+            </p>
+            {MANAGER_OPEN && (
+              <p style={{ marginTop: 10, color: "#fff" }}>
+                マネージャーは募集中で、こちらにはお返事しています。上の「ご相談内容」から選べます。
+              </p>
+            )}
           </div>
         )}
         {isSponsor && (
@@ -236,7 +245,13 @@ export default function RecruitForm() {
           </div>
         )}
         <FSubmit disabled={status === "submitting"}>{status === "submitting" ? "送信中…" : "送信する →"}</FSubmit>
-        <p style={{ fontSize: 12, color: "#aaa", textAlign: "center" }}>送信内容はチーム代表者のみが確認します。3日以内に返信します。</p>
+        {/* 返信できない相談内容のときに「3日以内に返信します」と出すと嘘になる */}
+        <p style={{ fontSize: 12, color: "#aaa", textAlign: "center" }}>
+          送信内容はチーム代表者のみが確認します。
+          {!RECRUIT_OPEN && isMember
+            ? "選手の応募に関するお問い合わせには、お返事ができません。"
+            : "3日以内に返信します。"}
+        </p>
       </div>
     </form>
   );

@@ -16,6 +16,7 @@ import Link from "next/link";
 import {
   MANAGER_OPEN,
   RECRUIT_OPEN,
+  RECRUIT_NO_REPLY,
   RECRUIT_PAUSED_SINCE,
   RECRUIT_PAUSE_PENDING,
   RECRUIT_PAUSE_REASON,
@@ -113,8 +114,16 @@ export function RecruitStatusBar() {
                 {RECRUIT_OPEN ? "募集中" : "休止中"}
               </span>
             </div>
-            <p style={{ fontSize: 13.5, lineHeight: 1.9, color: "rgba(255,255,255,0.55)", marginBottom: 14 }}>
+            <p style={{ fontSize: 13.5, lineHeight: 1.9, color: "rgba(255,255,255,0.55)", marginBottom: 12 }}>
               {RECRUIT_PAUSED_SINCE}より、受け入れ体制を整えるため新規選手の募集と体験参加の受付を休止しています。お申し込み済みの方はこれまでどおり対応します。
+            </p>
+            {/* 休止中もお問い合わせが途切れないため、返信できないことをここでも伝える */}
+            <p style={{ fontSize: 13, lineHeight: 1.9, color: "rgba(255,255,255,0.72)", borderLeft: "3px solid #d10024", paddingLeft: 14, marginBottom: 14 }}>
+              <strong style={{ color: "#fff", fontWeight: 700 }}>
+                選手の応募についてのお問い合わせには、お返事ができません。
+              </strong>
+              <br />
+              {RECRUIT_NO_REPLY}
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               <a href="#recruit" className="hover:text-white transition-colors" style={{ display: "inline-flex", alignItems: "center", color: "rgba(255,255,255,0.6)", textDecoration: "none", fontSize: 13, fontWeight: 700 }}>
@@ -149,6 +158,7 @@ export function RecruitStatusPanel() {
             {[
               ["休止している期間", `${RECRUIT_PAUSED_SINCE} 〜 当面の間`],
               ["理由", RECRUIT_PAUSE_REASON],
+              ["お問い合わせへのお返事", RECRUIT_NO_REPLY],
               ["お申し込み済みの方", RECRUIT_PAUSE_PENDING],
               ["再開について", RECRUIT_PAUSE_RESUME],
             ].map(([label, text]) => (

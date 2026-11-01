@@ -4,10 +4,7 @@ import { useState } from "react";
 import {
   MANAGER_OPEN,
   RECRUIT_OPEN,
-  RECRUIT_PAUSED_SINCE,
-  RECRUIT_PAUSE_PENDING,
-  RECRUIT_PAUSE_REASON,
-  RECRUIT_PAUSE_RESUME,
+  RECRUIT_PAUSE_FAQ_ANSWER,
 } from "@/data/recruit";
 
 const X_URL = "https://x.com/SK_rookies_FK";
@@ -35,7 +32,7 @@ const MANAGER_FAQS = [
 /** 選手の募集を休止している間だけ、FAQに出す項目 */
 const PAUSE_FAQ = {
   q: "いま選手（プレイヤー）として応募できますか？",
-  a: `できません。${RECRUIT_PAUSED_SINCE}より、${RECRUIT_PAUSE_REASON}${RECRUIT_PAUSE_PENDING}${RECRUIT_PAUSE_RESUME}なお、マネージャーのご応募・練習試合のご相談・スポンサー・道具のご支援・チームへのご質問は、休止中も受け付けています。`,
+  a: RECRUIT_PAUSE_FAQ_ANSWER,
 };
 
 const faqs = [
