@@ -6,6 +6,7 @@ import ScrollReveal from "@/components/ScrollReveal";
 import RecruitForm  from "@/components/RecruitForm";
 import MobileMenu    from "@/components/MobileMenu";
 import PracticeCalendar from "@/components/PracticeCalendar";
+import ActivityTable from "@/components/ActivityTable";
 import { RecruitStatusBar, RecruitStatusPanel } from "@/components/RecruitStatus";
 import LeagueSection from "@/components/LeagueSection";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@/data/recruit";
 import { getNews, CATEGORY_STYLES, type NewsItem } from "@/data/news";
 import { SPONSORS } from "@/data/sponsors";
-import { getBlogs, type BlogPost } from "@/data/blog";
 import { getGames, record, type Game } from "@/data/games";
 import { getMemberCount } from "@/data/members";
 import Scoreboard from "@/components/Scoreboard";
@@ -135,8 +135,10 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
-          {/* いま募集しているものをナビに出す。選手を休止中はマネージャー募集を載せる */}
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["#sponsors","スポンサー"],["#faq","FAQ"]] as [string,string][]).map(([href,label]) => (
+          {/* 7項目まで。ユニフォーム・スポンサー・ブログ・目標は
+              メニュー（MobileMenu）とフッターから行ける。
+              いま募集しているものだけをナビに出す。 */}
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#activity","活動概要"],["#app","公式アプリ"],["#league","リーグ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["/faq","よくある質問"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -160,8 +162,8 @@ function Header() {
 
 /* ── NewsSection ──────────────────────────────────────── */
 function NewsSection({ news }: { news: NewsItem[] }) {
-  // ホームでは直近6件のみ表示。それ以上は /news の一覧ページに誘導。
-  const HOME_LIMIT = 6;
+  // ホームでは直近4件のみ表示。それ以上は /news の一覧ページに誘導。
+  const HOME_LIMIT = 4;
   const shown = news.slice(0, HOME_LIMIT);
   const hasMore = news.length > HOME_LIMIT;
 
@@ -212,41 +214,6 @@ function NewsSection({ news }: { news: NewsItem[] }) {
             </Link>
           </div>
         )}
-      </div>
-    </section>
-  );
-}
-
-/* ── BlogPreview ──────────────────────────────────────── */
-function BlogPreview({ posts }: { posts: BlogPost[] }) {
-  const latest = posts.slice(0, 3);
-  if (latest.length === 0) return null;
-  return (
-    <section id="blog" className="bg-base border-b border-line">
-      <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
-        <SectionTitle jp="ブログ・コラム" en="Blog" />
-        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
-          チームの考え方、福岡市で草野球を始めたい方向けのお役立ち情報、活動報告など。
-        </p>
-        <div className="grid gap-5 grid-cols-1 md:grid-cols-3">
-          {latest.map((p, i) => (
-            <Link key={p.slug} href={`/blog/${p.slug}`} className="reveal block bg-white border border-line-2 hover:border-red hover:-translate-y-1 hover:shadow-lg transition-all" data-delay={String(i * 120)}
-              style={{ textDecoration: "none", padding: "26px 24px", display: "flex", flexDirection: "column", gap: 12, minHeight: 220 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: "#0b1e3f", letterSpacing: "0.08em" }}>{p.date}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", background: "#d10024", color: "#fff", padding: "3px 9px" }}>{p.category}</span>
-              </div>
-              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#0b1e3f", lineHeight: 1.45 }}>{p.title}</h3>
-              <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.85, flex: 1 }}>{p.excerpt}</p>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#d10024", letterSpacing: "0.08em" }}>続きを読む →</span>
-            </Link>
-          ))}
-        </div>
-        <div className="reveal mt-10 text-center">
-          <Link href="/blog" className="hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0b1e3f", color: "#fff", padding: "12px 28px", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.1em" }}>
-            すべての記事を見る →
-          </Link>
-        </div>
       </div>
     </section>
   );
@@ -535,7 +502,7 @@ const STORIES = [
 
 function AboutSection() {
   return (
-    <section id="about" className="bg-white border-b border-line-2">
+    <section id="about" className="bg-base border-b border-line">
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="チーム紹介" en="About" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
@@ -660,84 +627,68 @@ function AppSection() {
   );
 }
 
-/* ── VisionSection（目標・リーグ構想） ────────────────────── */
-const VISIONS = [
-  { no: "01", icon: "🏟", eyebrow: "GOAL — DREAM STAGE", title: "みずほPayPayドーム福岡で試合する", body: "福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。" },
-  { no: "02", icon: "🏆", eyebrow: "LEAGUE — 2026.11 設立", title: "博多ルーキーリーグを創設", body: "立ち上げたばかりのチームが練習試合でしか実戦を積めない——その状況を変えるため、設立間もないチームと初心者のためのリーグを自分たちで作ります。2026年11月に設立し、2027年2月からプレリーグを開催。加盟チームを募集中です。他のリーグに所属していても加盟できます。" },
-];
-
+/* ── VisionSection（目標） ───────────────────────────── */
+/**
+ * 目標はふたつ。ドームでの試合と、自分たちのリーグ。
+ * リーグのほうは、このすぐ下の LeagueSection がまるごと説明しているので、
+ * ここでは一行だけ触れて橋渡しをする（以前は両方をカードで書いていて、
+ * 同じ話を2セクション続けて読まされる形になっていた）。
+ *
+ * 練習試合の対戦相手募集も以前はここに置いていたが、
+ * スケジュールのセクションに同じ内容があったので、そちらに一本化した。
+ */
 function VisionSection() {
   return (
     <section id="vision" className="bg-white border-b border-line-2 relative overflow-hidden">
-      <div style={{ position: "absolute", right: -50, top: -40, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 360, lineHeight: 1, color: "rgba(11,30,63,0.03)", userSelect: "none", pointerEvents: "none" }}>V</div>
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24 relative">
         <SectionTitle jp="私たちの目標" en="Vision" />
-        <p className="reveal text-[#5b6373] mb-10 text-[15px] leading-[1.9] max-w-xl" style={{ marginTop: -28 }}>
-          立ち上げたばかりのチームだからこそ、大きな夢を本気で追いかけます。
-        </p>
-        <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
-          {VISIONS.map((v, i) => (
-            <div key={v.no} className="about-card reveal" data-delay={String(i * 130)}
-              style={{ padding: "36px 30px", background: "#f9f6f2", border: "1px solid #e4e0d8", borderTop: "4px solid #d10024", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", right: 12, top: 6, fontFamily: "var(--font-oswald),sans-serif", fontSize: 88, fontWeight: 700, color: "rgba(11,30,63,0.05)", lineHeight: 1, userSelect: "none" }}>{v.no}</div>
-              <div style={{ fontSize: 34, marginBottom: 14, lineHeight: 1 }}>{v.icon}</div>
-              <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10.5, color: "#d10024", letterSpacing: "0.3em", marginBottom: 10, fontWeight: 700 }}>{v.eyebrow}</p>
-              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(18px,2.4vw,23px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 14, lineHeight: 1.35 }}>{v.title}</h3>
-              <p style={{ fontSize: 14, color: "rgba(19,25,34,0.7)", lineHeight: 1.95 }}>{v.body}</p>
-            </div>
-          ))}
-        </div>
-        {/* 練習試合の対戦相手募集 + 連絡方法 */}
-        <div className="reveal" style={{ marginTop: 22, background: "#0b1e3f", padding: "28px 30px" }}>
-          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.35em", marginBottom: 8 }}>OPPONENTS WANTED</p>
-          <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,20px)", fontWeight: 900, color: "#fff", lineHeight: 1.5, marginBottom: 10 }}>
-            <span style={{ color: "#d4a82a" }}>練習試合の対戦相手</span>を募集中です。
-          </p>
-          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.95, marginBottom: 20, maxWidth: 720 }}>
-            日程などのご相談は、公式X（<a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ color: "#d4a82a", textDecoration: "underline" }}>@SK_rookies_FK</a>）のDM、または公式サイトの<a href="#contact" style={{ color: "#d4a82a", textDecoration: "underline" }}>お問い合わせフォーム</a>（種別「<strong style={{ color: "#fff" }}>練習試合・リーグのご相談</strong>」）からお気軽にどうぞ。リーグの詳細についても、そちらで承ります。
-          </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a href={X_URL} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.25)" }}>
-              <XIcon size={13} /> XのDMで相談 →
-            </a>
-            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
-              お問い合わせフォーム →
-            </a>
+        <div className="reveal grid grid-cols-1 md:[grid-template-columns:1fr_320px] items-stretch" style={{ background: "#f9f6f2", border: "1px solid #e4e0d8", borderTop: "4px solid #d10024" }}>
+          <div style={{ padding: "36px 32px" }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10.5, color: "#d10024", letterSpacing: "0.3em", marginBottom: 10, fontWeight: 700 }}>
+              GOAL — DREAM STAGE
+            </p>
+            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.8vw,30px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 14, lineHeight: 1.35 }}>
+              みずほPayPayドーム福岡で<br className="hidden md:block" />試合する。
+            </h3>
+            <p style={{ fontSize: 14.5, color: "rgba(19,25,34,0.72)", lineHeight: 1.95 }}>
+              福岡のシンボル、みずほPayPayドーム福岡のグラウンドに立つ——それが博多SKルーキーズの大きな目標です。今はまだ立ち上がったばかりの小さなチームですが、本気でその舞台を目指して、一歩ずつ積み上げていきます。
+            </p>
           </div>
+          {/* リーグの話は、すぐ下のセクションにまるごとある */}
+          <a href="#league" className="hover:bg-[#122a53] transition-colors" style={{ background: "#0b1e3f", padding: "32px 28px", textDecoration: "none", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d4a82a", letterSpacing: "0.3em", marginBottom: 10, fontWeight: 700 }}>
+              GOAL 02 — LEAGUE
+            </p>
+            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: "#fff", lineHeight: 1.45, marginBottom: 10 }}>
+              もうひとつは、<br />自分たちでリーグを作ること。
+            </p>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.85, marginBottom: 14 }}>
+              設立間もないチームと初心者のためのリーグを、2026年11月に立ち上げます。
+            </p>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#d4a82a" }}>くわしく、すぐ下に →</span>
+          </a>
         </div>
       </div>
     </section>
   );
 }
 
-/* ── ActivitySection ──────────────────────────────────── */
-const ACTIVITY = [
-  { label: "活動エリア", main: "福岡市内のグラウンド",      sub: "市内および近郊の野球場・河川敷を中心に活動予定。" },
-  { label: "主な活動球場", main: "舞鶴公園 / 山王公園 / 東平尾公園（ベスト電器スタジアム）", sub: "中央区の舞鶴公園野球場、博多区の山王公園野球場、そして博多区の東平尾公園 ベスト電器スタジアム野球場をメインに、市内の各グラウンドで活動します。空き状況に応じて他球場も使用します。" },
-  { label: "活動頻度",   main: "週 1〜2回 ＋ 月 3〜4回",    sub: "公園でのキャッチボール練習が週1〜2回、野球場を借りてのノック・バッティング練習が月3〜4回。平日夜・週末どちらも活動あり。参加は出れる時だけでOK。" },
-  { label: "練習内容",   main: "基礎練習 + 試合形式",       sub: "キャッチボール・打撃・走塁の基本から、紅白戦・他チームとの練習試合まで。" },
-  { label: "費用",       main: "入会費 ¥2,000 + 月額 ¥500（8月〜¥1,000）", sub: "新規入団者は入会費2,000円（5月15日以降）＋スポーツ保険料2,000円／年（6月15日以降全員必須）＋月会費500円（2026年8月分より1,000円に改定 ※既存メンバーの適用時期はお知らせ参照）＋グラウンド代（2時間600円／4時間700円・中高生は一律500円・試合は+100円）。詳細はお知らせをご覧ください。" },
-  { label: "装備",       main: "グローブ持参推奨",           sub: "チーム共通の防具はまだ揃っていません。可能な範囲でグローブだけでもご用意ください。バット・ボールはチーム側で準備します。" },
-];
-
+/* ── ActivitySection ─────────────────────────────────── */
+/**
+ * ホームには活動エリア・頻度・費用の3行だけを出す。
+ * 球場・練習内容・装備を含めた全文は /activity にある。
+ */
 function ActivitySection() {
   return (
-    <section id="activity" className="bg-base border-b border-line">
+    <section id="activity" className="bg-white border-b border-line-2">
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         <SectionTitle jp="活動概要" en="Activity" />
-        <div style={{ border: "1px solid #e0dcd4", overflow: "hidden" }}>
-          {ACTIVITY.map((row, i) => (
-            <div key={row.label} className="activity-row reveal grid grid-cols-1 md:[grid-template-columns:220px_1fr]" data-delay={String(i * 80)}
-              style={{ borderBottom: i < ACTIVITY.length - 1 ? "1px solid #e0dcd4" : "none" }}>
-              <div className="activity-label flex items-center px-5 md:px-7 py-4 md:py-6" style={{ background: "#0b1e3f", borderLeft: "4px solid #d10024" }}>
-                <span style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 700, fontSize: 15, color: "#fff", letterSpacing: "0.06em" }}>{row.label}</span>
-              </div>
-              <div className="activity-body px-5 md:px-8 py-5 md:py-6" style={{ background: "#fefcfa" }}>
-                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(16px,2vw,22px)", fontWeight: 900, color: "#0b1e3f", marginBottom: 6 }}>{row.main}</p>
-                <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>{row.sub}</p>
-              </div>
-            </div>
-          ))}
+        <ActivityTable />
+        <div className="reveal" style={{ marginTop: 22 }}>
+          <Link href="/activity" className="hover:bg-navy hover:text-white transition-colors"
+            style={{ display: "inline-flex", alignItems: "center", padding: "13px 28px", border: "1px solid #0b1e3f", color: "#0b1e3f", textDecoration: "none", fontSize: 13.5, fontWeight: 700, letterSpacing: "0.08em" }}>
+            活動球場・練習内容・必要な道具もすべて見る →
+          </Link>
         </div>
       </div>
     </section>
@@ -860,18 +811,18 @@ function ManagerSection() {
               マネージャーは<strong style={{ color: "#ffd45e" }}>完全ボランティア</strong>です。
               選手と違い、球場代もいただきません。お金の負担はゼロで参加できます。
             </p>
-            <div style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
+            {/* 3つとも0円なので、1行ずつ表にするより横に並べたほうが伝わる */}
+            <div className="grid grid-cols-3" style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
               {MANAGER_COST.map((c, i) => (
-                <div key={c.label} className="grid grid-cols-1 sm:[grid-template-columns:120px_1fr]"
-                  style={{ borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.09)", padding: "18px 22px", gap: 6 }}>
-                  <p style={{ fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", paddingTop: 3 }}>{c.label}</p>
-                  <div>
-                    <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 19, fontWeight: 900, color: "#ffd45e", marginBottom: 4 }}>{c.value}</p>
-                    <p style={{ fontSize: 12.5, lineHeight: 1.8, color: "rgba(255,255,255,0.55)" }}>{c.note}</p>
-                  </div>
+                <div key={c.label} style={{ borderLeft: i === 0 ? "none" : "1px solid rgba(255,255,255,0.09)", padding: "18px 16px", textAlign: "center" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", marginBottom: 6 }}>{c.label}</p>
+                  <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,3vw,26px)", fontWeight: 900, color: "#ffd45e" }}>{c.value}</p>
                 </div>
               ))}
             </div>
+            <p style={{ fontSize: 12.5, lineHeight: 1.85, color: "rgba(255,255,255,0.5)", marginTop: 10 }}>
+              選手は入会費2,000円・月会費・球場代をご負担いただいていますが、マネージャーはいずれも免除です。
+            </p>
           </div>
 
           <div className="reveal" style={{ background: "rgba(212,168,42,0.09)", border: "1px solid rgba(212,168,42,0.45)", padding: "32px 28px" }}>
@@ -918,54 +869,53 @@ const TARGETS = [
   "学生も社会人も、ブランクある人もOK",
 ];
 
+/**
+ * 選手の募集。
+ *
+ * 休止中は RecruitStatusPanel（状況・理由・返信について・再開の案内）だけを出す。
+ * 以前は休止中も「再開したらこんな人を待っています」と TARGETS を6行並べていたが、
+ * いま応募できない人に読ませる内容ではないうえ、ページが長くなるだけだった。
+ */
 function RecruitSection() {
   return (
     <section id="recruit" className="bg-white border-b border-line-2 relative overflow-hidden">
-      <div style={{ position: "absolute", left: -40, bottom: -60, fontFamily: "var(--font-oswald),sans-serif", fontWeight: 700, fontSize: 500, lineHeight: 1, color: "rgba(11,30,63,0.025)", userSelect: "none", pointerEvents: "none" }}>R</div>
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-14 md:py-24">
         {/* マネージャー募集と区別がつくよう、ここは「選手の募集」と呼ぶ */}
         <SectionTitle jp={RECRUIT_OPEN ? "メンバー募集" : "選手の募集"} en="Recruit" />
-        {/* 休止中は、セクションの先頭に状況・理由・再開の案内をはっきり置く */}
         {!RECRUIT_OPEN && <RecruitStatusPanel />}
-        <div className={`grid gap-10 md:gap-12 items-start grid-cols-1 ${RECRUIT_OPEN ? "md:[grid-template-columns:1fr_380px]" : ""}`}>
-          <div>
-            <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>
-              {RECRUIT_OPEN ? "こんな人を、待っています。" : "募集を再開したら、こんな人を待っています。"}
-            </p>
-            {!RECRUIT_OPEN && (
-              <p className="reveal mb-6" style={{ fontSize: 13.5, lineHeight: 1.95, color: "#5b6373", marginTop: -14, maxWidth: 620 }}>
-                いまは新しいお受付ができませんが、チームが目指している姿は変わりません。再開したときに、ぜひ声をかけたいのはこんな方です。
-              </p>
-            )}
+        {RECRUIT_OPEN && (
+          <div className="grid gap-10 md:gap-12 items-start grid-cols-1 md:[grid-template-columns:1fr_380px]">
             <div>
-              {TARGETS.map((item, i) => (
-                <div key={item} className="recruit-row reveal flex items-center gap-5 py-4 px-2 border-b border-line-2" data-delay={String(i * 80)}>
-                  <span className="recruit-num font-display font-bold transition-colors" style={{ fontSize: 24, color: "rgba(11,30,63,0.18)", width: 40, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span className="font-bold text-ink text-[15px] leading-snug flex-1">{item}</span>
-                  <span className="recruit-arrow text-red text-lg opacity-0 transition-opacity">→</span>
-                </div>
-              ))}
+              <p className="reveal font-black text-navy mb-6" style={{ fontSize: 19 }}>
+                こんな人を、待っています。
+              </p>
+              <div>
+                {TARGETS.map((item, i) => (
+                  <div key={item} className="recruit-row reveal flex items-center gap-5 py-4 px-2 border-b border-line-2" data-delay={String(i * 80)}>
+                    <span className="recruit-num font-display font-bold transition-colors" style={{ fontSize: 24, color: "rgba(11,30,63,0.18)", width: 40, flexShrink: 0 }}>{String(i + 1).padStart(2, "0")}</span>
+                    <span className="font-bold text-ink text-[15px] leading-snug flex-1">{item}</span>
+                    <span className="recruit-arrow text-red text-lg opacity-0 transition-opacity">→</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="reveal sticky" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "36px 32px", top: 100 }}>
+              <p style={S.eyebrow}>APPLY NOW</p>
+              <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.5vw,26px)", fontWeight: 900, color: "#0b1e3f", lineHeight: 1.3, marginBottom: 28, marginTop: 8 }}>応募はかんたん<br />3ステップ。</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
+                {[["1","フォームから連絡","下のフォーム or X DM で応募ください。"],["2","代表から返信","3日以内に詳細をお返しします。"],["3","グラウンドへ","次回の活動に参加してみてください！"]].map(([n,t,d]) => (
+                  <div key={n} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    <div style={{ width: 34, height: 34, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, flexShrink: 0 }}>{n}</div>
+                    <div><p style={{ fontWeight: 700, color: "#0b1e3f", fontSize: 14, marginBottom: 2 }}>{t}</p><p style={{ fontSize: 13, color: "#5b6373" }}>{d}</p></div>
+                  </div>
+                ))}
+              </div>
+              <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em" }}>
+                応募フォームへ →
+              </a>
             </div>
           </div>
-          {/* 応募の案内は、募集を受け付けているときだけ出す */}
-          {RECRUIT_OPEN && (
-          <div className="reveal sticky" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "36px 32px", top: 100 }}>
-            <p style={S.eyebrow}>APPLY NOW</p>
-            <h3 style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: "clamp(20px,2.5vw,26px)", fontWeight: 900, color: "#0b1e3f", lineHeight: 1.3, marginBottom: 28, marginTop: 8 }}>応募はかんたん<br />3ステップ。</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 32 }}>
-              {[["1","フォームから連絡","下のフォーム or X DM で応募ください。"],["2","代表から返信","3日以内に詳細をお返しします。"],["3","グラウンドへ","次回の活動に参加してみてください！"]].map(([n,t,d]) => (
-                <div key={n} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <div style={{ width: 34, height: 34, background: "#0b1e3f", color: "#fff", display: "grid", placeItems: "center", fontFamily: "var(--font-oswald),sans-serif", fontSize: 17, flexShrink: 0 }}>{n}</div>
-                  <div><p style={{ fontWeight: 700, color: "#0b1e3f", fontSize: 14, marginBottom: 2 }}>{t}</p><p style={{ fontSize: 13, color: "#5b6373" }}>{d}</p></div>
-                </div>
-              ))}
-            </div>
-            <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "flex", justifyContent: "center", padding: "14px 28px", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700, letterSpacing: "0.1em" }}>
-              応募フォームへ →
-            </a>
-          </div>
-          )}
-        </div>
+        )}
       </div>
     </section>
   );
@@ -1014,36 +964,35 @@ function SponsorsSection() {
         <SectionTitle jp="公式スポンサー" en="Sponsors" />
         <p className="reveal text-[#5b6373] mb-12 text-[15px] leading-[1.9] max-w-2xl" style={{ marginTop: -28 }}>
           博多SKルーキーズの活動を応援してくださっているパートナー様のご紹介です。各ブランド・店舗様、心より感謝申し上げます。
+          スポンサーのご相談は<Link href="/sponsor" className="text-red font-bold underline decoration-dotted underline-offset-4">スポンサー募集のページ</Link>をご覧ください。
         </p>
 
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className={`grid gap-6 grid-cols-1 ${SPONSORS.length === 1 ? "" : SPONSORS.length === 2 ? "md:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"}`}>
           {SPONSORS.map((s, i) => (
             <a
               key={s.key}
               href={s.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="sponsor-card reveal"
+              className={`sponsor-card reveal ${SPONSORS.length === 1 ? "md:[grid-template-columns:340px_1fr] md:grid" : "flex flex-col"}`}
               data-delay={String(i * 120)}
               style={{
                 background: "#fff",
                 border: "1px solid #e0dcd4",
                 textDecoration: "none",
                 color: "inherit",
-                display: "flex",
-                flexDirection: "column",
                 overflow: "hidden",
               }}
             >
               {/* ロゴ枠（白背景でロゴを大きく） */}
-              <div style={{
+              <div className={SPONSORS.length === 1 ? "border-b md:border-b-0 md:border-r" : "border-b"} style={{
                 position: "relative",
                 background: "#fff",
-                borderBottom: "1px solid #f0ece6",
-                padding: "44px 24px",
+                borderColor: "#f0ece6",
+                padding: "30px 24px",
                 display: "grid",
                 placeItems: "center",
-                minHeight: 220,
+                minHeight: 160,
               }}>
                 <Image
                   src={s.logo}
@@ -1158,29 +1107,19 @@ function SponsorsSection() {
           ))}
         </div>
 
-        {/* スポンサー募集の導線 */}
-        <div className="reveal mt-12" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "24px 28px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 240 }}>
-            <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.3em", marginBottom: 6 }}>
-              SPONSOR — BE THE NEXT PARTNER
-            </p>
-            <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 17, fontWeight: 900, color: "#0b1e3f", marginBottom: 4 }}>
-              スポンサーシップ募集中
-            </p>
-            <p style={{ fontSize: 13, color: "#5b6373", lineHeight: 1.8 }}>
-              年間 ¥10,000 〜。ユニフォームへのロゴ掲出、サイト・SNSでのご紹介、活動報告での感謝紹介など。
-            </p>
-          </div>
-          <a href="#contact" className="bg-red hover:bg-red-2 transition-colors" style={{ display: "inline-flex", alignItems: "center", padding: "12px 24px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, letterSpacing: "0.12em" }}>
-            お問い合わせ →
-          </a>
-        </div>
       </div>
     </section>
   );
 }
 
 /* ── ContactSection ───────────────────────────────────── */
+/**
+ * お問い合わせ。
+ *
+ * 以前はフォームの横に案内の箱が10個積まれていて、
+ * 募集状況の説明がページ上部の募集状況ボードと丸かぶりしていた。
+ * ここに残すのは「送る直前に知っておいてほしいこと」だけにする。
+ */
 function ContactSection() {
   return (
     <section id="contact" className="bg-white border-b border-line-2">
@@ -1189,34 +1128,30 @@ function ContactSection() {
         <div className="grid gap-10 items-start grid-cols-1 md:[grid-template-columns:300px_1fr]">
           <div>
             <p className="reveal text-[14px] leading-[1.9] mb-5" style={{ color: "#3a3f4a" }}>
-              {RECRUIT_OPEN ? (
-                <>下記フォームから、応募・質問・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
-              ) : (
-                <>下記フォームから、{MANAGER_OPEN && <><a href="#manager" className="text-red font-bold">マネージャーのご応募</a>・</>}質問・練習試合のご相談・<a href="#support" className="text-red font-bold">スポンサー</a>・<a href="#support" className="text-red font-bold">道具の支援</a>などを受け付けています。3日以内に返信します。</>
-              )}
+              {RECRUIT_OPEN ? "応募・ご質問" : "ご質問"}・練習試合やリーグのご相談・
+              <Link href="/sponsor" className="text-red font-bold">スポンサー</Link>・
+              <a href="#support" className="text-red font-bold">道具のご支援</a>
+              {MANAGER_OPEN && <>・<a href="#manager" className="text-red font-bold">マネージャーのご応募</a></>}
+              など、下のフォームから受け付けています。原則3日以内に代表が返信します。
+              女性の方も歓迎ですし、代表は19歳ですが年齢差はまったく気にしていません。お気軽にどうぞ。
             </p>
-            {/* いま応募できるもの／できないものを、フォームのすぐ横で並べて示す */}
-            {MANAGER_OPEN && (
-              <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#0b1e3f", borderLeft: "4px solid #d4a82a", padding: "16px 20px", color: "rgba(255,255,255,0.7)" }}>
-                <p className="font-bold mb-1" style={{ color: "#ffd45e" }}>マネージャーを募集しています</p>
-                撮影・イベント企画・選手データの管理をお願いする役割です。野球の経験は不要、完全ボランティアで費用は一切かかりません。<a href="#manager" style={{ color: "#ffd45e", fontWeight: 700 }}>くわしく →</a>
-              </div>
-            )}
+
+            {/* 送る前にいちばん伝えたいこと。募集状況そのものはページ上部のボードにある */}
             {!RECRUIT_OPEN && (
-              <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #5b6373", padding: "16px 20px", color: "#3a3f4a" }}>
-                <p className="font-bold text-navy mb-1">選手（プレイヤー）の募集は休止中です</p>
-                入団・見学・体験参加のお受付はできません。再開を知りたい方は、<a href="#recruit" className="text-red font-bold">選手の募集状況</a>をご覧ください。
-                {/* 休止中もご連絡が途切れず、返事ができていない。フォームのすぐ横にも書く */}
-                <p className="font-bold text-navy mt-3 mb-1">選手の応募に関するお問い合わせには、お返事ができません</p>
+              <div className="reveal mb-4 text-[13px] leading-[1.85]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
+                <p className="font-bold text-navy mb-1.5">選手の応募についてのお問い合わせには、お返事ができません</p>
                 {RECRUIT_NO_REPLY}
+                <p className="mt-2.5">
+                  入団・見学・体験参加のお受付も休止しています（
+                  <a href="#recruit" className="text-red font-bold">募集状況 →</a>）。
+                </p>
               </div>
             )}
-            <div className="reveal mb-4 text-[13px] leading-[1.8]" style={{ background: "#f5f2ec", borderLeft: "4px solid #d10024", padding: "16px 20px", color: "#3a3f4a" }}>
-              <p className="font-bold text-navy mb-1">お気軽にどうぞ</p>
-              女性はプレイヤーでもマネージャーでも歓迎。代表は19歳ですが年齢差はまったく気にしていません。
-            </div>
-            {[["X", <a key="x" href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>, "最新情報・活動報告はXで発信中。"],
-              ["INSTAGRAM", <a key="i" href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>, "練習・試合の様子をInstagramでも発信中。"],
+
+            {[["SNS", <div key="sns" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <a href={X_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><XIcon size={14}/> @SK_rookies_FK</a>
+                <a href={IG_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}><IGIcon size={15}/> @{IG_HANDLE}</a>
+              </div>, "最新情報・練習や試合の様子はX・Instagramで発信中。DMでのご相談もどうぞ。"],
               ["LINE GROUP", <a key="line" href={LINE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 font-bold transition-colors text-[15px]" style={{ textDecoration: "none", color: "#06c755" }}><LINEIcon size={20}/> 公式グループLINE（連絡網）→</a>, "メンバー専用の連絡網。入会時は必ず自己紹介（やりたいポジション・経験）をお願いします。"],
               ["POSTAL", <div key="p" className="font-bold text-navy text-[14px]" style={{ lineHeight: 1.7 }}><div>福岡・博多オフィス</div><div className="font-normal text-[13px] mt-0.5" style={{ color: "#3a3f4a" }}>〒812-0011<br/>福岡県福岡市博多区博多駅前<br/>1丁目23番2号<br/>ParkFront博多駅前1丁目 5F-B</div></div>, "郵便物・物品送付はこちらまで。"],
               // 外部の募集ページ（ジモティー・Labola）は、休止中は載せない。
@@ -1225,10 +1160,6 @@ function ContactSection() {
                 ["JIMOTY", <a key="j" href={JIMOTY_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>ジモティーの募集ページ →</a>, "地域コミュニティでも募集中。"],
                 ["LABOLA", <a key="l" href={LABOLA_URL} target="_blank" rel="noopener noreferrer" className="font-bold text-navy hover:text-red transition-colors text-[15px]" style={{ textDecoration: "none" }}>Labolaの募集ページ →</a>, "草野球マッチングサイトでも募集中。"],
               ] : []),
-              ["RESPONSE", <p key="r" className="font-bold text-navy text-[15px]">原則3日以内に返信</p>,
-                RECRUIT_OPEN
-                  ? "返信が遅い場合はDMください。"
-                  : "返信が遅い場合はDMください。※ 選手の応募に関するお問い合わせには、お返事ができません。"]
             ].map(([eyebrow, content, sub]) => (
               <div key={String(eyebrow)} className="reveal mb-3" style={{ background: "#f5f2ec", border: "1px solid #e0dcd4", padding: "16px 20px" }}>
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: "#d10024", letterSpacing: "0.4em", marginBottom: 10 }}>{eyebrow}</p>
@@ -1237,7 +1168,7 @@ function ContactSection() {
               </div>
             ))}
           </div>
-          <div className="reveal reveal-right"><RecruitForm /></div>
+          <div className="reveal"><RecruitForm /></div>
         </div>
       </div>
     </section>
@@ -1268,7 +1199,8 @@ function Footer() {
           <div>
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {[["#news","お知らせ"],["/games","試合結果・日程"],["/blog","ブログ"],["#about","チーム紹介"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["#activity","活動概要"],["/uniform","ユニフォーム"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["#sponsors","スポンサー"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {/* このフッターはトップページ専用なので、ページ内の位置は「#」でよい */}
+              {[["#news","お知らせ"],["/games","試合結果・日程"],["#about","チーム紹介"],["/activity","活動概要"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["/uniform","ユニフォーム"],["/blog","ブログ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["/sponsor","スポンサー募集"],["/faq","よくある質問"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
@@ -1320,8 +1252,8 @@ function Footer() {
 
 /* ── Page ─────────────────────────────────────────────── */
 export default async function Home() {
-  const [news, practices, blogs, games, memberCount] = await Promise.all([
-    getNews(), getPractices(), getBlogs(), getGames(), getMemberCount(),
+  const [news, practices, games, memberCount] = await Promise.all([
+    getNews(), getPractices(), getGames(), getMemberCount(),
   ]);
   return (
     <>
@@ -1332,20 +1264,21 @@ export default async function Home() {
         <HeroSection memberCount={memberCount} />
         {/* 募集を休止している間は、ヒーローの直下に必ず出す（見落とされないように） */}
         {(MANAGER_OPEN || !RECRUIT_OPEN) && <RecruitStatusBar />}
+        {/* 「どんなチーム → どこで・いくら → いつ → 強み → 目標 → 募集 → 支援」の順。
+            濃紺と白のセクションが交互になるように背景も合わせている。 */}
         <NewsSection news={news} />
+        <AboutSection />
+        <ActivitySection />
         <ScheduleSection practices={practices} games={games} />
         <GamesSection games={games} />
-        <AboutSection />
         <AppSection />
         <VisionSection />
         <LeagueSection xUrl={X_URL} />
-        <ActivitySection />
         {MANAGER_OPEN && <ManagerSection />}
         <RecruitSection />
         <SupportSection />
         <SponsorsSection />
         <FaqSection />
-        <BlogPreview posts={blogs} />
         <ContactSection />
       </main>
       <Footer />

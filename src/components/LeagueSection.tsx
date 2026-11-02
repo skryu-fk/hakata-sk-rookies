@@ -21,8 +21,9 @@ const GOLD = "#d4a82a";
 const RED = "#d10024";
 
 export default function LeagueSection({ xUrl }: { xUrl: string }) {
+  // 下に続くマネージャー募集も濃紺なので、境目に赤い線を入れて区切っている
   return (
-    <section id="league" style={{ background: NAVY, position: "relative", overflow: "hidden" }}>
+    <section id="league" style={{ background: NAVY, position: "relative", overflow: "hidden", borderBottom: "4px solid #d10024" }}>
       {/* 背景の大きな文字。装飾なので読み上げ対象から外す */}
       <div
         aria-hidden
@@ -76,70 +77,44 @@ export default function LeagueSection({ xUrl }: { xUrl: string }) {
           </div>
         )}
 
-        {/* 11月に何があるか */}
-        <div className="reveal" style={{ marginBottom: 34 }}>
+        {/* 11月に何があるか。説明まで載せるとリーグ公式サイトの丸写しになるので、
+            ここは時期と見出しだけ。くわしくはリーグ公式サイトへ送る。 */}
+        <div className="reveal" style={{ marginBottom: 30 }}>
           <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: GOLD, letterSpacing: "0.35em", marginBottom: 16, fontWeight: 700 }}>
             SCHEDULE
           </p>
-          <ol style={{ display: "grid", gap: 12 }}>
+          <ol className="grid gap-3 grid-cols-1 sm:grid-cols-3" style={{ margin: 0, padding: 0, listStyle: "none" }}>
             {LEAGUE_SCHEDULE.map(s => (
               <li
                 key={`${s.when}-${s.title}`}
                 style={{
                   background: s.highlight ? "rgba(212,168,42,0.1)" : "rgba(255,255,255,0.045)",
                   border: `1px solid ${s.highlight ? "rgba(212,168,42,0.4)" : "rgba(255,255,255,0.12)"}`,
-                  padding: "20px 22px",
-                  display: "grid",
-                  gap: 6,
-                  gridTemplateColumns: "1fr",
+                  padding: "16px 18px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: GOLD, letterSpacing: "0.1em", fontWeight: 700, whiteSpace: "nowrap" }}>
-                    {s.when}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 16, fontWeight: 900, color: "#fff" }}>
-                    {s.title}
-                  </span>
-                </div>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", lineHeight: 1.95 }}>{s.body}</p>
+                <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: GOLD, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>
+                  {s.when}
+                </p>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
+                  {s.title}
+                </p>
               </li>
             ))}
           </ol>
         </div>
 
-        {/* 加盟の条件 */}
-        <div className="reveal" style={{ marginBottom: 30 }}>
-          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: GOLD, letterSpacing: "0.35em", marginBottom: 16, fontWeight: 700 }}>
+        {/* 加盟の条件。以前は項目ごとの表にしていたが、
+            同じ表がリーグ公式サイトにもあるので、ここは1行でまとめる。 */}
+        <div className="reveal" style={{ marginBottom: 26 }}>
+          <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: GOLD, letterSpacing: "0.35em", marginBottom: 12, fontWeight: 700 }}>
             REQUIREMENTS
           </p>
-          <dl style={{ border: "1px solid rgba(255,255,255,0.12)" }}>
-            {LEAGUE_CONDITIONS.map((c, i) => (
-              <div
-                key={c.label}
-                style={{
-                  // 画面が広ければ2列、狭ければ自然に折り返す
-                  display: "flex", flexWrap: "wrap", gap: "4px 24px", padding: "16px 20px",
-                  borderTop: i === 0 ? "none" : "1px solid rgba(255,255,255,0.1)",
-                }}
-              >
-                <dt style={{ fontSize: 12.5, color: "rgba(255,255,255,0.5)", fontWeight: 700, minWidth: 150, flexShrink: 0 }}>
-                  {c.label}
-                </dt>
-                <dd style={{ flex: "1 1 260px" }}>
-                  <span style={{ fontSize: 14.5, color: "#fff", fontWeight: 700 }}>{c.value}</span>
-                  {c.note && (
-                    <span style={{ display: "block", marginTop: 4, fontSize: 12.5, color: "rgba(255,255,255,0.5)", lineHeight: 1.85 }}>
-                      {c.note}
-                    </span>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p style={{ marginTop: 12, fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.9 }}>
-            ※ 条件を満たしているかは申請内容をもとに確認しますが、加盟の可否は運営で判断します。
-            迷われる場合も、まずはご相談ください。
+          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.72)", lineHeight: 2, maxWidth: 820 }}>
+            {LEAGUE_CONDITIONS.map(c => `${c.label}：${c.value}`).join("／")}
+          </p>
+          <p style={{ marginTop: 10, fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.9 }}>
+            ※ 条件の細かい説明と申請は、リーグ公式サイトにあります。迷われる場合も、まずはご相談ください。
           </p>
         </div>
 

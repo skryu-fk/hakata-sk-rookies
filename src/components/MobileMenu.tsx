@@ -3,21 +3,28 @@
 import { useEffect, useState } from "react";
 import { MANAGER_OPEN, RECRUIT_OPEN } from "@/data/recruit";
 
+/**
+ * ヘッダーのナビには主な7項目しか出していないので、
+ * 他のページへはここから行けるようにしておく。
+ * 「#」で始まるものはトップページ内の位置、それ以外は別ページ。
+ */
 const MENU: [string, string][] = [
   ["#news", "お知らせ"],
-  ["/games", "試合結果・日程"],
-  ["/blog", "ブログ"],
   ["#about", "チーム紹介"],
+  ["/activity", "活動概要"],
+  ["#schedule", "スケジュール"],
+  ["/games", "試合結果・日程"],
   ["#app", "公式アプリ"],
-  ["#vision", "目標・ビジョン"],
+  ["#vision", "目標"],
   ["#league", "博多ルーキーリーグ"],
-  ["#activity", "活動概要"],
   ["/uniform", "ユニフォーム紹介"],
+  ["/blog", "ブログ"],
   ...(MANAGER_OPEN ? [["#manager", "マネージャー募集中"] as [string, string]] : []),
   ["#recruit", RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],
-  ["#support", "支援"],
+  ["#support", "支援のお願い"],
   ["#sponsors", "公式スポンサー"],
-  ["#faq", "FAQ"],
+  ["/sponsor", "スポンサー募集"],
+  ["/faq", "よくある質問"],
   ["#contact", "お問い合わせ"],
 ];
 
