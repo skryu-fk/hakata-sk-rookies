@@ -7,12 +7,18 @@
  */
 import Image from "next/image";
 import Link from "next/link";
+import ScrollReveal from "@/components/ScrollReveal";
 
 const TEAM_NAME_JP = "博多SKルーキーズ";
 const TEAM_NAME_EN = "HAKATA SK ROOKIES";
 
 export function SubHeader() {
   return (
+    <>
+    {/* .reveal の要素は opacity:0 で始まり、これが付ける visible で現れる。
+        入れ忘れるとページの中身がまるごと見えないままになるので、
+        下層ページ共通のヘッダーに同梱しておく。 */}
+    <ScrollReveal />
     <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: "3px solid #d10024", boxShadow: "0 1px 0 #e0dcd4" }}>
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-stretch" style={{ height: 68 }}>
         <Link href="/" className="flex items-center gap-3 flex-shrink-0 pr-4 md:pr-6" style={{ textDecoration: "none", borderRight: "1px solid #f0ece6" }}>
@@ -27,6 +33,7 @@ export function SubHeader() {
         </Link>
       </div>
     </header>
+    </>
   );
 }
 
