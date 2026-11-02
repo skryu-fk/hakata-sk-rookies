@@ -135,10 +135,10 @@ function Header() {
           </div>
         </Link>
         <nav className="ml-auto hidden xl:flex items-stretch h-full">
-          {/* 7項目まで。ユニフォーム・スポンサー・ブログ・目標は
+          {/* 8項目まで。ユニフォーム・スポンサー・ブログ・目標は
               メニュー（MobileMenu）とフッターから行ける。
               いま募集しているものだけをナビに出す。 */}
-          {([["#news","お知らせ"],["#about","チーム紹介"],["#activity","活動概要"],["#app","公式アプリ"],["#league","リーグ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["/faq","よくある質問"]] as [string,string][]).map(([href,label]) => (
+          {([["#news","お知らせ"],["#about","チーム紹介"],["#activity","活動概要"],["#schedule","スケジュール"],["#app","公式アプリ"],["#league","リーグ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : [["#recruit",RECRUIT_OPEN ? "メンバー募集" : "募集状況"]]),["/faq","よくある質問"]] as [string,string][]).map(([href,label]) => (
             <a key={href} href={href} className="nav-link">{label}</a>
           ))}
           <a href="#contact" className="nav-link-cta">お問い合わせ</a>
@@ -675,8 +675,8 @@ function VisionSection() {
 
 /* ── ActivitySection ─────────────────────────────────── */
 /**
- * ホームには活動エリア・頻度・費用の3行だけを出す。
- * 球場・練習内容・装備を含めた全文は /activity にある。
+ * ホームには活動エリア・主な活動球場・頻度・費用の4行を出す。
+ * 練習内容・装備を含めた全文は /activity にある。
  */
 function ActivitySection() {
   return (
@@ -687,7 +687,7 @@ function ActivitySection() {
         <div className="reveal" style={{ marginTop: 22 }}>
           <Link href="/activity" className="hover:bg-navy hover:text-white transition-colors"
             style={{ display: "inline-flex", alignItems: "center", padding: "13px 28px", border: "1px solid #0b1e3f", color: "#0b1e3f", textDecoration: "none", fontSize: 13.5, fontWeight: 700, letterSpacing: "0.08em" }}>
-            活動球場・練習内容・必要な道具もすべて見る →
+            練習内容・必要な道具もすべて見る →
           </Link>
         </div>
       </div>
@@ -1200,7 +1200,7 @@ function Footer() {
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               {/* このフッターはトップページ専用なので、ページ内の位置は「#」でよい */}
-              {[["#news","お知らせ"],["/games","試合結果・日程"],["#about","チーム紹介"],["/activity","活動概要"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["/uniform","ユニフォーム"],["/blog","ブログ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["/sponsor","スポンサー募集"],["/faq","よくある質問"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["#schedule","スケジュール"],["/games","試合結果・日程"],["#about","チーム紹介"],["/activity","活動概要"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["/uniform","ユニフォーム"],["/blog","ブログ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["/sponsor","スポンサー募集"],["/faq","よくある質問"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>

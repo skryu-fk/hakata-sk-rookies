@@ -77,13 +77,15 @@ export default function LeagueSection({ xUrl }: { xUrl: string }) {
           </div>
         )}
 
-        {/* 11月に何があるか。説明まで載せるとリーグ公式サイトの丸写しになるので、
-            ここは時期と見出しだけ。くわしくはリーグ公式サイトへ送る。 */}
+        {/* 11月に何があるか。
+            以前は縦に積んでいて1件ごとに高さがあったので、横3列に並べ替えた。
+            説明文は残す（これがないと、何をする会なのか分からない）。 */}
         <div className="reveal" style={{ marginBottom: 30 }}>
           <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 10, color: GOLD, letterSpacing: "0.35em", marginBottom: 16, fontWeight: 700 }}>
             SCHEDULE
           </p>
-          <ol className="grid gap-3 grid-cols-1 sm:grid-cols-3" style={{ margin: 0, padding: 0, listStyle: "none" }}>
+          {/* 4件あるので 2×2 → 広い画面で横1列。3列だと1件だけ次の行に余る */}
+          <ol className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ margin: 0, padding: 0, listStyle: "none" }}>
             {LEAGUE_SCHEDULE.map(s => (
               <li
                 key={`${s.when}-${s.title}`}
@@ -96,9 +98,10 @@ export default function LeagueSection({ xUrl }: { xUrl: string }) {
                 <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 12, color: GOLD, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>
                   {s.when}
                 </p>
-                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.4 }}>
+                <p style={{ fontFamily: "var(--font-zen),sans-serif", fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1.4, marginBottom: 8 }}>
                   {s.title}
                 </p>
+                <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.62)", lineHeight: 1.9 }}>{s.body}</p>
               </li>
             ))}
           </ol>
