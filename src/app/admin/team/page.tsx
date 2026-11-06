@@ -23,7 +23,7 @@ import { readCache, readCacheWithAge, writeCache } from "@/lib/clientCache";
 import { analyzePlayer, buildTeamBaseline, type PlayerInput, type PlayerAnalysis } from "@/lib/playerAnalysis";
 import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
 import { suggestLineup, type AdvisorPlayer, type LineupSuggestion } from "@/lib/lineupAdvisor";
-import { GROUND_FEE, groundFee, type PracticeLength } from "@/data/fees";
+import { GROUND_FEE, groundFee, PRACTICE_LENGTH_LABEL, type PracticeLength } from "@/data/fees";
 import NumberField from "@/components/NumberField";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
@@ -1772,7 +1772,7 @@ function MembersTab({
           {/* 学生はグラウンド代が一律になるので、集金画面で自動的に金額が変わる */}
           <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#1C1C1E", border: "1px solid #38383A", fontSize: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={form.isStudent} onChange={e => setForm({ ...form, isStudent: e.target.checked })} style={{ accentColor: "#E5B84B" }} />
-            <span>中学生・高校生（グラウンド代が一律 {GROUND_FEE.student} 円）</span>
+            <span>中学生・高校生（グラウンド代が日中 {GROUND_FEE.student.h2} 円・ナイター {GROUND_FEE.student.night} 円になります）</span>
           </label>
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <button onClick={submit} style={btnPrimaryStyle}>
@@ -3328,10 +3328,10 @@ function PaymentsTab({
             </div>
           )}
           <div>
-            <label style={labelStyle}>練習時間</label>
+            <label style={labelStyle}>練習の区分</label>
             <div style={{ display: "flex", gap: 6 }}>
-              {([["h2", "2時間"], ["h4", "4時間"]] as [PracticeLength, string][]).map(([v, lbl]) => (
-                <button key={v} onClick={() => setHours(v)} style={segStyle(hours === v)}>{lbl}</button>
+              {(["h2", "h4", "night"] as PracticeLength[]).map(v => (
+                <button key={v} onClick={() => setHours(v)} style={segStyle(hours === v)}>{PRACTICE_LENGTH_LABEL[v]}</button>
               ))}
             </div>
           </div>
@@ -6125,7 +6125,7 @@ function ReceiptTab({ members }: { members: Member[] }) {
             <NumberField value={amount} onChange={setAmount} style={inputStyle} />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {/* よく使う金額。グラウンド代は値上げ後の額に合わせている */}
-              {[GROUND_FEE.student, GROUND_FEE.adult.h2, GROUND_FEE.adult.h4, 1000, 2000].map(v => (
+              {[GROUND_FEE.student.h2, GROUND_FEE.student.night, GROUND_FEE.adult.h2, GROUND_FEE.adult.h4, GROUND_FEE.adult.night, 2000].map(v => (
                 <button key={v} onClick={() => setAmount(v)} style={{ ...btnSubStyle, padding: "5px 10px", fontSize: 12 }}>¥{v.toLocaleString()}</button>
               ))}
             </div>
