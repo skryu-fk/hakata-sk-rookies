@@ -25,6 +25,7 @@ const MENU: [string, string][] = [
   ["#sponsors", "公式スポンサー"],
   ["/sponsor", "スポンサー募集"],
   ["/faq", "よくある質問"],
+  ["/terms", "チーム規約"],
   ["#contact", "お問い合わせ"],
 ];
 

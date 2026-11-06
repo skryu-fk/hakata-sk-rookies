@@ -71,6 +71,11 @@ export function SubFooter() {
     <footer style={{ background: "#060f20", color: "#fff" }}>
       <div style={{ height: 4, background: "linear-gradient(90deg,#d10024,#a80019 50%,#d10024)" }} />
       <div className="max-w-[1280px] mx-auto px-5 md:px-8 py-8 text-center text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center", marginBottom: 10 }}>
+          {[["/terms", "チーム規約"], ["/activity", "活動概要"], ["/faq", "よくある質問"], ["/privacy", "プライバシーポリシー"], ["/commercial", "特定商取引法に基づく表記"]].map(([h, l]) => (
+            <Link key={h} href={h} className="hover:text-white transition-colors" style={{ color: "inherit", textDecoration: "none" }}>{l}</Link>
+          ))}
+        </div>
         © {new Date().getFullYear()} {TEAM_NAME_JP} / {TEAM_NAME_EN}
       </div>
     </footer>

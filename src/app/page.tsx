@@ -1200,7 +1200,7 @@ function Footer() {
             <p style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 11, color: "#d4a82a", letterSpacing: "0.4em", marginBottom: 20 }}>MENU</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               {/* このフッターはトップページ専用なので、ページ内の位置は「#」でよい */}
-              {[["#news","お知らせ"],["#schedule","スケジュール"],["/games","試合結果・日程"],["#about","チーム紹介"],["/activity","活動概要"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["/uniform","ユニフォーム"],["/blog","ブログ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["/sponsor","スポンサー募集"],["/faq","よくある質問"],["#contact","お問い合わせ"]].map(([h,l]) => (
+              {[["#news","お知らせ"],["#schedule","スケジュール"],["/games","試合結果・日程"],["#about","チーム紹介"],["/activity","活動概要"],["#app","公式アプリ"],["#vision","目標"],["#league","リーグ"],["/uniform","ユニフォーム"],["/blog","ブログ"],...(MANAGER_OPEN ? [["#manager","マネージャー募集中"]] : []),["#recruit",RECRUIT_OPEN ? "メンバー募集" : "選手の募集（休止中）"],["/sponsor","スポンサー募集"],["/faq","よくある質問"],["/terms","チーム規約"],["#contact","お問い合わせ"]].map(([h,l]) => (
                 <li key={h}><a href={h} className="hover:text-red transition-colors text-[13px]" style={{ color: "rgba(255,255,255,0.45)", textDecoration: "none" }}>{l}</a></li>
               ))}
             </ul>
