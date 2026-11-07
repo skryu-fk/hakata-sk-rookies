@@ -47,7 +47,8 @@ export default function TermsPage() {
                 DOWNLOAD
               </p>
               <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.72)", lineHeight: 1.9, marginBottom: 16 }}>
-                印刷用のPDFです。メンバーの方は、規約をお読みのうえ同意書（A4 1枚）にご記入ください。
+                印刷用のPDFです。すでに在籍しているメンバーの方は、規約をお読みのうえ同意書（A4 1枚）にご記入ください。
+                これから入団する方は、加入契約書（第2版）の最後のページにご記入ください。
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                 <a href={TERMS.rulesPdf} download={TERMS.rulesPdfName} target="_blank" rel="noopener noreferrer"
@@ -57,6 +58,10 @@ export default function TermsPage() {
                 <a href={TERMS.consentPdf} download={TERMS.consentPdfName} target="_blank" rel="noopener noreferrer"
                   style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.25)" }}>
                   規約改定の同意書（PDF・A4 1枚）→
+                </a>
+                <a href={TERMS.agreementPdf} download={TERMS.agreementPdfName} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", padding: "12px 22px", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 700, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.25)" }}>
+                  メンバー加入契約書（第2版・PDF）→
                 </a>
               </div>
             </div>

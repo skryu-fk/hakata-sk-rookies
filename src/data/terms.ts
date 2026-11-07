@@ -27,6 +27,10 @@ export const TERMS = {
   rulesPdfName: "博多SKルーキーズ_チーム規約_第2版.pdf",
   consentPdf: "/docs/hakata-sk-rookies-rules-consent.pdf",
   consentPdfName: "博多SKルーキーズ_規約改定の同意書.pdf",
+  // 新しく入団する人が記入する書類。規約（第2版）を前提に初版を作り直したもので、
+  // 本文は docs/membership-agreement-2026.md が原本。
+  agreementPdf: "/docs/hakata-sk-rookies-membership-agreement-v2.pdf",
+  agreementPdfName: "博多SKルーキーズ_メンバー加入契約書_第2版.pdf",
 } as const;
 
 /* ── 費用 ─────────────────────────────────────────────── */
