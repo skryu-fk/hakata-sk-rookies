@@ -11,6 +11,7 @@
 import { readSession, readCookie, MEMBER_COOKIE } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
+import { normalizeDate } from "@/lib/dates";
 import { sameOrigin, crossOriginDenied } from "@/lib/security";
 
 export const runtime = "nodejs";
@@ -53,7 +54,8 @@ export async function GET(request: Request) {
         nickname = m.data[2] ?? "";
         jerseyNumber = m.data[3] ?? "";
         position = m.data[4] ?? "";
-        joinedDate = m.data[5] ?? "";
+        // 名簿には "Wed Apr 15 2026 …" のような形で入っている行があるため、ここでそろえる
+        joinedDate = normalizeDate(m.data[5] ?? "");
       }
     }
   }

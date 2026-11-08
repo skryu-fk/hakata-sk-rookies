@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import SignaturePad from "@/components/SignaturePad";
+import TermsReader from "@/components/TermsReader";
 import { TERMS } from "@/data/terms";
 import {
   AGE_BANDS, INSURANCE_CHOICES, NAME_CHOICES, PHOTO_CHOICES,
@@ -85,6 +86,9 @@ export default function ConsentCard({ memberName }: { memberName: string }) {
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // 規約はアプリの中で開く。外部のページやPDFに飛ばすと、戻ってきたときに
+  // 入力が消えてしまい、同意が途中で止まる
+  const [reading, setReading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -202,11 +206,12 @@ export default function ConsentCard({ memberName }: { memberName: string }) {
             }}>
             {signed ? (outdated ? "新しい規約に同意する" : "選び直す") : "同意する"}
           </button>
-          <Link href="/terms" target="_blank"
-            style={{ padding: "12px 20px", borderRadius: 10, border: "1px solid #48484A", color: "rgba(235,235,245,0.85)", textDecoration: "none", fontSize: 14, fontWeight: 700 }}>
-            規約を読む →
-          </Link>
+          <button type="button" onClick={() => setReading(true)}
+            style={{ padding: "12px 20px", borderRadius: 10, border: "1px solid #48484A", background: "transparent", color: "rgba(235,235,245,0.85)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            規約を読む
+          </button>
         </div>
+        {reading && <TermsReader onClose={() => setReading(false)} />}
       </div>
     );
   }
@@ -216,10 +221,16 @@ export default function ConsentCard({ memberName }: { memberName: string }) {
     <div style={card}>
       <h3 style={{ ...h, marginBottom: 10 }}>チーム規約への同意</h3>
       <p style={{ ...sub, marginBottom: 12 }}>{CONSENT_INTRO}</p>
-      <Link href="/terms" target="_blank"
-        style={{ display: "inline-block", marginBottom: 20, color: "#E5B84B", fontSize: 13, fontWeight: 700 }}>
-        規約の全文を読む（別の画面で開きます）→
-      </Link>
+      <button type="button" onClick={() => setReading(true)}
+        style={{
+          display: "block", width: "100%", marginBottom: 20, cursor: "pointer",
+          padding: "13px 16px", borderRadius: 10, textAlign: "left",
+          background: "rgba(229,184,75,0.10)", border: "1px solid #E5B84B", color: "#E5B84B",
+          fontSize: 14, fontWeight: 800,
+        }}>
+        📄 規約の全文を読む（この画面のまま開きます）
+      </button>
+      {reading && <TermsReader onClose={() => setReading(false)} />}
 
       {/* 1. 確認 */}
       <div style={{ marginBottom: 22 }}>

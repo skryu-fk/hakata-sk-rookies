@@ -25,6 +25,7 @@ import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
 import { suggestLineup, type AdvisorPlayer, type LineupSuggestion } from "@/lib/lineupAdvisor";
 import { GROUND_FEE, groundFee, PRACTICE_LENGTH_LABEL, type PracticeLength } from "@/data/fees";
 import NumberField from "@/components/NumberField";
+import { normalizeDate } from "@/lib/dates";
 import {
   AGE_BANDS, INSURANCE_CHOICES, NAME_CHOICES, PHOTO_CHOICES, labelOf,
 } from "@/data/consent";
@@ -311,33 +312,6 @@ function avg3(v: number): string {
 
 const WEEKDAY_JP = ["日", "月", "火", "水", "木", "金", "土"];
 
-/**
- * 様々なフォーマットの日付文字列を "YYYY-MM-DD" に正規化する。
- * 受理する形式:
- *   - "2026-05-29" / "2026-5-29"
- *   - "2026/05/29" / "2026.05.29"
- *   - JS Date.toString() 形式（"Fri May 29 2026 00:00:00 GMT+0900 (Japan Standard Time)"）
- *     — Apps Script が Sheets の Date セルを String() した時に出るやつ
- * パースできない値は元のまま返す。
- */
-function normalizeDate(s: string): string {
-  if (!s) return "";
-  // 既に YYYY-MM-DD っぽい
-  const cleaned = s.replace(/[./]/g, "-");
-  const m = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) {
-    return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  }
-  // JS Date.toString() 系のフォーマットを Date 経由でパース
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${mm}-${dd}`;
-  }
-  return s; // 諦め
-}
 
 /** "2026-05-29" → "2026/5/29（金）" 形式で表示。 */
 function formatDateJp(dateStr: string): string {

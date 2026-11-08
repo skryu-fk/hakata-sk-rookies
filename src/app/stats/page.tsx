@@ -23,6 +23,7 @@ import { parsePoll, isPollLive } from "@/lib/polls";
 import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import ConsentCard from "@/components/ConsentCard";
+import { formatJpDate } from "@/lib/dates";
 import dynamicImport from "next/dynamic";
 
 // 首脳陣コンソールは首脳陣しか開かないので、押されるまで読み込まない。
@@ -2134,14 +2135,14 @@ function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; 
               {([
                 ["名前", profile.memberName || "—"],
                 ["背番号", profile.jerseyNumber ? `#${profile.jerseyNumber}` : "—"],
-                ["加入日", profile.joinedDate || "—"],
+                ["加入日", formatJpDate(profile.joinedDate) || "—"],
               ] as [string, string][]).map(([k, v], i) => (
                 <div key={k} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
                   padding: "12px 14px", borderTop: i === 0 ? "none" : "0.5px solid #38383A",
                 }}>
-                  <span style={{ fontSize: 14, color: "rgba(235,235,245,0.60)" }}>{k}</span>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{v}</span>
+                  <span style={{ fontSize: 14, color: "rgba(235,235,245,0.60)", whiteSpace: "nowrap", flexShrink: 0, marginRight: 12 }}>{k}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{v}</span>
                 </div>
               ))}
             </div>
