@@ -23,6 +23,11 @@ import { parsePoll, isPollLive } from "@/lib/polls";
 import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import ConsentCard from "@/components/ConsentCard";
+import dynamicImport from "next/dynamic";
+
+// 首脳陣コンソールは首脳陣しか開かないので、押されるまで読み込まない。
+// （全員のアプリに同梱すると、使わない人の通信と起動が重くなる）
+const StaffConsole = dynamicImport(() => import("@/components/StaffConsole"), { ssr: false });
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
@@ -979,8 +984,11 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [pollVotes, setPollVotes] = useState<PollVoteRow[]>([]);
   // 公式サイトと同じスコアボードをアプリでも出すための試合データ
   const [scoreGames, setScoreGames] = useState<Game[]>([]);
-  // 首脳陣に任命されている人にだけ、首脳陣コンソールへの入口を出す
+  // 首脳陣に任命されている人にだけ、首脳陣コンソールへの入口を出す。
+  // ふつうのメンバーは /api/staff/me が401を返すので、ボタン自体が出ない。
   const [staffTitle, setStaffTitle] = useState<string>("");
+  // 首脳陣コンソールはアプリの中で全画面に開く（別サイトに飛ばさない）
+  const [staffOpen, setStaffOpen] = useState(false);
   const [maintenance, setMaintenance] = useState<{ on: boolean; message: string }>({ on: false, message: "" });
   const [me, setMe] = useState<string>("");  // 自分の memberId（localStorage 記憶）
   const [loading, setLoading] = useState(true);
@@ -988,6 +996,14 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>("news");
   const [statKind, setStatKind] = useState<StatKind>("batting");
   const [scope, setScope] = useState<string>(TOTAL_SCOPE); // TOTAL_SCOPE or gameKey
+
+  // 首脳陣コンソールを開いている間は、後ろのアプリをスクロールさせない
+  useEffect(() => {
+    if (!staffOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [staffOpen]);
 
   // 首脳陣かどうかの確認。ふつうのメンバーなら 401 が返るだけで何も起きない。
   useEffect(() => {
@@ -1459,20 +1475,34 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       )}
 
+      {/* ── 首脳陣コンソール（アプリ内で全画面） ── */}
+      {staffOpen && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200, background: "#000",
+          overflowY: "auto", WebkitOverflowScrolling: "touch",
+        }}>
+          <StaffConsole onClose={() => setStaffOpen(false)} />
+        </div>
+      )}
+
       {/* ── ヘッダー ── */}
       <header className="stx-headline" style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "saturate(180%) blur(20px)", WebkitBackdropFilter: "saturate(180%) blur(20px)", borderBottom: "0.5px solid #38383A", position: "sticky", top: 0, zIndex: 20, paddingTop: "env(safe-area-inset-top)", transform: "translateZ(0)", willChange: "transform" }}>
-        <div className="max-w-[1280px] mx-auto px-5 md:px-8 flex items-center" style={{ height: 60, gap: 14 }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}>
-            <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" />
-            <div style={{ lineHeight: 1.1 }}>
-              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6 }}>
-                メンバー成績アプリ
-                <span style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#000000", background: "linear-gradient(135deg, #f3d176, #E5B84B)", padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em", boxShadow: "0 0 12px #796322" }}>v{APP_VERSION}</span>
+        <div className="max-w-[1280px] mx-auto px-4 md:px-8 flex items-center" style={{ height: 60, gap: 10 }}>
+          {/* ロゴと題字は、右のボタンに場所を譲って縮む側。minWidth:0 が無いと
+              flex が縮めてくれず、ボタンの文字が縦に潰れる */}
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", color: "inherit", minWidth: 0, overflow: "hidden" }}>
+            <Image src="/sk_logo_crop.png" alt="logo" width={42} height={35} className="object-contain" style={{ flexShrink: 0 }} />
+            <div style={{ lineHeight: 1.1, minWidth: 0 }}>
+              <div style={{ fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                {/* 狭い画面では短い題字にする。右のボタン3つと並ぶと入りきらない */}
+                <span className="sm:hidden">成績アプリ</span>
+                <span className="hidden sm:inline">メンバー成績アプリ</span>
+                <span className="hidden sm:inline-flex" style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 9, fontWeight: 700, color: "#000000", background: "linear-gradient(135deg, #f3d176, #E5B84B)", padding: "2px 7px", borderRadius: 999, letterSpacing: "0.05em", boxShadow: "0 0 12px #796322" }}>v{APP_VERSION}</span>
               </div>
               <div style={{ fontFamily: "var(--font-oswald),sans-serif", fontSize: 8.5, color: "#E5B84B", letterSpacing: "0.3em", marginTop: 2 }}>HAKATA SK ROOKIES</div>
             </div>
           </Link>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
             {updatedAt && !loading && (
               <span className="hidden sm:inline" style={{ fontSize: 9.5, color: "rgba(235,235,245,0.30)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
                 更新 {String(updatedAt.getHours()).padStart(2, "0")}:{String(updatedAt.getMinutes()).padStart(2, "0")}
@@ -1484,7 +1514,7 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               aria-label="データを更新"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "7px 13px",
+                padding: "7px 11px", flexShrink: 0, whiteSpace: "nowrap",
                 background: "linear-gradient(135deg, #2e2a1b, #1a1a19)",
                 border: "1px solid #655320",
                 color: "#E5B84B",
@@ -1495,20 +1525,21 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
               }}
             >
               <span className={loading ? "stx-spin" : undefined} style={{ display: "inline-block", fontSize: 13, lineHeight: 1 }}>⟳</span>
-              {loading ? "更新中…" : "更新"}
+              {/* 狭い画面では字を出さない。3つ並ぶと入りきらず、文字が縦に潰れていた */}
+              <span className="hidden sm:inline">{loading ? "更新中…" : "更新"}</span>
             </button>
             {staffTitle && (
-              <Link
-                href="/staff"
-                title="首脳陣コンソール"
-                style={{ padding: "7px 13px", background: "#E5B84B", border: "1px solid #E5B84B", color: "#0b1e3f", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}
+              <button
+                onClick={() => setStaffOpen(true)}
+                title={`首脳陣コンソール（${staffTitle}）`}
+                style={{ flexShrink: 0, padding: "7px 11px", background: "#E5B84B", border: "1px solid #E5B84B", color: "#0b1e3f", fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", whiteSpace: "nowrap", cursor: "pointer" }}
               >
                 首脳陣
-              </Link>
+              </button>
             )}
             <button
               onClick={onLogout}
-              style={{ padding: "7px 13px", background: "transparent", border: "1px solid #38383A", color: "rgba(235,235,245,0.75)", fontSize: 11, cursor: "pointer", letterSpacing: "0.06em" }}
+              style={{ padding: "7px 11px", background: "transparent", border: "1px solid #38383A", color: "rgba(235,235,245,0.75)", fontSize: 11, cursor: "pointer", letterSpacing: "0.04em", whiteSpace: "nowrap", flexShrink: 0 }}
             >
               ログアウト
             </button>
