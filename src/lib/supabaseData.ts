@@ -48,6 +48,11 @@ const COLUMNS: Record<string, string[]> = {
   // 選択肢と添付画像は options 列に JSON でまとめて入れる（列を増やさないため）
   polls: ["id", "question", "options", "note", "status", "deadline", "created_at_text"],
   poll_votes: ["id", "poll_id", "member_id", "member_name", "choice", "created_at_text"],
+  // チーム規約への同意。選び直したときも上書きせず追記し、最新の行を現在の同意として扱う
+  consents: ["id", "account_id", "user_id", "member_id", "member_name", "doc_version", "agreed_at",
+             "age_band", "insurance", "name_disclosure", "registered_name", "photo", "signature",
+             "guardian_name", "guardian_relation", "guardian_contact", "guardian_signature",
+             "device", "created_at_text"],
 };
 
 export const SUPABASE_TABLES = Object.keys(COLUMNS);

@@ -22,6 +22,7 @@ import PollCard, { type Poll as PollRow, type PollVote as PollVoteRow } from "@/
 import { parsePoll, isPollLive } from "@/lib/polls";
 import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
+import ConsentCard from "@/components/ConsentCard";
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
@@ -2145,6 +2146,8 @@ function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; 
           </div>
         )}
       </div>
+
+      <ConsentCard memberName={profile?.memberName || profile?.name || ""} />
 
       {analysis && <MyAnalysisCard analysis={analysis} />}
 

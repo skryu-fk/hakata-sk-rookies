@@ -48,6 +48,8 @@ export const ALLOWED_SHEETS = new Set([
   // 投票（管理者が作った質問と、メンバーの回答）
   "polls",
   "poll_votes",
+  // チーム規約への同意（アプリから署名して提出した記録）
+  "consents",
 ]);
 
 export type AdminOp = "list" | "append" | "update" | "delete";

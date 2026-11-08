@@ -235,6 +235,27 @@ create table if not exists staff_audit (
   action text, target text, detail text
 );
 
+-- チーム規約への同意（アプリから署名して提出した記録）
+-- 1件ごとに追記する。あとから選び直した場合も上書きせず、新しい行を足して
+-- いちばん新しいものを「現在の同意内容」として扱う（第21条5項の変更に対応）。
+create table if not exists consents (
+  row_id bigint generated always as identity primary key,
+  id text, account_id text, user_id text,
+  member_id text, member_name text,
+  doc_version text, agreed_at text,
+  age_band text,            -- adult / minor
+  insurance text,           -- join / own / student / none
+  name_disclosure text,     -- real / alias / private
+  registered_name text,
+  photo text,               -- ok / blurred / no
+  signature text,           -- 署名画像のURL（手書き）
+  guardian_name text, guardian_relation text, guardian_contact text,
+  guardian_signature text,
+  device text, created_at_text text
+);
+
+create index if not exists idx_consents_account on consents (account_id);
+
 create index if not exists idx_staff_comments_topic on staff_comments (topic_id);
 create index if not exists idx_staff_approvals_status on staff_approvals (status);
 
@@ -247,7 +268,7 @@ begin
     'members','attendance','batting','pitching','catching','fielding','practices',
     'participants','probables','announcements','settings','pending','accounts',
     'lineups','games','payments','news','tweets','blog','subscriptions','evaluations',
-    'polls','poll_votes','opponents',
+    'polls','poll_votes','opponents','consents',
     'staff_reports','practice_menus','order_plans','staff_topics',
     'staff_comments','staff_approvals','staff_audit'
   ] loop

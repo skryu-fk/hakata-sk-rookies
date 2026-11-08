@@ -25,6 +25,9 @@ import { parsePoll, serializePoll, type PollOption } from "@/lib/polls";
 import { suggestLineup, type AdvisorPlayer, type LineupSuggestion } from "@/lib/lineupAdvisor";
 import { GROUND_FEE, groundFee, PRACTICE_LENGTH_LABEL, type PracticeLength } from "@/data/fees";
 import NumberField from "@/components/NumberField";
+import {
+  AGE_BANDS, INSURANCE_CHOICES, NAME_CHOICES, PHOTO_CHOICES, labelOf,
+} from "@/data/consent";
 
 /** 全角カタカナ＋スペースのみか（本人が新規登録できる名前かの判定） */
 function isKatakanaName(name: string): boolean {
@@ -36,7 +39,7 @@ function isKatakanaName(name: string): boolean {
 
 const IOS_FONT = `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif`;
 
-type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "polls" | "opponents" | "maintenance";
+type Tab = "members" | "attendance" | "lineup" | "scoreboard" | "batting" | "pitching" | "catching" | "fielding" | "probables" | "payments" | "receipt" | "stats" | "notify" | "approvals" | "accounts" | "link" | "evaluation" | "polls" | "opponents" | "consents" | "maintenance";
 
 type ListRow = { rowIndex: number; data: string[] };
 
@@ -224,6 +227,15 @@ type OpponentRow = {
   logo: string;
   color: string;
   note: string;
+  _row: number;
+};
+
+/** consents シートの1行。列の並びは supabaseData.ts の COLUMNS.consents と同じ */
+type ConsentRow = {
+  id: string; accountId: string; memberId: string; memberName: string;
+  docVersion: string; agreedAt: string; ageBand: string; insurance: string;
+  nameDisclosure: string; registeredName: string; photo: string; signature: string;
+  guardianName: string; guardianRelation: string; guardianContact: string; guardianSignature: string;
   _row: number;
 };
 
@@ -546,6 +558,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [games, setGames] = useState<GameRow[]>([]);
   const [opponents, setOpponents] = useState<OpponentRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [consents, setConsents] = useState<ConsentRow[]>([]);
   const [practices, setPractices] = useState<PracticeRow[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [pending, setPending] = useState<PendingRow[]>([]);
@@ -930,6 +943,30 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     });
   }, [listCached]);
 
+  const loadConsents = useCallback(async () => {
+    await listCached("consents", (rows) => {
+      setConsents((rows ?? []).map(r => ({
+        id: r.data[0] ?? "",
+        accountId: r.data[1] ?? "",
+        memberId: r.data[3] ?? "",
+        memberName: r.data[4] ?? "",
+        docVersion: r.data[5] ?? "",
+        agreedAt: r.data[6] ?? "",
+        ageBand: r.data[7] ?? "",
+        insurance: r.data[8] ?? "",
+        nameDisclosure: r.data[9] ?? "",
+        registeredName: r.data[10] ?? "",
+        photo: r.data[11] ?? "",
+        signature: r.data[12] ?? "",
+        guardianName: r.data[13] ?? "",
+        guardianRelation: r.data[14] ?? "",
+        guardianContact: r.data[15] ?? "",
+        guardianSignature: r.data[16] ?? "",
+        _row: r.rowIndex,
+      })));
+    });
+  }, [listCached]);
+
   const loadPractices = useCallback(async () => {
     await listCached("practices", (rows) => {
       const data = { rows };
@@ -1185,6 +1222,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   // ライブ中の試合をタブに出すため、試合カテゴリにいる間は常に把握しておく
   useEffect(() => { loadGames(); }, [loadGames]);
   useEffect(() => { if (tab === "payments" && payments.length === 0) loadPayments(); }, [tab, payments.length, loadPayments]);
+  useEffect(() => { if (tab === "consents") loadConsents(); }, [tab, loadConsents]);
   useEffect(() => {
     if (tab === "stats") {
       if (attendance.length === 0) loadAttendance();
@@ -1232,6 +1270,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             ["attendance", "練習出欠", attendance.length, false],
             ["payments", "集金", payments.length, false],
             ["receipt", "領収書", undefined, false],
+            ["consents", "規約同意", consents.length, false],
           ] },
           { key: "game", label: "試合", items: [
             ["lineup", "スタメン", lineups.length, false],
@@ -1525,6 +1564,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             reloadPractices={loadPractices}
             showToast={showToast}
           />
+        )}
+        {tab === "consents" && (
+          <ConsentsTab members={members} consents={consents} loading={!!loading.consents} reload={loadConsents} />
         )}
         {tab === "stats" && (
           <StatsTab
@@ -6413,6 +6455,151 @@ function SummaryStat({ label, v, unit }: { label: string; v: number; unit?: stri
         <span style={{ fontSize: 26, fontWeight: 700 }}>{v}</span>
         {unit && <span style={{ marginLeft: 5, fontSize: 11, color: "rgba(235,235,245,0.30)" }}>{unit}</span>}
       </div>
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────
+   規約同意タブ
+
+   メンバーがアプリから出した「チーム規約への同意」の一覧。
+   紙で出してもらった分はここに出ないため、名簿と突き合わせて
+   「誰がまだか」が分かるようにしてある。
+   同意は選び直すたびに追記されるので、1人につき最新の1件だけを見る。
+   ──────────────────────────────────────────────────────────── */
+function ConsentsTab({ members, consents, loading, reload }: {
+  members: Member[];
+  consents: ConsentRow[];
+  loading: boolean;
+  reload: () => void;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // 1人につき最新の1件（agreedAt が新しいもの）
+  const latest = useMemo(() => {
+    const map = new Map<string, ConsentRow>();
+    for (const c of consents) {
+      const key = c.memberId || c.accountId;
+      if (!key) continue;
+      const prev = map.get(key);
+      if (!prev || (c.agreedAt || "") > (prev.agreedAt || "")) map.set(key, c);
+    }
+    return map;
+  }, [consents]);
+
+  const active = useMemo(() => members.filter(m => m.active), [members]);
+  const done = active.filter(m => latest.has(m.id));
+  const yet = active.filter(m => !latest.has(m.id));
+  // 名簿と連携していないアカウントからの同意も取りこぼさない
+  const unlinked = useMemo(
+    () => [...latest.values()].filter(c => !c.memberId || !members.some(m => m.id === c.memberId)),
+    [latest, members],
+  );
+
+  const box: React.CSSProperties = { background: "#1C1F2A", border: "1px solid #2C3242", borderRadius: 14, padding: 18 };
+  const chip = (text: string, color: string) => (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: `${color}22`, color }}>{text}</span>
+  );
+
+  function Detail({ c }: { c: ConsentRow }) {
+    const rows: [string, string][] = [
+      ["同意日時", (c.agreedAt || "").replace("T", " ")],
+      ["規約の版", c.docVersion],
+      ["年齢区分", labelOf(AGE_BANDS, c.ageBand)],
+      ["保険", labelOf(INSURANCE_CHOICES, c.insurance)],
+      ["氏名の公開", labelOf(NAME_CHOICES, c.nameDisclosure) + (c.registeredName ? `（${c.registeredName}）` : "")],
+      ["写真・動画", labelOf(PHOTO_CHOICES, c.photo)],
+    ];
+    if (c.guardianName) {
+      rows.push(["保護者", `${c.guardianName}${c.guardianRelation ? `（${c.guardianRelation}）` : ""}`]);
+      rows.push(["保護者の連絡先", c.guardianContact]);
+    }
+    return (
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #2C3242" }}>
+        <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", fontSize: 13 }}>
+          {rows.map(([k, v]) => (
+            <div key={k} style={{ display: "contents" }}>
+              <dt style={{ color: "rgba(235,235,245,0.50)", whiteSpace: "nowrap" }}>{k}</dt>
+              <dd style={{ margin: 0, color: "#fff" }}>{v || "—"}</dd>
+            </div>
+          ))}
+        </dl>
+        {[["本人の署名", c.signature], ["保護者の署名", c.guardianSignature]].map(([label, src]) => (
+          src ? (
+            <div key={label} style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 11, color: "rgba(235,235,245,0.50)", marginBottom: 5 }}>{label}</div>
+              {/* 署名は Supabase Storage の URL か data URL。next/image を通さず素の img で出す */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={src as string} alt={label as string}
+                style={{ width: "100%", maxWidth: 360, borderRadius: 8, border: "1px solid #2C3242", background: "#fff" }} />
+            </div>
+          ) : null
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={box}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0, fontFamily: "var(--font-zen),sans-serif", fontWeight: 900, fontSize: 18, color: "#fff" }}>
+            チーム規約への同意
+          </h2>
+          {chip(`同意済み ${done.length}`, "#30D158")}
+          {chip(`未同意 ${yet.length}`, "#FF453A")}
+          <button onClick={reload}
+            style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: 8, border: "1px solid #2C3242", background: "transparent", color: "rgba(235,235,245,0.75)", fontSize: 13, cursor: "pointer" }}>
+            再読み込み
+          </button>
+        </div>
+        <p style={{ fontSize: 12.5, color: "rgba(235,235,245,0.55)", lineHeight: 1.8, margin: "10px 0 0" }}>
+          メンバーがアプリ（マイページ）から出した同意です。紙の同意書で受け取った分はここに出ません。
+          選び直すたびに記録が増えるので、ここには<strong style={{ color: "#fff" }}>いちばん新しい1件</strong>だけを出しています。
+        </p>
+      </div>
+
+      {loading && consents.length === 0 && (
+        <p style={{ color: "rgba(235,235,245,0.60)", fontSize: 13, padding: 20, textAlign: "center" }}>読み込み中…</p>
+      )}
+
+      {yet.length > 0 && (
+        <div style={box}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#FF453A", marginBottom: 10 }}>まだ同意していない人（{yet.length}）</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {yet.map(m => (
+              <span key={m.id} style={{ padding: "7px 12px", borderRadius: 8, background: "#2C2C2E", color: "#fff", fontSize: 13 }}>
+                {m.name}
+              </span>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: "rgba(235,235,245,0.50)", marginTop: 10, marginBottom: 0 }}>
+            紙で受け取った方も、ここでは「未同意」のままになります。
+          </p>
+        </div>
+      )}
+
+      {[...done.map(m => ({ key: m.id, name: m.name, c: latest.get(m.id)! })),
+        ...unlinked.map(c => ({ key: c.id, name: `${c.memberName}（名簿と未連携）`, c }))].map(({ key, name, c }) => (
+        <div key={key} style={box}>
+          <button onClick={() => setOpenId(openId === key ? null : key)}
+            style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", padding: 0, textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>{name}</span>
+            {c.ageBand === "minor" && chip("18歳未満", "#E5B84B")}
+            {chip(labelOf(NAME_CHOICES, c.nameDisclosure), "#5AC8FA")}
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "rgba(235,235,245,0.45)" }}>
+              {(c.agreedAt || "").slice(0, 10)} {openId === key ? "▲" : "▼"}
+            </span>
+          </button>
+          {openId === key && <Detail c={c} />}
+        </div>
+      ))}
+
+      {!loading && done.length === 0 && unlinked.length === 0 && (
+        <p style={{ color: "rgba(235,235,245,0.55)", fontSize: 13, padding: 20, textAlign: "center" }}>
+          まだアプリからの同意はありません。
+        </p>
+      )}
     </div>
   );
 }
