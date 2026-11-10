@@ -195,6 +195,18 @@ export function maintenanceHtml(): string {
   }
   .note { margin-top: 26px; font-size: 12.5px; color: rgba(255,255,255,0.45); text-align: left; }
   .note a { color: var(--gold); }
+  /* 作業する人だけが使う入口。目立たせない */
+  .staff { margin-top: 30px; }
+  .staff a {
+    display: inline-block;
+    padding: 7px 14px;
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 7px;
+    color: rgba(255,255,255,0.35);
+    text-decoration: none;
+    font-size: 11.5px;
+  }
+  .staff a:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.35); }
   @media (max-width: 480px) {
     h1 { font-size: 21px; }
     .row { flex-direction: column; gap: 2px; }
@@ -230,6 +242,8 @@ export function maintenanceHtml(): string {
       でお知らせします。<br>
       博多SKルーキーズ
     </p>
+
+    <div class="staff"><a href="/admin">管理者としてログイン</a></div>
   </main>
 </body>
 </html>`;
