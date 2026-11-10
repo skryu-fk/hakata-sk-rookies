@@ -23,6 +23,7 @@ import { parsePoll, isPollLive } from "@/lib/polls";
 import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } from "@/lib/ranking";
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import ConsentCard from "@/components/ConsentCard";
+import LineLinkCard from "@/components/LineLinkCard";
 import { formatJpDate } from "@/lib/dates";
 import dynamicImport from "next/dynamic";
 
@@ -432,6 +433,14 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
   const [issued, setIssued] = useState<{ userId: string; name: string } | null>(null);
   const [memorized, setMemorized] = useState(false);
   const [copied, setCopied] = useState(false);
+  // LINEログインが設定されていないときは、ボタン自体を出さない
+  const [lineReady, setLineReady] = useState(false);
+  useEffect(() => {
+    fetch("/api/line/status")
+      .then(r => r.json())
+      .then(d => setLineReady(!!d?.enabled))
+      .catch(() => {});
+  }, []);
 
   const pc = pwChecks(pw);
   const nameOk = isKatakanaClient(name);
@@ -829,6 +838,30 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           >
             {busy ? "処理中…" : isLogin ? "ログイン" : "登録する"}
           </button>
+
+          {isLogin && lineReady && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0 14px" }}>
+                <span style={{ flex: 1, height: 1, background: UI.line }} />
+                <span style={{ fontSize: 11.5, color: UI.sub }}>または</span>
+                <span style={{ flex: 1, height: 1, background: UI.line }} />
+              </div>
+              {/* 連携済みの人だけ入れる。未連携なら案内を出して戻される */}
+              <a
+                href="/api/line/start?mode=login"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "14px 20px", borderRadius: 10, background: "#06c755",
+                  color: "#fff", textDecoration: "none", fontSize: 15, fontWeight: 800,
+                }}
+              >
+                LINEでログイン
+              </a>
+              <p style={{ fontSize: 11.5, color: UI.sub, textAlign: "center", marginTop: 8, lineHeight: 1.7 }}>
+                先にマイページでLINEと連携した方のみ使えます。
+              </p>
+            </>
+          )}
 
           {isLogin && (
             <div style={{ textAlign: "center", marginTop: 14 }}>
@@ -2178,6 +2211,8 @@ function MyPageView({ profile, onReload, analysis }: { profile: Profile | null; 
           </div>
         )}
       </div>
+
+      <LineLinkCard />
 
       <ConsentCard memberName={profile?.memberName || profile?.name || ""} />
 

@@ -27,7 +27,8 @@ const COLUMNS: Record<string, string[]> = {
   announcements: ["date", "category", "title", "body"],
   settings: ["setting_key", "value", "note"],
   pending: ["id", "kind", "date", "opponent", "member_id", "member_name", "data", "created_at_text"],
-  accounts: ["id", "name", "name_key", "hash", "salt", "status", "created_at_text", "member_id", "user_id", "role", "staff_title", "staff_area"],
+  // line_user_id は末尾。前の並びを変えると既存のコードが別の列を読む
+  accounts: ["id", "name", "name_key", "hash", "salt", "status", "created_at_text", "member_id", "user_id", "role", "staff_title", "staff_area", "line_user_id"],
   // ── 首脳陣向け ──
   staff_reports: ["id", "date", "author_id", "author_name", "member_id", "member_name", "area", "content", "good", "improve", "next_task", "rating", "published", "created_at_text"],
   practice_menus: ["id", "date", "place", "time_text", "title", "items", "coach_id", "coach_name", "targets", "gear", "purpose", "status", "created_at_text"],

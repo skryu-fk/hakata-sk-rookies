@@ -181,6 +181,48 @@ export function readSession(token: string | undefined | null, role: SessionRole)
   }
 }
 
+/* ── 短期間だけ持たせる署名付きの値 ───────────────────────────
+ * ログインの往復（LINEへ飛んで戻ってくる）のあいだ、state や nonce を
+ * 預けておくのに使う。サーバーに置き場を作らずに済ませるため、
+ * 中身に署名を付けてCookieに持たせ、戻ってきたときに改ざんを検出する。
+ */
+
+/** 任意の値に署名して、期限付きの文字列にする */
+export function signValue(data: Record<string, unknown>, ttlSeconds: number): string {
+  const body = { ...data, exp: Math.floor(Date.now() / 1000) + ttlSeconds };
+  const payload = Buffer.from(JSON.stringify(body)).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
+/** signValue で作った文字列を読む。署名が違う・期限切れなら null */
+export function readValue<T = Record<string, unknown>>(token: string | undefined | null): T | null {
+  if (!token) return null;
+  const dot = token.indexOf(".");
+  if (dot < 1) return null;
+  const payload = token.slice(0, dot);
+  const a = Buffer.from(token.slice(dot + 1));
+  const b = Buffer.from(sign(payload));
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof data.exp !== "number" || data.exp < Math.floor(Date.now() / 1000)) return null;
+    return data as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 外部サイトから戻ってくる途中で使うCookie。
+ *
+ * SameSite=Strict だと、LINEから戻ってきた最初のリクエストで送られてこない。
+ * 行って帰ってくるあいだだけ必要な値なので、Lax にして期限も短くする。
+ */
+export function buildRoundTripCookie(name: string, value: string, maxAgeSeconds: number): string {
+  const secure = process.env.NODE_ENV === "production" ? " Secure;" : "";
+  return `${name}=${value}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly;${secure} SameSite=Lax`;
+}
+
 export const MEMBER_COOKIE = "skr_m";
 export const ADMIN_COOKIE = "skr_a";
 

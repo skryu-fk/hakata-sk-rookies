@@ -78,6 +78,17 @@ export async function GET(request: Request) {
       note: has("VAPID_PRIVATE_KEY") ? "設定済み。" : "未設定です。通知が送れません。",
     },
     {
+      key: "LINE_CHANNEL_ID", label: "LINEログイン（チャネルID）",
+      ok: has("LINE_CHANNEL_ID") && has("LINE_CHANNEL_SECRET"), level: "推奨",
+      note: has("LINE_CHANNEL_ID") && has("LINE_CHANNEL_SECRET")
+        ? "設定済み。LINEでのログインが使えます。"
+        : has("LINE_CHANNEL_ID")
+          ? "チャネルIDはありますが、シークレットが未設定です。"
+          : has("LINE_CHANNEL_SECRET")
+            ? "シークレットはありますが、チャネルIDが未設定です。"
+            : "未設定です。LINEでのログインは出ません。",
+    },
+    {
       key: "NEXT_PUBLIC_SITE_URL", label: "サイトのURL",
       ok: has("NEXT_PUBLIC_SITE_URL"), level: "推奨",
       note: has("NEXT_PUBLIC_SITE_URL") ? "設定済み。" : "未設定です。別サイトからの書き込み判定がゆるくなります。",

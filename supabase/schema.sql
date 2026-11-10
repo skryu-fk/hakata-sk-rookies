@@ -235,6 +235,12 @@ create table if not exists staff_audit (
   action text, target text, detail text
 );
 
+-- LINEログイン用。既存のテーブルにも後から足せるようにしてある。
+-- 1つのLINEアカウントを複数のメンバーに紐づけさせない（なりすまし防止）
+alter table if exists accounts add column if not exists line_user_id text;
+create unique index if not exists idx_accounts_line_user
+  on accounts (line_user_id) where line_user_id is not null;
+
 -- チーム規約への同意（アプリから署名して提出した記録）
 -- 1件ごとに追記する。あとから選び直した場合も上書きせず、新しい行を足して
 -- いちばん新しいものを「現在の同意内容」として扱う（第21条5項の変更に対応）。
