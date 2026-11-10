@@ -38,7 +38,7 @@ const SESSION_TTL = 60 * 60 * 24 * 7;   // メンバーのログインと同じ7
 const MESSAGES: Record<string, { ok: boolean; title: string; body: string }> = {
   linked: {
     ok: true, title: "LINEと連携しました",
-    body: "次からは、ログイン画面の「LINEでログイン」で入れます。アプリを開いているときは、一度閉じて開き直すと表示が新しくなります。",
+    body: "次からは、ログイン画面の「LINEでログイン」で入れます。",
   },
   not_linked: {
     ok: false, title: "まだ連携されていません",
@@ -79,10 +79,22 @@ const FALLBACK = {
   body: "もう一度お試しください。何度も失敗する場合は、この画面を代表にお見せください。",
 };
 
+/**
+ * 連携したあとは、アプリを開きなおしてもらう。
+ *
+ * この画面はたいていSafariで開いている（ホーム画面のアプリからLINEへ行くと
+ * 戻り先がSafariになる）。そこで「アプリをひらく」を押しても、Safariの中で
+ * もう1つ開くだけで、ホーム画面のアプリには戻らない。
+ * 閉じて開きなおしてもらうのが、いちばん確実で分かりやすい。
+ */
 function done(code: string, extraHeaders?: Record<string, string>): Response {
   const m = MESSAGES[code] ?? FALLBACK;
-  // ログインできたときだけ、そのままアプリへ進める
-  const res = resultPage({ ...m, auto: code === "login_ok" });
+  const res = resultPage({
+    ...m,
+    // ログインできたときだけ、そのままアプリへ進める
+    auto: code === "login_ok",
+    closeOnly: code === "linked",
+  });
   const headers = new Headers(res.headers);
   headers.append("Set-Cookie", buildRoundTripCookie(LINE_STATE_COOKIE, "", 0));
   for (const [k, v] of Object.entries(extraHeaders ?? {})) headers.append(k, v);

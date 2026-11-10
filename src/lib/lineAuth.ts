@@ -179,7 +179,7 @@ export function verifierFor(state: string): string {
  * 何が起きたかと、次に何をすればいいかを必ず文字で出す。
  */
 export function resultPage(opts: {
-  ok: boolean; title: string; body: string; auto?: boolean;
+  ok: boolean; title: string; body: string; auto?: boolean; closeOnly?: boolean;
 }): Response {
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -194,11 +194,15 @@ export function resultPage(opts: {
   p{font-size:14px;color:rgba(235,235,245,0.7);margin:0 0 22px}
   a{display:inline-block;padding:14px 26px;border-radius:10px;background:#E5B84B;
     color:#10131C;text-decoration:none;font-weight:800;font-size:15px}
+  .close{padding:15px 18px;border-radius:10px;background:rgba(229,184,75,0.12);
+    border:1px solid #E5B84B;color:#E5B84B;font-weight:800;font-size:15px;line-height:1.7}
 </style></head><body><div class="box">
   <div class="mark">${opts.ok ? "✅" : "⚠️"}</div>
   <h1>${opts.title}</h1>
   <p>${opts.body}</p>
-  <a href="/stats">アプリをひらく</a>
+  ${opts.closeOnly
+    ? '<div class="close">この画面を閉じて、アプリを開きなおしてください。</div>'
+    : '<a href="/stats">アプリをひらく</a>'}
 </div>${opts.auto ? '<script>setTimeout(function(){location.replace("/stats")},600)</script>' : ""}
 </body></html>`;
   return new Response(html, {

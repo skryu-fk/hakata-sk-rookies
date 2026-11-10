@@ -34,9 +34,22 @@ const StaffConsole = dynamicImport(() => import("@/components/StaffConsole"), { 
 const MEMBER_PW_KEY = "skr_member_pw";
 
 /* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 type ChangeLogEntry = { version: string; date: string; items: string[] };
 const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "2.1",
+    date: "2026-11-10",
+    items: [
+      "💚 LINEでログインできるようになりました（マイページから連携）",
+      "⭕ 日程の画面から、出欠をそのまま答えられるようになりました",
+      "📄 チーム規約をアプリの中で読めるようになりました（マイページ）",
+      "✍️ 規約への同意を、指で署名してアプリから出せるようになりました",
+      "📊 成績画面の数字を大きく、行を広げて見やすくしました",
+      "📅 マイページの加入日が英語で出ていたのを直しました",
+      "🔒 ログインまわりの守りを強くしました（総当たり対策・有効期限の短縮）",
+    ],
+  },
   {
     version: "2.0",
     date: "2026-09-18",
