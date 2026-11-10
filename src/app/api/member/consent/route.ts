@@ -13,7 +13,7 @@
 import { readSession, readCookie, MEMBER_COOKIE, sameOrigin, crossOriginDenied } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
-import { supabaseEnabled, uploadImage } from "@/lib/supabaseData";
+import { supabaseEnabled, uploadPrivateImage } from "@/lib/supabaseData";
 import {
   CONSENT_DOC_VERSION, AGE_BANDS, INSURANCE_CHOICES, NAME_CHOICES, PHOTO_CHOICES,
 } from "@/data/consent";
@@ -85,7 +85,13 @@ export async function GET(request: Request) {
   });
 }
 
-/** data URL の手書き署名を保存して、列に入れる文字列（URL）を返す */
+/**
+ * data URL の手書き署名を保存して、列に入れる文字列を返す。
+ *
+ * 署名は本人の筆跡そのものなので、公開の置き場には置かない。
+ * 非公開のバケットに入れ、ここでは「保存場所」だけを返す。
+ * 見るときは /api/admin/signature が60秒だけ開けるURLを作る。
+ */
 async function storeSignature(dataUrl: string, who: string): Promise<string> {
   const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl.trim());
   if (!m) throw new Error("署名の形式が正しくありません。");
@@ -93,8 +99,8 @@ async function storeSignature(dataUrl: string, who: string): Promise<string> {
   if (!supabaseEnabled()) return dataUrl;   // 保存先が無い構成では、そのまま残す
 
   const bytes = Buffer.from(m[1], "base64");
-  const file = new File([new Uint8Array(bytes)], `consent-${who}-${Date.now()}.png`, { type: "image/png" });
-  return await uploadImage(file);
+  const file = new File([new Uint8Array(bytes)], `consent-${who}.png`, { type: "image/png" });
+  return await uploadPrivateImage(file);
 }
 
 export async function POST(request: Request) {

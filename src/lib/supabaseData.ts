@@ -10,6 +10,7 @@
  * - 値はすべて text。アプリ側で数値変換しているため型崩れの心配がない。
  * - 使うのはサーバー専用の SERVICE ROLE キー。ブラウザには絶対に渡さない。
  */
+import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /** シート名 → 列の並び（スプレッドシートの列順と1対1で対応させる） */
@@ -255,6 +256,51 @@ async function ensureBucket(): Promise<void> {
     if (error && !/exist/i.test(error.message)) throw new Error(error.message);
   }
   bucketReady = true;
+}
+
+/* ── 人に見せない画像（手書き署名）─────────────────────────
+ * 規約同意の署名は、本人の筆跡そのもの。公開バケットに置くと、URLさえ
+ * 分かれば誰でも開けてしまう（パスが推測しにくいだけで、守りにはならない）。
+ * 非公開のバケットに入れ、見るときだけ短時間だけ有効なURLを作る。
+ */
+const PRIVATE_BUCKET = "consent-signatures";
+let privateBucketReady = false;
+
+async function ensurePrivateBucket(): Promise<void> {
+  if (privateBucketReady) return;
+  const { data } = await db().storage.getBucket(PRIVATE_BUCKET);
+  if (!data) {
+    const { error } = await db().storage.createBucket(PRIVATE_BUCKET, {
+      public: false,
+      fileSizeLimit: 2 * 1024 * 1024,
+      allowedMimeTypes: ["image/png"],
+    });
+    if (error && !/exist/i.test(error.message)) throw new Error(error.message);
+  }
+  privateBucketReady = true;
+}
+
+/** 署名画像を非公開で保存し、保存場所（ファイル名）を返す。URLは返さない */
+export async function uploadPrivateImage(file: File): Promise<string> {
+  await ensurePrivateBucket();
+  // 「/」を含めない。あとで保存場所を受け取って開くときの検証を簡単にするため
+  const path = `${Date.now()}_${randomUUID().replace(/-/g, "")}.png`;
+  const { error } = await db().storage.from(PRIVATE_BUCKET).upload(path, file, {
+    contentType: "image/png",
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+/** 保存場所から、短時間だけ開けるURLを作る。見つからなければ null */
+export async function signedUrlFor(path: string, seconds = 60): Promise<string | null> {
+  if (!/^[A-Za-z0-9._-]+$/.test(path)) return null;   // ディレクトリ移動などを防ぐ
+  const { data, error } = await db().storage
+    .from(PRIVATE_BUCKET)
+    .createSignedUrl(path, seconds);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
 }
 
 /** 画像を保存して、表示用のURLを返す */

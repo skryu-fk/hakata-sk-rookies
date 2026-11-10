@@ -6441,6 +6441,13 @@ function SummaryStat({ label, v, unit }: { label: string; v: number; unit?: stri
    「誰がまだか」が分かるようにしてある。
    同意は選び直すたびに追記されるので、1人につき最新の1件だけを見る。
    ──────────────────────────────────────────────────────────── */
+/** 署名の表示元。保存場所だけが入っている場合は、管理者用の窓口を通す */
+function signatureSrc(v: string): string {
+  if (!v) return "";
+  if (v.startsWith("http") || v.startsWith("data:")) return v;
+  return `/api/admin/signature?path=${encodeURIComponent(v)}`;
+}
+
 function ConsentsTab({ members, consents, loading, reload }: {
   members: Member[];
   consents: ConsentRow[];
@@ -6502,9 +6509,10 @@ function ConsentsTab({ members, consents, loading, reload }: {
           src ? (
             <div key={label} style={{ marginTop: 12 }}>
               <div style={{ fontSize: 11, color: "rgba(235,235,245,0.50)", marginBottom: 5 }}>{label}</div>
-              {/* 署名は Supabase Storage の URL か data URL。next/image を通さず素の img で出す */}
+              {/* 署名は非公開の置き場にあるので、60秒だけ開けるURLに転送する窓口を通す。
+                  古い記録（公開URL / data URL）はそのまま出す */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src as string} alt={label as string}
+              <img src={signatureSrc(src as string)} alt={label as string}
                 style={{ width: "100%", maxWidth: 360, borderRadius: 8, border: "1px solid #2C3242", background: "#fff" }} />
             </div>
           ) : null
