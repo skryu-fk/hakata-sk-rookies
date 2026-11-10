@@ -194,6 +194,17 @@ export function signValue(data: Record<string, unknown>, ttlSeconds: number): st
   return `${payload}.${sign(payload)}`;
 }
 
+/**
+ * 同じ入力から、いつでも同じ秘密の文字列を作る（43文字）。
+ *
+ * サーバーだけが計算できるので、持ち歩かせたくない値を
+ * 「保存せずに、必要なときに作り直す」のに使える。
+ * PKCE の code_verifier をこれで作っている。
+ */
+export function deriveSecret(input: string): string {
+  return sign(input);
+}
+
 /** signValue で作った文字列を読む。署名が違う・期限切れなら null */
 export function readValue<T = Record<string, unknown>>(token: string | undefined | null): T | null {
   if (!token) return null;

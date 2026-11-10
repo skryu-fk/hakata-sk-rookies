@@ -16,6 +16,7 @@
  *   これらは署名付きCookieに預ける。サーバー側に置き場を作らずに済ませるため。
  */
 import { createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { deriveSecret } from "@/lib/security";
 
 const AUTH_URL = "https://access.line.me/oauth2/v2.1/authorize";
 const TOKEN_URL = "https://api.line.me/oauth2/v2.1/token";
@@ -159,20 +160,46 @@ export function verifyIdToken(idToken: string, expectedNonce: string): { ok: tru
 }
 
 /**
- * 戻ってきたあとの転送。
+ * PKCE の code_verifier を state から作り直す。
  *
- * メンバーのCookieは SameSite=Strict なので、LINEからの転送で直接
- * /stats を開くと送られてこない（＝ログインしていない扱いになる）。
- * いったん自分のページを返して、そこから移動させることで同一サイト扱いにする。
+ * verifier をCookieに預けると、iPhoneのホーム画面アプリから始めたとき
+ * 戻り先がSafariになり、Cookieの置き場が別なので読めなくなる。
+ * サーバーだけが計算できる形で作れば、どこへ戻ってきても復元できる。
  */
-export function bounceTo(path: string): Response {
-  const safe = path.startsWith("/") ? path : "/stats";
+export function verifierFor(state: string): string {
+  return deriveSecret(`line-pkce:${state}`);
+}
+
+/**
+ * 戻ってきたあとに出す画面。
+ *
+ * ホーム画面に追加したアプリからLINEへ行くと、iPhoneでは戻り先がSafariになる。
+ * アプリとSafariはログインの持ち主が別なので、黙って転送すると
+ * 「連携したのにアプリでは未連携のまま」に見える。
+ * 何が起きたかと、次に何をすればいいかを必ず文字で出す。
+ */
+export function resultPage(opts: {
+  ok: boolean; title: string; body: string; auto?: boolean;
+}): Response {
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
-<meta name="robots" content="noindex"><title>ログイン中…</title>
-<style>body{background:#000;color:#fff;font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;
-display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:14px}</style>
-</head><body>アプリに戻っています…
-<script>location.replace(${JSON.stringify(safe)})</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>${opts.title}</title>
+<style>
+  body{background:#000;color:#fff;margin:0;min-height:100vh;display:flex;
+    align-items:center;justify-content:center;padding:28px;
+    font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.9}
+  .box{max-width:380px;text-align:center}
+  .mark{font-size:40px;margin-bottom:10px}
+  h1{font-size:19px;font-weight:800;margin:0 0 12px}
+  p{font-size:14px;color:rgba(235,235,245,0.7);margin:0 0 22px}
+  a{display:inline-block;padding:14px 26px;border-radius:10px;background:#E5B84B;
+    color:#10131C;text-decoration:none;font-weight:800;font-size:15px}
+</style></head><body><div class="box">
+  <div class="mark">${opts.ok ? "✅" : "⚠️"}</div>
+  <h1>${opts.title}</h1>
+  <p>${opts.body}</p>
+  <a href="/stats">アプリをひらく</a>
+</div>${opts.auto ? '<script>setTimeout(function(){location.replace("/stats")},600)</script>' : ""}
 </body></html>`;
   return new Response(html, {
     status: 200,

@@ -3,18 +3,18 @@
  *   GET ?mode=link   … ログイン中の自分のアカウントにLINEを紐づける
  *   GET ?mode=login  … 紐づけ済みの人が、LINEでログインする
  *
- * state・nonce・PKCE の verifier をここで作り、署名付きCookieに預ける。
- * mode=link のときは、いま誰がログインしているか（アカウントID）も一緒に預ける。
- * 戻ってきたときはメンバーCookie（SameSite=Strict）が送られてこないため、
- * 本人の特定をこのCookieに頼る必要があるため。
+ * 往復のあいだに必要なもの（誰の手続きか・nonce）は、署名付きの state に
+ * 入れて持たせる。Cookieに預けないのは、iPhoneのホーム画面に追加した
+ * アプリからLINEへ行くと、戻り先がSafariになり、Cookieの置き場が別で
+ * 読めなくなるため。署名があるので、書き換えられたものは通らない。
+ *
+ * PKCE の code_verifier は state から計算し直す（lineAuth.verifierFor）。
+ * 持ち歩かせないので、URLにも履歴にも残らない。
  */
-import {
-  readSession, readCookie, MEMBER_COOKIE,
-  signValue, buildRoundTripCookie,
-} from "@/lib/security";
+import { readSession, readCookie, MEMBER_COOKIE, signValue } from "@/lib/security";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import {
-  lineEnabled, buildAuthUrl, randomToken, redirectUri, LINE_STATE_COOKIE,
+  lineEnabled, buildAuthUrl, randomToken, redirectUri, verifierFor,
 } from "@/lib/lineAuth";
 
 export const runtime = "nodejs";
@@ -34,26 +34,25 @@ export async function GET(request: Request) {
   const mode = new URL(request.url).searchParams.get("mode") === "login" ? "login" : "link";
 
   // 紐づけは、ログインしている本人からの操作に限る
-  let accountId = "";
+  let sub = "";
   if (mode === "link") {
     const sess = readSession(readCookie(request.headers, MEMBER_COOKIE), "member");
     if (!sess?.sub) {
       return Response.json({ ok: false, error: "ログインが必要です。" }, { status: 401 });
     }
-    accountId = sess.sub;
+    sub = sess.sub;
   }
 
-  const state = randomToken();
   const nonce = randomToken();
-  const verifier = randomToken(48);   // PKCE: 43〜128文字に収まる長さ
-
-  const cookie = signValue({ state, nonce, verifier, mode, accountId }, ROUND_TRIP_SECONDS);
+  // state は base64url と「.」だけでできているので、URLエンコードは不要
+  const state = signValue({ mode, sub, nonce }, ROUND_TRIP_SECONDS);
 
   return new Response(null, {
     status: 302,
     headers: {
-      Location: buildAuthUrl({ state, nonce, verifier, redirect: redirectUri(request) }),
-      "Set-Cookie": buildRoundTripCookie(LINE_STATE_COOKIE, cookie, ROUND_TRIP_SECONDS),
+      Location: buildAuthUrl({
+        state, nonce, verifier: verifierFor(state), redirect: redirectUri(request),
+      }),
       "cache-control": "no-store",
     },
   });
