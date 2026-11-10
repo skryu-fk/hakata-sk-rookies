@@ -43,6 +43,12 @@ export async function POST(request: Request) {
   const rl = rateLimit(`admin-verify:${ip}`, { limit: 8, windowMs: 5 * 60_000, lockMs: 30 * 60_000 });
   if (!rl.ok) return tooMany(rl.retryAfter);
 
+  // IPを変えながら送られると上の制限は効かないので、入口全体でも数える。
+  // ロックを短め（10分）にしているのは、わざと空振りさせて代表自身を
+  // 締め出す使い方をされても、長く困らないようにするため。
+  const all = rateLimit("admin-verify:all", { limit: 20, windowMs: 10 * 60_000, lockMs: 10 * 60_000 });
+  if (!all.ok) return tooMany(all.retryAfter);
+
   let body: { password?: string };
   try {
     body = await request.json();

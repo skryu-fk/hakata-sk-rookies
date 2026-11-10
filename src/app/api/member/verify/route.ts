@@ -43,6 +43,13 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: GENERIC }, { status: 401 });
   }
 
+  // IPごとの制限は、送る側がIPを変えられると効かない。
+  // 「このユーザーIDへの試行」も数えて、1人のアカウントを狙い撃ちされるのを防ぐ。
+  const perUser = rateLimit(`member-verify-id:${uid}`, {
+    limit: 8, windowMs: 10 * 60_000, lockMs: 30 * 60_000,
+  });
+  if (!perUser.ok) return tooMany(perUser.retryAfter);
+
   const list = await callAppsScript({ op: "list", sheet: "accounts" });
   if (!list.ok) return Response.json({ ok: false, error: list.error }, { status: list.status });
   const rows = (list.data as { rows?: { data: string[] }[] }).rows ?? [];

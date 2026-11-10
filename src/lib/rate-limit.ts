@@ -42,11 +42,25 @@ export function rateLimit(key: string, opts: RateOptions): { ok: boolean; retryA
   return { ok: true, retryAfter: 0 };
 }
 
-/** プロキシ経由でも実クライアントIPを推定する。 */
+/**
+ * クライアントIPを推定する。
+ *
+ * x-forwarded-for の「いちばん左」は、リクエストを送る側が自由に書ける。
+ * そこを信じると、値を変えながら送るだけで回数制限をすり抜けられてしまう。
+ * そのため、プラットフォームが付ける値を先に見て、x-forwarded-for を
+ * 使うときも「いちばん右（＝こちらに届いた最後の中継点）」を取る。
+ */
 export function clientIp(headers: Headers): string {
+  const real = headers.get("x-real-ip");
+  if (real) return real.trim();
+
+  const vercel = headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",").pop()!.trim();
+
   const fwd = headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return headers.get("x-real-ip") || headers.get("x-vercel-forwarded-for") || "unknown";
+  if (fwd) return fwd.split(",").pop()!.trim();
+
+  return "unknown";
 }
 
 export function tooMany(retryAfter: number): Response {

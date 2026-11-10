@@ -1,7 +1,7 @@
 /**
  * セキュリティ関連の共通ユーティリティ。
  */
-import { createHmac, timingSafeEqual, randomBytes, scryptSync } from "crypto";
+import { createHmac, timingSafeEqual, randomBytes, randomInt, scryptSync } from "crypto";
 
 /* ── パスワードのハッシュ化（scrypt + salt）─────────────────────── */
 // 個人アカウントのパスワードは平文で保存せず、ソルト付き scrypt ハッシュで保存する。
@@ -65,9 +65,15 @@ export function isStrongPassword(pw: string): boolean {
   return /[A-Za-z]/.test(pw) && /[0-9]/.test(pw);
 }
 
-/** ユーザーID（例: SKR-8421）を1件生成する。重複確認は呼び出し側で行う。 */
+/**
+ * ユーザーID（例: SKR-482130）を1件生成する。重複確認は呼び出し側で行う。
+ *
+ * Math.random() は予測できてしまううえ、4桁では9000通りしかなかった。
+ * ログインIDが絞り込めると総当たりの的が小さくなるので、
+ * 暗号用の乱数で6桁にしている。既存の4桁のIDはそのまま使える。
+ */
 export function genUserId(): string {
-  return `SKR-${Math.floor(1000 + Math.random() * 9000)}`;
+  return `SKR-${String(randomInt(0, 1_000_000)).padStart(6, "0")}`;
 }
 
 /** 入力されたユーザーIDの表記ゆれ（小文字・全角・ハイフン抜け）を吸収する。 */
@@ -92,12 +98,27 @@ export function safeEqual(a: string, b: string): boolean {
 
 /* ── 署名付きセッショントークン（ステートレス・HMAC） ─────────── */
 
+let warnedNoSecret = false;
+
+/**
+ * セッションの署名に使う鍵。
+ *
+ * SESSION_SECRET を必ず設定すること。未設定だと管理者パスワードから鍵を
+ * 作ることになり、パスワードが漏れた時点でセッションを偽造できてしまう。
+ * （人が決めたパスワードは、鍵としては短く推測もしやすい）
+ */
 function sessionSecret(): string {
-  // 専用の SESSION_SECRET を推奨。未設定時はサーバ専用の各パスワードから導出
-  return (
-    process.env.SESSION_SECRET ||
-    `${process.env.MEMBER_PASSWORD ?? ""}|${process.env.ADMIN_PASSWORD ?? ""}|skr-session-v1`
-  );
+  const secret = process.env.SESSION_SECRET;
+  if (secret) return secret;
+
+  if (!warnedNoSecret) {
+    warnedNoSecret = true;
+    console.warn(
+      "[security] SESSION_SECRET が未設定です。管理者パスワードから鍵を作っています。" +
+      "Vercel の環境変数にランダムな長い文字列を設定してください。",
+    );
+  }
+  return `${process.env.MEMBER_PASSWORD ?? ""}|${process.env.ADMIN_PASSWORD ?? ""}|skr-session-v1`;
 }
 
 export type SessionRole = "member" | "admin";
