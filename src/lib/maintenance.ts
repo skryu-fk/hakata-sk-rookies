@@ -7,8 +7,8 @@
  * 時刻は UTC で書く。Vercel のサーバーは UTC で動くので、
  * 日本時間のまま書くとずれる。対応は次のとおり。
  *   日本時間 = UTC + 9時間
- *   10/21 23:00 JST = 10/21 14:00 UTC
- *   10/22 01:00 JST = 10/21 16:00 UTC
+ *   11/10 22:00 JST = 11/10 13:00 UTC
+ *   11/10 23:00 JST = 11/10 14:00 UTC
  *
  * 予定より早く開けたい／延ばしたいときは、Vercel の環境変数 MAINTENANCE に
  * "off"（即時解除）または "on"（時間に関係なく継続）を入れる。
@@ -19,17 +19,23 @@
 
 export const MAINTENANCE = {
   /** 開始（UTC） */
-  from: "2026-10-21T14:00:00Z",
+  from: "2026-11-10T13:00:00Z",
   /** 終了（UTC） */
-  to: "2026-10-21T16:00:00Z",
+  to: "2026-11-10T14:00:00Z",
   /** 画面に出す日本時間の表記 */
-  fromLabel: "10月21日（火）23:00",
-  toLabel: "10月22日（水）1:00",
-  reason: "セキュリティ強化作業のため",
+  fromLabel: "11月10日（火）22:00",
+  toLabel: "11月10日（火）23:00",
+  reason: "セキュリティ強化と公式アプリの大型アップデートのため",
   detail:
-    "近年、生成AIの悪用によるサイバー攻撃と情報漏えいが増えています。" +
-    "メンバーの個人情報や成績をお預かりしている以上、被害が出てから動くのでは遅いと考え、" +
-    "先回りしてシステム全体の守りを固める作業を行っています。",
+    "メンバーの個人情報と成績をお預かりしているため、システム全体の守りを固める作業を続けています。" +
+    "あわせて公式アプリを大きく更新し、AI解析の精度向上、画面の見やすさ、操作のしやすさを改善します。",
+  /** 作業の内容。メンテナンス画面に箇条書きで出す */
+  items: [
+    "セキュリティの強化",
+    "AI解析の精度向上",
+    "画面の見やすさの改善",
+    "操作性の改善",
+  ],
 } as const;
 
 /**
@@ -125,6 +131,24 @@ export function maintenanceHtml(): string {
   .row { display: flex; gap: 14px; padding: 7px 0; font-size: 14px; }
   .row dt { flex: 0 0 92px; color: rgba(255,255,255,0.5); font-weight: 700; }
   .row dd { margin: 0; font-weight: 700; }
+  .items {
+    margin: 0 0 4px;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.72);
+  }
+  .items li { padding: 3px 0 3px 18px; position: relative; }
+  .items li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 7px;
+    height: 7px;
+    background: var(--gold);
+  }
   .note { margin-top: 26px; font-size: 12.5px; color: rgba(255,255,255,0.45); text-align: left; }
   .note a { color: var(--gold); }
   @media (max-width: 480px) {
@@ -144,6 +168,10 @@ export function maintenanceHtml(): string {
     ご不便をおかけして申し訳ありません。</p>
 
     <p>${MAINTENANCE.detail}</p>
+
+    <ul class="items">
+      ${MAINTENANCE.items.map(i => `<li>${i}</li>`).join("")}
+    </ul>
 
     <dl class="box">
       <div class="row"><dt>作業時間</dt><dd>${MAINTENANCE.fromLabel} 〜 ${MAINTENANCE.toLabel}</dd></div>
