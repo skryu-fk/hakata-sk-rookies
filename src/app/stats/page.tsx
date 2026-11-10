@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { readCache, writeCache, clearCache } from "@/lib/clientCache";
@@ -2526,8 +2526,8 @@ function SummaryCell({ label, value, fmt, accent }: { label: string; value: numb
 function IosLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontSize: 13, color: "rgba(235,235,245,0.60)", fontWeight: 400,
-      padding: "0 4px 7px", letterSpacing: "0.01em",
+      fontSize: 11.5, color: "rgba(235,235,245,0.45)", fontWeight: 600,
+      padding: "0 4px 7px", letterSpacing: "0.08em",
     }}>{children}</div>
   );
 }
@@ -2543,19 +2543,28 @@ function IosGroup({ children, style }: { children: React.ReactNode; style?: Reac
 /** 囲み数値タイル。数字を大きく、ラベルを小さく。 */
 function StatTile({ label, value, accent, tone }: { label: string; value: React.ReactNode; accent?: boolean; tone?: string }) {
   return (
-    <div style={{ background: "#2C2C2E", borderRadius: 10, padding: "11px 8px", textAlign: "center", minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: "rgba(235,235,245,0.60)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+    <div style={{ background: "#2C2C2E", borderRadius: 10, padding: "13px 8px", textAlign: "center", minWidth: 0 }}>
+      <div style={{ fontSize: 11.5, color: "rgba(235,235,245,0.60)", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       <div style={{
-        fontFamily: "var(--font-oswald),sans-serif", fontSize: 21, fontWeight: 700, lineHeight: 1,
+        fontFamily: "var(--font-oswald),sans-serif", fontSize: 24, fontWeight: 700, lineHeight: 1,
         color: tone ?? (accent ? "#E5B84B" : "#FFFFFF"),
       }}>{value}</div>
     </div>
   );
 }
 
+/**
+ * 数値タイルの並び。
+ *
+ * 以前は auto-fit に任せていたため、5個のときに最後の1つだけが
+ * 次の行にぽつんと残っていた。個数から列数を決めて、行の数をそろえる。
+ *   5個 → 3列（3+2） / 4個 → 2列（2+2） / 6個 → 3列（3+3）
+ */
 function TileGrid({ children }: { children: React.ReactNode }) {
+  const n = React.Children.count(children);
+  const cols = n <= 2 ? Math.max(n, 1) : n === 4 ? 2 : 3;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(74px, 1fr))", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>
       {children}
     </div>
   );
@@ -2635,7 +2644,7 @@ function PlayerRow({
         onClick={onToggle}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 11,
-          padding: "13px 14px", background: open ? "#2C2C2E" : "transparent",
+          padding: "15px 14px", background: open ? "#2C2C2E" : "transparent",
           border: "none", cursor: "pointer", textAlign: "left", color: "#fff",
         }}
       >
@@ -2649,7 +2658,7 @@ function PlayerRow({
               {name}
             </span>
           </div>
-          <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.60)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ fontSize: 12.5, color: "rgba(235,235,245,0.55)", marginTop: 4, lineHeight: 1.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {sub}
           </div>
         </div>
