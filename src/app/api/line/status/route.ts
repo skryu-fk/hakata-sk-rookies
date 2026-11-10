@@ -30,8 +30,11 @@ async function currentRow(headers: Headers) {
 export async function GET(request: Request) {
   if (!lineEnabled()) return Response.json({ ok: true, enabled: false, linked: false });
 
+  // ここは「LINEのボタンを出してよいか」の判断にも使う。
+  // ログイン画面はまだログインしていないので、401 を返すとボタンが出せない。
+  // 設定されているかどうかは本人の情報ではないので、未ログインでも答える。
   const found = await currentRow(request.headers);
-  if (!found) return Response.json({ ok: false, error: "ログインが必要です。" }, { status: 401 });
+  if (!found) return Response.json({ ok: true, enabled: true, linked: false });
   if ("error" in found) return Response.json({ ok: false, error: found.error }, { status: found.status });
 
   return Response.json({

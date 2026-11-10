@@ -5,8 +5,9 @@
  *   1. state の署名を確かめる（なりすまし・改ざん防止）
  *   2. 認可コードをIDトークンに交換する
  *   3. IDトークンの署名・発行元・宛先・期限・nonce を確かめる
- *   4. mode=link  … state に入っているアカウントにLINEのユーザーIDを紐づける
- *      mode=login … 紐づけ済みのアカウントを探し、ログインさせる
+ *   4. mode=link     … state に入っているアカウントにLINEのユーザーIDを紐づける
+ *      mode=login    … 紐づけ済みのアカウントを探し、ログインさせる
+ *      mode=register … 名簿で確かめ済みのメンバーのアカウントを新しく作る
  *
  * ── Cookieに頼らない理由 ──
  * iPhoneのホーム画面に追加したアプリからLINEへ行くと、戻り先がSafariになる。
@@ -16,7 +17,7 @@
  */
 import {
   issueSession, buildSetCookie, buildRoundTripCookie,
-  readValue, MEMBER_COOKIE,
+  readValue, nameKey, genUserId, MEMBER_COOKIE,
 } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
@@ -39,6 +40,14 @@ const MESSAGES: Record<string, { ok: boolean; title: string; body: string }> = {
   linked: {
     ok: true, title: "LINEと連携しました",
     body: "次からは、ログイン画面の「LINEでログイン」で入れます。",
+  },
+  registered: {
+    ok: true, title: "登録が完了しました",
+    body: "次からは、ログイン画面の「LINEでログイン」だけで入れます。パスワードはありません。",
+  },
+  already_registered: {
+    ok: false, title: "すでに登録されています",
+    body: "このメンバーのアカウントはすでにあります。ログイン画面からお入りください。ユーザーIDが分からない場合は「ユーザーID・パスワードを忘れた場合」からご連絡ください。",
   },
   not_linked: {
     ok: false, title: "まだ連携されていません",
@@ -87,13 +96,14 @@ const FALLBACK = {
  * もう1つ開くだけで、ホーム画面のアプリには戻らない。
  * 閉じて開きなおしてもらうのが、いちばん確実で分かりやすい。
  */
-function done(code: string, extraHeaders?: Record<string, string>): Response {
+function done(code: string, extraHeaders?: Record<string, string>, id?: string): Response {
   const m = MESSAGES[code] ?? FALLBACK;
   const res = resultPage({
     ...m,
     // ログインできたときだけ、そのままアプリへ進める
     auto: code === "login_ok",
-    closeOnly: code === "linked",
+    closeOnly: code === "linked" || code === "registered",
+    id,
   });
   const headers = new Headers(res.headers);
   headers.append("Set-Cookie", buildRoundTripCookie(LINE_STATE_COOKIE, "", 0));
@@ -160,6 +170,61 @@ export async function GET(request: Request) {
       return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed");
     }
     return done("linked");
+  }
+
+  if (stash.mode === "register") {
+    // 1つのLINEアカウントで2人分は作らせない
+    if (rows.some(r => (r.data[ACCOUNT_LINE_COL] ?? "") === lineUserId)) return done("already_used");
+    // 送り出したあとに本人が別の端末で登録していた場合に備えて、ここでも見る
+    if (rows.some(r => (r.data[7] ?? "") === stash.sub && (r.data[5] ?? "") !== "rejected")) {
+      return done("already_registered");
+    }
+
+    // 氏名はURLに乗せていないので、名簿から引き直す
+    const mList = await callAppsScript({ op: "list", sheet: "members" });
+    if (!mList.ok) return done("server_error");
+    const members = (mList.data as { rows?: Row[] }).rows ?? [];
+    // members 列: [id, name, nickname, jerseyNumber, position, joinedDate, active, kana]
+    const me = members.find(r => (r.data[0] ?? "") === stash.sub);
+    if (!me) return done("no_account");
+    // アカウントの氏名はカタカナでそろえる（IDとパスワードで登録した人と同じ形）
+    const name = ((me.data[7] ?? "").trim() || (me.data[1] ?? "").trim());
+    if (!name) return done("no_account");
+
+    const used = new Set(rows.map(r => (r.data[8] ?? "").toUpperCase()).filter(Boolean));
+    let userId = "";
+    for (let i = 0; i < 40; i++) {
+      const cand = genUserId();
+      if (!used.has(cand.toUpperCase())) { userId = cand; break; }
+    }
+    if (!userId) return done("server_error");
+
+    /*
+     * パスワードの欄（hash・salt）は空にする。
+     * 空のときログインは必ず失敗する作りなので（security.verifyPassword）、
+     * このアカウントに入れるのはLINEを持っている本人だけになる。
+     * accounts 列: [id, name, nameKey, hash, salt, status, createdAt,
+     *               memberId, userId, role, staffTitle, staffArea, lineUserId]
+     */
+    const accountId = `acc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const row = [
+      accountId, name, nameKey(name), "", "", "approved",
+      new Date().toISOString().slice(0, 19).replace("T", " "),
+      stash.sub, userId, "", "", "", lineUserId,
+    ];
+    const saved = await callAppsScript({ op: "append", sheet: "accounts", row });
+    if (!saved.ok) {
+      console.error("[line] register failed:", saved.error);
+      return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed");
+    }
+
+    // そのままログインさせる。Safariに戻ってきている場合は、すぐ使える
+    const session = issueSession("member", SESSION_TTL, accountId);
+    return done(
+      "registered",
+      { "Set-Cookie": buildSetCookie(MEMBER_COOKIE, session, SESSION_TTL) },
+      userId,
+    );
   }
 
   // mode === "login"

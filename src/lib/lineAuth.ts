@@ -170,6 +170,13 @@ export function verifierFor(state: string): string {
   return deriveSecret(`line-pkce:${state}`);
 }
 
+/** 画面に出す前に、HTMLとして解釈される文字を無害にする */
+function escapeHtml(v: string): string {
+  return v.replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c
+  ));
+}
+
 /**
  * 戻ってきたあとに出す画面。
  *
@@ -180,6 +187,8 @@ export function verifierFor(state: string): string {
  */
 export function resultPage(opts: {
   ok: boolean; title: string; body: string; auto?: boolean; closeOnly?: boolean;
+  /** 発行されたユーザーID。登録できたときだけ、控えてもらうために出す */
+  id?: string;
 }): Response {
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -196,10 +205,20 @@ export function resultPage(opts: {
     color:#10131C;text-decoration:none;font-weight:800;font-size:15px}
   .close{padding:15px 18px;border-radius:10px;background:rgba(229,184,75,0.12);
     border:1px solid #E5B84B;color:#E5B84B;font-weight:800;font-size:15px;line-height:1.7}
+  .id{margin:0 0 22px;padding:16px 14px;border:1px solid #6d5b2f;border-radius:12px;
+    background:#201f1d}
+  .id span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.12em;color:#E5B84B}
+  .id strong{display:block;margin-top:6px;font-size:27px;font-weight:800;letter-spacing:.08em}
+  .id em{display:block;margin-top:6px;font-size:11.5px;font-style:normal;
+    color:rgba(235,235,245,0.55);line-height:1.7}
 </style></head><body><div class="box">
   <div class="mark">${opts.ok ? "✅" : "⚠️"}</div>
   <h1>${opts.title}</h1>
   <p>${opts.body}</p>
+  ${opts.id
+    ? `<div class="id"><span>あなたのユーザーID</span><strong>${escapeHtml(opts.id)}</strong>`
+      + "<em>LINEで入れるので、ふだんは使いません。LINEが使えなくなったときのために、控えておいてください。</em></div>"
+    : ""}
   ${opts.closeOnly
     ? '<div class="close">この画面を閉じて、アプリを開きなおしてください。</div>'
     : '<a href="/stats">アプリをひらく</a>'}

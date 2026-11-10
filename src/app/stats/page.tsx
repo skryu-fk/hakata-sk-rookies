@@ -311,6 +311,41 @@ const uiPrimary: React.CSSProperties = {
   cursor: "pointer",
 };
 
+/**
+ * LINEのボタン。ログイン画面と新規登録画面で同じ見た目にする。
+ * 色（#06c755）は LINE が定めた指定色で、変えてはいけない。
+ */
+const lineBtn: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 9,
+  width: "100%",
+  minHeight: 52,
+  padding: "14px 20px",
+  boxSizing: "border-box",
+  borderRadius: 12,
+  background: "#06c755",
+  color: "#fff",
+  textDecoration: "none",
+  fontFamily: "var(--font-zen),sans-serif",
+  fontSize: 16,
+  fontWeight: 800,
+  letterSpacing: "0.02em",
+};
+
+/** LINEのマーク（白抜き）。画像を読み込まずに済ませる */
+function LineMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path
+        fill="#fff"
+        d="M12 2C6.2 2 1.5 5.9 1.5 10.6c0 4.2 3.7 7.7 8.7 8.4.4.1.9.3 1 .6.1.3.1.7 0 1l-.2.9c0 .3-.2 1 .9.6 1.1-.5 6-3.5 8.1-6 1.4-1.5 2.1-3.1 2.1-5.5C22.5 5.9 17.8 2 12 2ZM7.3 13.6H5.2c-.3 0-.5-.2-.5-.5V9c0-.3.2-.5.5-.5s.5.2.5.5v3.6h1.6c.3 0 .5.2.5.5s-.2.5-.5.5Zm2-.5c0 .3-.2.5-.5.5s-.5-.2-.5-.5V9c0-.3.2-.5.5-.5s.5.2.5.5v4.1Zm4.9 0c0 .2-.1.4-.4.5h-.2c-.2 0-.3-.1-.4-.2l-2.1-2.8v2.5c0 .3-.2.5-.5.5s-.5-.2-.5-.5V9c0-.2.1-.4.3-.5h.2c.1 0 .3.1.4.2l2.1 2.9V9c0-.3.2-.5.5-.5s.5.2.5.5v4.1Zm3.3-2.6c.3 0 .5.2.5.5s-.2.5-.5.5h-1.6v1.1h1.6c.3 0 .5.2.5.5s-.2.5-.5.5h-2.1c-.3 0-.5-.2-.5-.5V9c0-.3.2-.5.5-.5h2.1c.3 0 .5.2.5.5s-.2.5-.5.5h-1.6v1.1h1.6Z"
+      />
+    </svg>
+  );
+}
+
 /** 全角カタカナ＋スペースのみか（サーバ側 isKatakanaName と同じ判定） */
 function isKatakanaClient(s: string): boolean {
   const t = s.normalize("NFKC").trim();
@@ -438,6 +473,37 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
     } catch {
       setError("ネットワークエラーが発生しました。");
     } finally { setBusy(false); }
+  }
+
+  /**
+   * LINEで新規登録。
+   *
+   * 先に氏名を送って名簿と照らし合わせ、通ったら引換券をもらってLINEへ行く。
+   * LINEを通ったあとで「名簿にありません」と言われても直せないため、
+   * 往復する前に確かめている。パスワードは作らない。
+   */
+  async function doRegisterWithLine() {
+    if (busy) return;
+    if (!nameOk) { setError("氏名を全角カタカナで入力してください（例：ヤマダ　タロウ）。"); return; }
+    setBusy(true); setError("");
+    try {
+      const res = await fetch("/api/line/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d?.ok && d.token) {
+        // ここでLINEへ移動する。戻ってこないので busy は戻さない
+        window.location.href = `/api/line/start?mode=register&t=${encodeURIComponent(d.token)}`;
+        return;
+      }
+      if (res.status === 429) setError("試行回数が多すぎます。しばらく待ってからお試しください。");
+      else setError(d?.error || "LINEでの登録を始められませんでした。");
+    } catch {
+      setError("ネットワークエラーが発生しました。");
+    }
+    setBusy(false);
   }
 
   async function copyId() {
@@ -693,7 +759,14 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={uiLabel}>パスワード</label>
+                <label style={uiLabel}>
+                  パスワード
+                  {lineReady && (
+                    <span style={{ fontWeight: 600, color: UI.faint, letterSpacing: 0, marginLeft: 8 }}>
+                      LINEで登録する場合は不要です
+                    </span>
+                  )}
+                </label>
                 <input
                   type="password"
                   value={pw}
@@ -757,26 +830,39 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
             {busy ? "処理中…" : isLogin ? "ログイン" : "登録する"}
           </button>
 
-          {isLogin && lineReady && (
+          {lineReady && (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0 14px" }}>
                 <span style={{ flex: 1, height: 1, background: UI.line }} />
                 <span style={{ fontSize: 11.5, color: UI.sub }}>または</span>
                 <span style={{ flex: 1, height: 1, background: UI.line }} />
               </div>
-              {/* 連携済みの人だけ入れる。未連携なら案内を出して戻される */}
-              <a
-                href="/api/line/start?mode=login"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  padding: "14px 20px", borderRadius: 10, background: "#06c755",
-                  color: "#fff", textDecoration: "none", fontSize: 15, fontWeight: 800,
-                }}
-              >
-                LINEでログイン
-              </a>
+
+              {isLogin ? (
+                /* 連携済み・LINEで登録した人が入れる。それ以外は案内を出して戻される */
+                <a href="/api/line/start?mode=login" style={lineBtn}>
+                  <LineMark />LINEでログイン
+                </a>
+              ) : (
+                /* 氏名だけで登録できる。押すとLINEの同意画面へ移動する */
+                <button
+                  type="button"
+                  onClick={doRegisterWithLine}
+                  disabled={busy || !nameOk}
+                  style={{
+                    ...lineBtn, width: "100%", border: "none",
+                    opacity: nameOk ? 1 : 0.4,
+                    cursor: busy ? "wait" : nameOk ? "pointer" : "not-allowed",
+                  }}
+                >
+                  <LineMark />LINEで新規登録
+                </button>
+              )}
+
               <p style={{ fontSize: 11.5, color: UI.sub, textAlign: "center", marginTop: 8, lineHeight: 1.7 }}>
-                先にマイページでLINEと連携した方のみ使えます。
+                {isLogin
+                  ? "LINEで登録した方、マイページでLINEと連携した方が使えます。"
+                  : "氏名だけで登録できます。パスワードを作らずに、次からはLINEだけで入れます。"}
               </p>
             </>
           )}

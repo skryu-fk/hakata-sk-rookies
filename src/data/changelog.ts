@@ -11,8 +11,19 @@
  */
 export type ChangeLogEntry = { version: string; date: string; items: string[] };
 
-export const APP_VERSION = "2.1";
+export const APP_VERSION = "2.2";
 export const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "2.2",
+    date: "2026-11-11",
+    items: [
+      "🆕 「LINEで新規登録」を追加。氏名だけで登録でき、パスワードは作らなくて済みます",
+      "💚 ログイン画面に「LINEでログイン」が出るようにしました（これまで出ていませんでした）",
+      "🔔 新しい版が出たら、アプリの上に知らせが出るようにしました（押すと最新になります）",
+      "✋ ボタンを押したときに、押した手応えが出るようにしました",
+      "🔕 通知の案内を「×」で閉じられるようにしました",
+    ],
+  },
   {
     version: "2.1",
     date: "2026-11-10",
