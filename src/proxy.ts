@@ -8,12 +8,15 @@
  * 入口でまとめて返す。
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { inMaintenance, isAllowedDuringMaintenance, maintenanceResponse } from "@/lib/maintenance";
+import { inMaintenance, isAllowedDuringMaintenance, isOperator, maintenanceResponse } from "@/lib/maintenance";
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (inMaintenance() && !isAllowedDuringMaintenance(path)) {
+  // 管理者としてログインしている場合は、止めている最中でも中を見られる。
+  // Next.js 16 の Proxy は Node.js ランタイムで動くため、
+  // ここで署名付きCookieの検証ができる。
+  if (inMaintenance() && !isAllowedDuringMaintenance(path) && !isOperator(request.headers)) {
     return maintenanceResponse();
   }
 

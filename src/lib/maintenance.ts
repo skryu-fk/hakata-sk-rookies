@@ -17,6 +17,8 @@
  * 時間もそろえてある。片方だけ直すとずれるので注意。
  */
 
+import { verifySession, readCookie, ADMIN_COOKIE } from "@/lib/security";
+
 export const MAINTENANCE = {
   /** 開始（UTC） */
   from: "2026-11-10T13:00:00Z",
@@ -68,6 +70,18 @@ const ALLOWED = ["/admin", "/staff", "/api/admin", "/api/staff"];
 
 export function isAllowedDuringMaintenance(path: string): boolean {
   return ALLOWED.some(p => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * 作業する本人は、メンテナンス中でもサイトとアプリを開ける。
+ *
+ * 止めている最中に直したものを自分で確かめられないと、
+ * 「開けてみたら直っていなかった」が起きる。
+ * 管理者としてログインしている場合だけ素通しする。
+ * 判断は署名付きCookieなので、URLを知っているだけでは通れない。
+ */
+export function isOperator(headers: Headers): boolean {
+  return verifySession(readCookie(headers, ADMIN_COOKIE), "admin");
 }
 
 /**
