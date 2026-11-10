@@ -90,7 +90,11 @@ export async function GET(request: Request) {
     const saved = await callAppsScript({
       op: "update", sheet: "accounts", rowIndex: target.rowIndex, row: next,
     });
-    if (!saved.ok) return back("save_failed");
+    if (!saved.ok) {
+      console.error("[line] link save failed:", saved.error);
+      // 列がまだ無い場合は、SQLの流し忘れと分かる文言を出す
+      return back(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed");
+    }
     return back("linked");
   }
 

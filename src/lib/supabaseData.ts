@@ -96,6 +96,37 @@ function toRow(sheet: string, rec: Record<string, unknown>) {
 }
 
 /** 配列 → 列名付きオブジェクト（余った列は空文字で埋める） */
+/** エラーメッセージから「無い列」の名前を取り出す */
+function missingColumn(message: string): string | null {
+  return /Could not find the '([^']+)' column/i.exec(message)?.[1]
+    ?? /column "?([\w]+)"? of relation .* does not exist/i.exec(message)?.[1]
+    ?? null;
+}
+
+/**
+ * 書き込みを実行する。テーブルにまだ無い列が混ざっていたら、その列を外して
+ * もう一度試す。
+ *
+ * 列を増やす変更を入れたあと、Supabase側のSQLを流す前でも、
+ * 既存の機能（登録・承認など）が巻き添えで止まらないようにするため。
+ * 外した列はログに残すので、SQLの流し忘れに気づける。
+ */
+async function writeWithFallback(
+  run: (rec: Record<string, string>) => PromiseLike<{ error: { message: string } | null }>,
+  rec: Record<string, string>,
+): Promise<void> {
+  const current = { ...rec };
+  for (let i = 0; i < 4; i++) {
+    const { error } = await run(current);
+    if (!error) return;
+    const col = missingColumn(error.message);
+    if (!col || !(col in current)) throw new Error(error.message);
+    console.warn(`[supabase] 「${col}」列がまだありません。この列を書かずに続けます。supabase/schema.sql を実行してください。`);
+    delete current[col];
+  }
+  throw new Error("列の不一致が解消できませんでした。supabase/schema.sql を実行してください。");
+}
+
 function toRecord(sheet: string, row: unknown[]): Record<string, string> {
   const cols = COLUMNS[sheet];
   const rec: Record<string, string> = {};
@@ -168,8 +199,7 @@ export async function callSupabase(payload: Record<string, unknown>): Promise<Da
     if (op === "append") {
       const row = payload.row as unknown[];
       if (!Array.isArray(row)) return { ok: false, status: 400, error: "row required" };
-      const { error } = await db().from(sheet).insert(toRecord(sheet, row));
-      if (error) throw new Error(error.message);
+      await writeWithFallback(rec => db().from(sheet).insert(rec), toRecord(sheet, row));
       return { ok: true, data: { ok: true } };
     }
 
@@ -178,8 +208,10 @@ export async function callSupabase(payload: Record<string, unknown>): Promise<Da
       const row = payload.row as unknown[];
       if (!Number.isFinite(rowIndex)) return { ok: false, status: 400, error: "bad rowIndex" };
       if (!Array.isArray(row)) return { ok: false, status: 400, error: "row required" };
-      const { error } = await db().from(sheet).update(toRecord(sheet, row)).eq("row_id", rowIndex);
-      if (error) throw new Error(error.message);
+      await writeWithFallback(
+        rec => db().from(sheet).update(rec).eq("row_id", rowIndex),
+        toRecord(sheet, row),
+      );
       return { ok: true, data: { ok: true } };
     }
 
@@ -257,6 +289,19 @@ async function ensureBucket(): Promise<void> {
     if (error && !/exist/i.test(error.message)) throw new Error(error.message);
   }
   bucketReady = true;
+}
+
+/**
+ * その列がテーブルにあるか確かめる。
+ * 「SQLを流したつもりで流していなかった」を目で確かめられるようにするため。
+ */
+export async function columnExists(table: string, column: string): Promise<boolean> {
+  try {
+    const { error } = await db().from(table).select(column).limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
 }
 
 /* ── 人に見せない画像（手書き署名）─────────────────────────

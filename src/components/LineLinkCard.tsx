@@ -37,6 +37,8 @@ export default function LineLinkCard() {
       pending: { ok: false, text: "アカウントが承認待ちです。代表の承認後にご利用ください。" },
       rejected: { ok: false, text: "このアカウントは現在利用できません。" },
       disabled: { ok: false, text: "LINEログインはいま使えません。" },
+      no_column: { ok: false, text: "連携を保存できませんでした。データベースの準備（supabase/schema.sql の実行）が済んでいません。" },
+      save_failed: { ok: false, text: "連携を保存できませんでした。もう一度お試しください。" },
     };
     setMsg(texts[p] ?? { ok: false, text: "LINEとの連携に失敗しました。もう一度お試しください。" });
     // 結果はURLに残さない（再読み込みで何度も出るため）

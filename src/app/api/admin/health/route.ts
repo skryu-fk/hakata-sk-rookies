@@ -11,6 +11,7 @@
 import { ensureAuth } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { MAINTENANCE, inMaintenance } from "@/lib/maintenance";
+import { supabaseEnabled, columnExists } from "@/lib/supabaseData";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,6 +95,28 @@ export async function GET(request: Request) {
       note: has("NEXT_PUBLIC_SITE_URL") ? "設定済み。" : "未設定です。別サイトからの書き込み判定がゆるくなります。",
     },
   ];
+
+  // SQLを流し忘れていないか、実際にテーブルを見て確かめる
+  if (supabaseEnabled()) {
+    const [lineCol, consents] = await Promise.all([
+      columnExists("accounts", "line_user_id"),
+      columnExists("consents", "id"),
+    ]);
+    checks.push({
+      key: "accounts.line_user_id", label: "LINE連携用の列",
+      ok: lineCol, level: "推奨",
+      note: lineCol
+        ? "あります。"
+        : "ありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。これが無いとLINEの連携が保存されません。",
+    });
+    checks.push({
+      key: "consents", label: "規約同意のテーブル",
+      ok: consents, level: "推奨",
+      note: consents
+        ? "あります。"
+        : "ありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。",
+    });
+  }
 
   const ng = checks.filter(c => !c.ok);
 
