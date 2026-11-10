@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import FaqSection from "@/components/FaqSection";
 import { RecruitStatusStrip } from "@/components/RecruitStatus";
 import { SubHeader, SubHero, SubFooter } from "@/components/SubPageChrome";
+import { MANAGER_OPEN } from "@/data/recruit";
 import { FAQS } from "@/data/faq";
 
 export const metadata: Metadata = {
   title: "よくある質問 | 博多SKルーキーズ",
   description:
-    "福岡市の草野球チーム「博多SKルーキーズ」によくいただく質問と回答。活動場所・費用・道具・年齢・見学・マネージャー募集・リーグについてまとめています。",
+    `福岡市の草野球チーム「博多SKルーキーズ」によくいただく質問と回答。活動場所・費用・道具・年齢・見学${MANAGER_OPEN ? "・マネージャー募集" : ""}・リーグについてまとめています。`,
   alternates: { canonical: "/faq" },
   robots: { index: true, follow: true },
 };
@@ -41,7 +42,7 @@ export default function FaqPage() {
         <SubHero
           en="FAQ"
           jp="よくある質問"
-          lead={`活動場所・費用・道具・年齢・見学・マネージャー募集・リーグまで、よくいただく${FAQS.length}件の質問にお答えします。`}
+          lead={`活動場所・費用・道具・年齢・見学${MANAGER_OPEN ? "・マネージャー募集" : ""}・リーグまで、よくいただく${FAQS.length}件の質問にお答えします。`}
         />
         <FaqSection full />
       </main>

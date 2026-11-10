@@ -21,7 +21,7 @@ const GOLD = "#d4a82a";
 const RED = "#d10024";
 
 export default function LeagueSection({ xUrl }: { xUrl: string }) {
-  // 下に続くマネージャー募集も濃紺なので、境目に赤い線を入れて区切っている
+  // 下に続くセクションも濃紺なので、境目に赤い線を入れて区切っている
   return (
     <section id="league" style={{ background: NAVY, position: "relative", overflow: "hidden", borderBottom: "4px solid #d10024" }}>
       {/* 背景の大きな文字。装飾なので読み上げ対象から外す */}

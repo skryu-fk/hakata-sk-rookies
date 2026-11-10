@@ -97,14 +97,18 @@ export default function RecruitForm() {
   // 初期描画はサーバーと同じ既定値にし、表示後に切り替えることで表示ズレを防ぐ。
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("inquiry");
-    const map: Record<string, string> = { sponsor: "スポンサー", match: "対戦・リーグ", manager: "マネージャー応募" };
+    // 募集していないものは、古いリンクやブックマークから来ても選ばれないようにする
+    const map: Record<string, string> = {
+      sponsor: "スポンサー", match: "対戦・リーグ",
+      ...(MANAGER_OPEN ? { manager: "マネージャー応募" } : {}),
+    };
     const value = q ? map[q] : undefined;
     if (value) setInquiry(value);
   }, []);
 
   // 年齢・野球経験は選手として応募するときだけ聞く（お店の方などには不要なため）
   const isMember = inquiry === "メンバー応募";
-  const isManager = inquiry === "マネージャー応募";
+  const isManager = MANAGER_OPEN && inquiry === "マネージャー応募";
   const isSponsor = inquiry === "スポンサー";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
