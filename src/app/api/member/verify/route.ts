@@ -7,7 +7,7 @@
  * 氏名を変更してもログインに影響しないよう、IDを認証キーにしている。
  * 総当たり対策として IP 単位のレート制限＋ロックアウトを行う。
  */
-import { verifyPassword, userIdKey, issueSession, verifySession, readCookie, buildSetCookie, MEMBER_COOKIE } from "@/lib/security";
+import { verifyPassword, userIdKey, issueSession, sessionRemaining, readSession, readCookie, buildSetCookie, MEMBER_COOKIE } from "@/lib/security";
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 
@@ -15,14 +15,40 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const TTL = 60 * 60 * 24 * 30; // 30日
+/**
+ * ログインを保つ期間。
+ *
+ * 30日にしていたが、Cookieを抜き取られた場合そのあいだ使われ続けてしまう。
+ * 7日に縮め、代わりに「使っている間は切れない」ようにした（下のGET）。
+ * 使わなくなればそのまま期限切れになるので、端末を手放しても残らない。
+ */
+const TTL = 60 * 60 * 24 * 7; // 7日
 const GENERIC = "ユーザーIDまたはパスワードが違います。";
 
+/**
+ * GET — いまのログインが有効かを返す。
+ *
+ * 残りが半分を切っていたら、その場で発行し直す。アプリは開くたびに
+ * ここを叩くので、使っている人が突然ログアウトされることはない。
+ */
 export async function GET(request: Request) {
-  if (verifySession(readCookie(request.headers, MEMBER_COOKIE), "member")) {
-    return Response.json({ ok: true });
+  const left = sessionRemaining(readCookie(request.headers, MEMBER_COOKIE), "member");
+  if (left === null) return Response.json({ ok: false }, { status: 401 });
+
+  if (left < TTL / 2) {
+    const token = issueSession("member", TTL, readSub(request.headers));
+    return Response.json(
+      { ok: true, renewed: true },
+      { headers: { "Set-Cookie": buildSetCookie(MEMBER_COOKIE, token, TTL) } },
+    );
   }
-  return Response.json({ ok: false }, { status: 401 });
+  return Response.json({ ok: true });
+}
+
+/** 発行し直すときに、本人の識別子（アカウントID）を引き継ぐ */
+function readSub(headers: Headers): string | undefined {
+  const sess = readSession(readCookie(headers, MEMBER_COOKIE), "member");
+  return sess?.sub ?? undefined;
 }
 
 export async function POST(request: Request) {
