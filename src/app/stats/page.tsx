@@ -387,6 +387,8 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
   const [issued, setIssued] = useState<{ userId: string; name: string } | null>(null);
   const [memorized, setMemorized] = useState(false);
   const [copied, setCopied] = useState(false);
+  // LINEから戻ってきたときの結果。うまくいかなかったときに必ず出す
+  const [lineNote, setLineNote] = useState("");
   // LINEログインが設定されていないときは、ボタン自体を出さない
   const [lineReady, setLineReady] = useState(false);
   useEffect(() => {
@@ -403,16 +405,25 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
    * LINE側で成立したログインはSafariに入ってしまうので、戻ってきた
    * アプリが自分で取りに来る。これでアプリの保管庫にログインが入る。
    *
-   * 見に行くのは、開いたときと、アプリに戻ってきたとき。
-   * 引換券は一度きりなので、取れたらそれで終わり。
+   * ── 合言葉は「見に行くたびに」読む ──
+   * 仕掛けたときに一度だけ読むと、まだボタンを押していないので必ず空になり、
+   * そのまま何も監視せずに終わってしまう。ボタンを押すのはそのあとなので、
+   * 戻ってきても誰も気づかない。前の版はこれで動いていなかった。
+   *
+   * 見に行くのは、開いたとき・アプリに戻ったとき・画面が復元されたとき。
+   * iPhoneではLINEが別の画面として上に乗るので、閉じて戻った合図を
+   * 取りこぼさないよう、3つとも拾う。
    */
   useEffect(() => {
-    const secret = pendingHandoff();
-    if (!secret) return;
     let finished = false;
+    let running = false;
 
     const claim = async () => {
-      if (finished || document.visibilityState !== "visible") return;
+      if (finished || running) return;
+      if (document.visibilityState !== "visible") return;
+      const secret = pendingHandoff();   // ここで毎回読む
+      if (!secret) return;
+      running = true;
       try {
         const res = await fetch("/api/line/claim", {
           method: "POST",
@@ -425,23 +436,39 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
           clearHandoff();
           try { localStorage.setItem("skr_login_name", d.name || ""); } catch {}
           onSuccess();
+          return;
         }
-      } catch { /* 通信できなければ、次に戻ってきたときに試す */ }
+        // 黙って失敗させない。何が起きたかを画面に出す
+        setLineNote(
+          res.status === 404
+            ? "LINEからのログインを引き取れませんでした。時間が経ちすぎたか、すでに使われています。もう一度「LINEでログイン」をお試しください。"
+            : res.status === 403
+              ? "このアカウントはいま利用できません。代表にご確認ください。"
+              : "LINEからのログインを引き取れませんでした。もう一度お試しください。",
+        );
+      } catch {
+        /* 通信できなければ、次に戻ってきたときに試す */
+      } finally {
+        running = false;
+      }
     };
 
-    claim();
+    void claim();
     const onShow = () => { void claim(); };
     document.addEventListener("visibilitychange", onShow);
     window.addEventListener("focus", onShow);
+    window.addEventListener("pageshow", onShow);
     return () => {
       finished = true;
       document.removeEventListener("visibilitychange", onShow);
       window.removeEventListener("focus", onShow);
+      window.removeEventListener("pageshow", onShow);
     };
   }, [onSuccess]);
 
   /** LINEへ送り出す。合言葉を作ってから移動する */
   async function goLine(mode: "login" | "register", ticket?: string) {
+    setLineNote("");
     window.location.href = await lineStartUrl(mode, ticket);
   }
 
@@ -855,6 +882,16 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
                 登録できるのは<strong style={{ color: "#fff" }}>チーム名簿に登録済みのメンバー</strong>のみです。登録が完了すると<strong style={{ color: UI.gold }}>ユーザーID</strong>が発行されます。
               </div>
             </>
+          )}
+
+          {lineNote && (
+            <div style={{
+              marginBottom: 16, padding: "12px 14px", background: "#1d1a12",
+              border: "1px solid #4c4127", borderRadius: 12,
+              color: "rgba(235,235,245,0.78)", fontSize: 12.5, lineHeight: 1.7,
+            }}>
+              {lineNote}
+            </div>
           )}
 
           {error && (

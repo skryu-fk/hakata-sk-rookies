@@ -11,8 +11,16 @@
  */
 export type ChangeLogEntry = { version: string; date: string; items: string[] };
 
-export const APP_VERSION = "2.3";
+export const APP_VERSION = "2.4";
 export const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "2.4",
+    date: "2026-11-11",
+    items: [
+      "🔧 LINEでログインしてアプリに戻っても、ログインされなかったのを直しました",
+      "💬 引き取りに失敗したときは、黙って終わらずに理由を出すようにしました",
+    ],
+  },
   {
     version: "2.3",
     date: "2026-11-11",

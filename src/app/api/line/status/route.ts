@@ -10,6 +10,7 @@ import { readSession, readCookie, MEMBER_COOKIE, sameOrigin, crossOriginDenied }
 import { callAppsScript } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { lineEnabled, ACCOUNT_LINE_COL } from "@/lib/lineAuth";
+import { selfTestHandoff } from "@/lib/loginHandoff";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,8 +28,32 @@ async function currentRow(headers: Headers) {
   return row ? ({ row } as const) : null;
 }
 
+/*
+ * 受け渡しの置き場が生きているかの確認。
+ *
+ * ここが死んでいると、ホーム画面アプリでLINEログインしても
+ * アプリ側に入れない。管理者ログインなしで確かめられるようにしておく
+ * （返すのは可否だけで、理由や設定の中身は出さない）。
+ * 毎回書き込むのは無駄なので、少しのあいだ結果を覚えておく。
+ */
+let probeCache: { at: number; ready: boolean } | null = null;
+const PROBE_TTL_MS = 60_000;
+
+async function handoffReady(): Promise<boolean> {
+  if (probeCache && Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.ready;
+  const { ok } = await selfTestHandoff();
+  probeCache = { at: Date.now(), ready: ok };
+  return ok;
+}
+
 export async function GET(request: Request) {
   if (!lineEnabled()) return Response.json({ ok: true, enabled: false, linked: false });
+
+  if (new URL(request.url).searchParams.get("probe") === "1") {
+    const probeRl = rateLimit(`line-probe:${clientIp(request.headers)}`, { limit: 6, windowMs: 60_000 });
+    if (!probeRl.ok) return tooMany(probeRl.retryAfter);
+    return Response.json({ ok: true, enabled: true, handoffReady: await handoffReady() });
+  }
 
   // ここは「LINEのボタンを出してよいか」の判断にも使う。
   // ログイン画面はまだログインしていないので、401 を返すとボタンが出せない。
