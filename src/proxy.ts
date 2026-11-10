@@ -10,13 +10,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { inMaintenance, isAllowedDuringMaintenance, isOperator, maintenanceResponse } from "@/lib/maintenance";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // 管理者としてログインしている場合は、止めている最中でも中を見られる。
+  // 管理者と「代表」は、止めている最中でも中を見られる。
   // Next.js 16 の Proxy は Node.js ランタイムで動くため、
-  // ここで署名付きCookieの検証ができる。
-  if (inMaintenance() && !isAllowedDuringMaintenance(path) && !isOperator(request.headers)) {
+  // ここで署名付きCookieの検証と名簿の照合ができる。
+  // 判定を呼ぶのはメンテナンス中だけなので、ふだんの速度には影響しない。
+  if (inMaintenance() && !isAllowedDuringMaintenance(path) && !(await isOperator(request.headers))) {
     return maintenanceResponse();
   }
 

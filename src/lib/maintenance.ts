@@ -17,7 +17,7 @@
  * 時間もそろえてある。片方だけ直すとずれるので注意。
  */
 
-import { verifySession, readCookie, ADMIN_COOKIE } from "@/lib/security";
+import { verifySession, readSession, readCookie, ADMIN_COOKIE, MEMBER_COOKIE } from "@/lib/security";
 
 export const MAINTENANCE = {
   /** 開始（UTC） */
@@ -72,16 +72,46 @@ export function isAllowedDuringMaintenance(path: string): boolean {
   return ALLOWED.some(p => path === p || path.startsWith(`${p}/`));
 }
 
+/** 代表のレベル。src/lib/staffRoles.ts の LEVEL_LABEL と同じ（4 = 代表） */
+const OWNER_LEVEL = "4";
+
+/** accounts の1行が「代表」かどうか。列は [.., 9:role, ..] */
+export function isOwnerRow(row: string[]): boolean {
+  return (row[9] ?? "").trim() === OWNER_LEVEL
+    && (row[5] ?? "").trim() === "approved";
+}
+
 /**
  * 作業する本人は、メンテナンス中でもサイトとアプリを開ける。
  *
  * 止めている最中に直したものを自分で確かめられないと、
  * 「開けてみたら直っていなかった」が起きる。
- * 管理者としてログインしている場合だけ素通しする。
- * 判断は署名付きCookieなので、URLを知っているだけでは通れない。
+ *
+ * 通すのは次の2つだけ。いずれも署名付きCookieで判断するので、
+ * URLを知っているだけでは通れない。
+ *   1. 管理者パスワードで入っている（/admin のログイン）
+ *   2. 首脳陣のうち「代表」のアカウントでログインしている
+ * 副代表やコーチは通さない。作業中の中途半端な状態を見せないため。
  */
-export function isOperator(headers: Headers): boolean {
-  return verifySession(readCookie(headers, ADMIN_COOKIE), "admin");
+export async function isOperator(headers: Headers): Promise<boolean> {
+  if (verifySession(readCookie(headers, ADMIN_COOKIE), "admin")) return true;
+
+  const sess = readSession(readCookie(headers, MEMBER_COOKIE), "member");
+  if (!sess?.sub) return false;
+
+  try {
+    // 名簿の読み出しは重いので、メンバーのCookieがあるときだけ読み込む。
+    // 読み出し自体にも20秒のキャッシュが効く。
+    const { callAppsScript } = await import("@/lib/admin-shared");
+    const list = await callAppsScript({ op: "list", sheet: "accounts" });
+    if (!list.ok) return false;
+    const rows = (list.data as { rows?: { data: string[] }[] }).rows ?? [];
+    const me = rows.find(r => (r.data[0] ?? "") === sess.sub);
+    return !!me && isOwnerRow(me.data);
+  } catch {
+    // 止めている最中に名簿が読めなくても、メンテナンス画面は必ず出す
+    return false;
+  }
 }
 
 /**
