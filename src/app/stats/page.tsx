@@ -3033,6 +3033,63 @@ function ScheduleView({ upcoming, pastGames, games, probableByDate, participants
   onVote: (date: string, status: "出席" | "欠席") => Promise<boolean>;
 }) {
   const [selected, setSelected] = useState<PracticeRow | null>(null);
+  // 日程の画面から直接答えるための状態（どの日を送信中か）
+  const [votingDate, setVotingDate] = useState("");
+
+  /**
+   * 次回の予定に、出欠の答えをその場で出せるボタンを付ける。
+   * これまでは「日程 → 予定をタップ → 詳細の中のボタン」と3手かかっていた。
+   * 親のカード全体がタップで詳細に移るので、押した指が詳細へ抜けないよう
+   * stopPropagation している。
+   */
+  function QuickVote({ date }: { date: string }) {
+    if (!me) {
+      return (
+        <p style={{ fontSize: 11.5, color: "rgba(235,235,245,0.45)", marginTop: 10, lineHeight: 1.7 }}>
+          出欠を答えるには、マイページで名簿と連携してください。
+        </p>
+      );
+    }
+    const mine = (attendanceByDate.get(date) ?? []).find(a => a.memberId === me)?.status ?? "";
+    const busy = votingDate === date;
+    const stop = (e: React.MouseEvent) => { e.stopPropagation(); };
+    const send = async (e: React.MouseEvent, status: "出席" | "欠席") => {
+      e.stopPropagation();
+      if (busy) return;
+      setVotingDate(date);
+      await onVote(date, status);
+      setVotingDate("");
+    };
+    const base: React.CSSProperties = {
+      flex: 1, padding: "12px 8px", cursor: busy ? "wait" : "pointer",
+      fontFamily: "var(--font-zen),sans-serif", fontWeight: 800, fontSize: 14,
+      borderRadius: 9, transition: "background .15s, color .15s",
+    };
+    return (
+      <div onClick={stop} style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button
+          onClick={e => send(e, "出席")}
+          disabled={busy}
+          style={{
+            ...base,
+            color: mine === "出席" ? "#000000" : "#67e088",
+            background: mine === "出席" ? "linear-gradient(135deg,#67e088,#9ff0b3)" : "#152725",
+            border: mine === "出席" ? "none" : "1px solid #2f6245",
+          }}
+        >{busy ? "送信中…" : mine === "出席" ? "⭕ 参加で回答済み" : "⭕ 参加する"}</button>
+        <button
+          onClick={e => send(e, "欠席")}
+          disabled={busy}
+          style={{
+            ...base,
+            color: mine === "欠席" ? "#fff" : "#ff6982",
+            background: mine === "欠席" ? "linear-gradient(135deg,#d10024,#ff4d6a)" : "#1e0d19",
+            border: mine === "欠席" ? "none" : "1px solid #5a081d",
+          }}
+        >{busy ? "送信中…" : mine === "欠席" ? "❌ 不参加で回答済み" : "❌ 不参加"}</button>
+      </div>
+    );
+  }
 
   // 練習をタップ → 参加メンバー詳細へ（閉じると一覧に戻る）
   if (selected) {
@@ -3122,6 +3179,7 @@ function ScheduleView({ upcoming, pastGames, games, probableByDate, participants
                   </span>
                   <span style={{ fontSize: 11.5, color: "#E5B84B", fontWeight: 700 }}>タップで参加メンバー →</span>
                 </div>
+                {!st.canceled && <QuickVote date={next.date} />}
               </div>
             );
           })()}
