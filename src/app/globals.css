@@ -641,6 +641,20 @@ img { -webkit-user-drag: none; user-select: none; }
 /* CTA・カードのクリック時に軽く沈むフィードバック */
 a[href]:active, button:active { transition-duration: 0.05s; }
 
+/* 押したことが指で分かるようにする。
+   タップしても何も起きない数百ミリ秒のあいだ「反応していない」と感じるため、
+   押し込みを返す。iOSの青いハイライトは消す（枠が四角く光って不格好なので）。 */
+button, [role="button"], a[href] {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: none) {
+  button:not(:disabled):active,
+  [role="button"]:active {
+    transform: scale(0.975);
+    transition: transform 0.06s ease-out;
+  }
+}
+
 /* リンクの下線位置を少し下げて読みやすく（本文リンク全般） */
 .news-body .md-link, .legal-body a { text-underline-offset: 4px; }
 

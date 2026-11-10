@@ -25,6 +25,8 @@ import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import ConsentCard from "@/components/ConsentCard";
 import LineLinkCard from "@/components/LineLinkCard";
 import { formatJpDate } from "@/lib/dates";
+import { APP_VERSION, CHANGELOG, type ChangeLogEntry } from "@/data/changelog";
+import UpdateBanner from "@/components/UpdateBanner";
 import dynamicImport from "next/dynamic";
 
 // 首脳陣コンソールは首脳陣しか開かないので、押されるまで読み込まない。
@@ -33,103 +35,6 @@ const StaffConsole = dynamicImport(() => import("@/components/StaffConsole"), { 
 
 const MEMBER_PW_KEY = "skr_member_pw";
 
-/* ── アプリのバージョン / 更新履歴 ────────────────────────── */
-const APP_VERSION = "2.1";
-type ChangeLogEntry = { version: string; date: string; items: string[] };
-const CHANGELOG: ChangeLogEntry[] = [
-  {
-    version: "2.1",
-    date: "2026-11-10",
-    items: [
-      "💚 LINEでログインできるようになりました（マイページから連携）",
-      "⭕ 日程の画面から、出欠をそのまま答えられるようになりました",
-      "📄 チーム規約をアプリの中で読めるようになりました（マイページ）",
-      "✍️ 規約への同意を、指で署名してアプリから出せるようになりました",
-      "📊 成績画面の数字を大きく、行を広げて見やすくしました",
-      "📅 マイページの加入日が英語で出ていたのを直しました",
-      "🔒 ログインまわりの守りを強くしました（総当たり対策・有効期限の短縮）",
-    ],
-  },
-  {
-    version: "2.0",
-    date: "2026-09-18",
-    items: [
-      "🔑 ログイン方法を「ユーザーID＋パスワード」に変更しました",
-      "🆕 アカウントを作り直しました。お手数ですが各自で新規登録をお願いします",
-      "👤 氏名は全角カタカナで入力（例：ヤマダ　タロウ）",
-      "🎫 登録するとユーザーIDが発行されます。必ず控えてください",
-      "🔒 パスワードは英字と数字を含む8文字以上に変更",
-      "⚡ 表示を高速化（前回のデータをすぐ表示して裏で更新）",
-      "🎨 ログイン画面のデザインを刷新しました",
-    ],
-  },
-  {
-    version: "1.5",
-    date: "2026-07-01",
-    items: [
-      "👤 マイページを追加（自分の表示名・ニックネームを編集できます）",
-      "🔗 管理者がアカウントと名簿を「連携」→ あなたの成績が自動表示",
-      "⚡ 読み込みを高速化（全データを1回でまとめて取得）",
-      "🔒 パスワードはマイページからは変更できません（安全のため）",
-    ],
-  },
-  {
-    version: "1.4",
-    date: "2026-06-30",
-    items: [
-      "👤 メンバー個人アカウント制を導入（本名＋自分のパスワードでログイン）",
-      "📝 新規登録ページを追加（パスワードは2回入力で確認）",
-      "🛡 共通パスワードでのログインは廃止し、なりすましを防止",
-      "✅ 登録は管理者の承認制（承認された人だけログインできます）",
-      "🔐 パスワードは暗号化（ハッシュ化）して保存・誰にも見えません",
-    ],
-  },
-  {
-    version: "1.3",
-    date: "2026-06-24",
-    items: [
-      "🧠 独自開発AI「SKドッパミンAI」を搭載（フォーム診断）",
-      "🎥 動画からバッティング/ピッチングを骨格解析→点数・項目別評価・改善点",
-      "🖼 構え〜インパクト〜フォロースルーの連続写真（骨格つき）を表示",
-      "🎯 改善アドバイスはプロ・指導者のフォーム理論ベース",
-      "🌙 暗い映像は明るさを自動補正して解析（精度は控えめ表示）",
-      "🔒 動画は端末内だけで解析・外部に送信しません",
-    ],
-  },
-  {
-    version: "1.2",
-    date: "2026-06-23",
-    items: [
-      "🙋 練習の参加投票を追加（日程から参加/不参加をタップ → 出欠に直接反映）",
-      "📋 スコアラー機能を追加（試合の打撃・投球をその場で記録）",
-      "✅ 記録は管理者の承認制（承認されると成績に反映）",
-      "✨ UIを全面リニューアル（ネオン・グラス調のv1.2スキン）",
-    ],
-  },
-  {
-    version: "1.1",
-    date: "2026-06-12",
-    items: [
-      "🧱 守備成績（刺殺・捕殺・失策・守備率）を追加",
-      "📅 練習・試合の日程タブを追加",
-      "🔥 予告先発を日程に表示",
-      "📊 WAR・wRC+・wOBA を打撃成績に導入",
-      "🔔 プッシュ通知に対応（成績更新・予告先発など）",
-      "📢 お知らせ欄を新設",
-      "🖱 PCでスクロールできない不具合を修正",
-    ],
-  },
-  {
-    version: "1.0",
-    date: "2026-06-10",
-    items: [
-      "⚾ メンバー成績アプリ公開",
-      "打率・出塁率・長打率・OPS / 防御率 / 盗塁阻止率を表示",
-      "通算成績と試合別成績の切り替え",
-      "ホーム画面に追加してアプリのように使える",
-    ],
-  },
-];
 
 /* ── 型 ─────────────────────────────────────────────── */
 type ListRow = { rowIndex: number; data: string[] };
@@ -1594,6 +1499,9 @@ function StatsDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
+      {/* ── 新しい版が出ていたら知らせる ── */}
+      <UpdateBanner />
+
       {/* ── 通知バー ── */}
       <div className="max-w-[1280px] mx-auto px-5 md:px-8" style={{ paddingTop: 14, position: "relative", zIndex: 1 }}>
         <NotifyBar />
@@ -1952,9 +1860,23 @@ function FormCheckView() {
 }
 
 /* ── 通知のオン/オフ バー ───────────────────────────────── */
+const NOTIFY_HIDDEN_KEY = "skr_notify_hidden";
+
 function NotifyBar() {
   const [state, setState] = useState<"idle" | "on" | "working" | "denied" | "unsupported">("idle");
   const [msg, setMsg] = useState("");
+  // 「あとで」を押したら、この端末では出さない。
+  // 通知を使わない人には、開くたびに同じ案内が場所を取っていた
+  const [hidden, setHidden] = useState(true);
+
+  useEffect(() => {
+    try { setHidden(window.localStorage.getItem(NOTIFY_HIDDEN_KEY) === "1"); } catch { setHidden(false); }
+  }, []);
+
+  function dismiss() {
+    setHidden(true);
+    try { window.localStorage.setItem(NOTIFY_HIDDEN_KEY, "1"); } catch {}
+  }
 
   useEffect(() => {
     import("@/lib/push-client").then(async ({ pushSupported, getExistingSubscription }) => {
@@ -1976,6 +1898,9 @@ function NotifyBar() {
     else { setState("idle"); setMsg("登録に失敗しました。もう一度お試しください。"); }
   }
 
+  // オン済み・非対応・閉じたあとは出さない
+  if (state === "on" || hidden) return null;
+
   if (state === "unsupported") {
     return (
       <div style={notifyBarStyle}>
@@ -1989,29 +1914,36 @@ function NotifyBar() {
 
   return (
     <div style={notifyBarStyle}>
-      <span style={{ fontSize: 16 }}>{state === "on" ? "🔔" : "🔕"}</span>
+      <span style={{ fontSize: 16 }}>🔕</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: state === "on" ? "#67e088" : "#fff" }}>
-          {state === "on" ? "通知オン" : "成績の更新・予告先発をプッシュ通知で受け取る"}
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", lineHeight: 1.5 }}>
+          成績の更新・予告先発をプッシュ通知で受け取る
         </div>
         {msg && <div style={{ fontSize: 10.5, color: "rgba(235,235,245,0.60)", marginTop: 2 }}>{msg}</div>}
       </div>
-      {state !== "on" && (
-        <button
-          onClick={enable}
-          disabled={state === "working"}
-          style={{
-            flexShrink: 0,
-            padding: "7px 14px",
-            background: state === "working" ? "#555" : "linear-gradient(135deg, #E5B84B, #f0c75e)",
-            color: "#000000", border: "none",
-            fontFamily: "var(--font-zen),sans-serif", fontSize: 12, fontWeight: 800,
-            cursor: state === "working" ? "wait" : "pointer", letterSpacing: "0.06em",
-          }}
-        >
-          {state === "working" ? "登録中…" : "通知をオンにする"}
-        </button>
-      )}
+      <button
+        onClick={enable}
+        disabled={state === "working"}
+        style={{
+          flexShrink: 0,
+          padding: "9px 14px",
+          background: state === "working" ? "#555" : "linear-gradient(135deg, #E5B84B, #f0c75e)",
+          color: "#000000", border: "none", borderRadius: 7,
+          fontFamily: "var(--font-zen),sans-serif", fontSize: 12, fontWeight: 800,
+          cursor: state === "working" ? "wait" : "pointer", letterSpacing: "0.06em",
+        }}
+      >
+        {state === "working" ? "登録中…" : "オンにする"}
+      </button>
+      <button
+        onClick={dismiss}
+        aria-label="この案内を閉じる"
+        style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: 8,
+          background: "transparent", border: "none", cursor: "pointer",
+          color: "rgba(235,235,245,0.45)", fontSize: 18, lineHeight: 1,
+        }}
+      >×</button>
     </div>
   );
 }
