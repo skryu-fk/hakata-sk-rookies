@@ -349,6 +349,91 @@ export async function signedUrlFor(path: string, seconds = 60): Promise<string |
   return data.signedUrl;
 }
 
+/* ── ログインの引き渡し（iPhoneのホーム画面アプリ用）──────────────
+ * iPhoneでは、ホーム画面に追加したアプリとSafariで、ログイン情報の
+ * 保管庫が別になっている。LINEから戻ってくる先はSafariなので、
+ * そこでログインが成立しても、アプリ側には何も伝わらない。
+ *
+ * そこで、Safari側で成立したログインを「引換券」にしてここへ置く。
+ * アプリに戻ったときにアプリ自身が取りに来れば、アプリの保管庫に
+ * ログインが入る。置き場にはアカウントの符号と期限しか入れない。
+ *
+ * 札（ファイル名）は合言葉の指紋（SHA-256）で、合言葉そのものは
+ * アプリの中だけにある。指紋を見ても引き出せない。
+ */
+const HANDOFF_BUCKET = "login-handoff";
+let handoffBucketReady = false;
+
+async function ensureHandoffBucket(): Promise<void> {
+  if (handoffBucketReady) return;
+  const { data } = await db().storage.getBucket(HANDOFF_BUCKET);
+  if (!data) {
+    const { error } = await db().storage.createBucket(HANDOFF_BUCKET, {
+      public: false,
+      fileSizeLimit: 4 * 1024,
+      allowedMimeTypes: ["application/json"],
+    });
+    if (error && !/exist/i.test(error.message)) throw new Error(error.message);
+  }
+  handoffBucketReady = true;
+}
+
+/** 札は合言葉のSHA-256（16進64文字）だけを受け付ける */
+const HANDOFF_KEY = /^[0-9a-f]{64}$/;
+
+/** 取り忘れた引換券を片付ける。失敗しても本筋には関係しない */
+async function pruneHandoffs(): Promise<void> {
+  try {
+    const { data } = await db().storage.from(HANDOFF_BUCKET).list("", { limit: 100 });
+    const cutoff = Date.now() - 30 * 60_000;
+    const stale = (data ?? [])
+      .filter(f => Date.parse(f.created_at ?? "") < cutoff)
+      .map(f => f.name);
+    if (stale.length) await db().storage.from(HANDOFF_BUCKET).remove(stale);
+  } catch { /* 片付けなので、できなくてもよい */ }
+}
+
+/** 引換券を置く。置けたかどうかを返す */
+export async function putHandoff(key: string, accountId: string, ttlSeconds: number): Promise<boolean> {
+  if (!HANDOFF_KEY.test(key) || !accountId) return false;
+  try {
+    await ensureHandoffBucket();
+    const body = JSON.stringify({ a: accountId, e: Math.floor(Date.now() / 1000) + ttlSeconds });
+    const { error } = await db().storage.from(HANDOFF_BUCKET).upload(
+      `${key}.json`,
+      new Blob([body], { type: "application/json" }),
+      { contentType: "application/json", upsert: true },
+    );
+    if (error) {
+      console.error("[handoff] put failed:", error.message);
+      return false;
+    }
+    void pruneHandoffs();
+    return true;
+  } catch (e) {
+    console.error("[handoff] put threw:", e);
+    return false;
+  }
+}
+
+/** 引換券を取り出す。一度きりで、取り出したら消す。期限切れは無効 */
+export async function takeHandoff(key: string): Promise<string | null> {
+  if (!HANDOFF_KEY.test(key)) return null;
+  const path = `${key}.json`;
+  try {
+    const { data, error } = await db().storage.from(HANDOFF_BUCKET).download(path);
+    if (error || !data) return null;
+    // 読めたら先に消す。二度使われないようにするため
+    await db().storage.from(HANDOFF_BUCKET).remove([path]);
+    const parsed = JSON.parse(await data.text()) as { a?: string; e?: number };
+    if (!parsed.a || typeof parsed.e !== "number") return null;
+    if (parsed.e < Math.floor(Date.now() / 1000)) return null;
+    return parsed.a;
+  } catch {
+    return null;
+  }
+}
+
 /** 画像を保存して、表示用のURLを返す */
 export async function uploadImage(file: File): Promise<string> {
   await ensureBucket();

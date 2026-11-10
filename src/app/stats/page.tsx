@@ -24,6 +24,7 @@ import { MIN_QUALIFY, VOLUME_WEIGHT, rankBasis, rankScore, splitByQualified } fr
 import { analyzeForm, type FormResult, type Kind } from "@/lib/poseFormCheck";
 import ConsentCard from "@/components/ConsentCard";
 import LineLinkCard from "@/components/LineLinkCard";
+import { lineStartUrl, pendingHandoff, clearHandoff } from "@/lib/handoffClient";
 import { formatJpDate } from "@/lib/dates";
 import { APP_VERSION, CHANGELOG, type ChangeLogEntry } from "@/data/changelog";
 import UpdateBanner from "@/components/UpdateBanner";
@@ -395,6 +396,55 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
       .catch(() => {});
   }, []);
 
+  /*
+   * LINEから戻ってきたときの引き取り。
+   *
+   * iPhoneのホーム画面アプリとSafariは、ログイン情報の保管庫が別。
+   * LINE側で成立したログインはSafariに入ってしまうので、戻ってきた
+   * アプリが自分で取りに来る。これでアプリの保管庫にログインが入る。
+   *
+   * 見に行くのは、開いたときと、アプリに戻ってきたとき。
+   * 引換券は一度きりなので、取れたらそれで終わり。
+   */
+  useEffect(() => {
+    const secret = pendingHandoff();
+    if (!secret) return;
+    let finished = false;
+
+    const claim = async () => {
+      if (finished || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch("/api/line/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pairId: secret }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d?.ok) {
+          finished = true;
+          clearHandoff();
+          try { localStorage.setItem("skr_login_name", d.name || ""); } catch {}
+          onSuccess();
+        }
+      } catch { /* 通信できなければ、次に戻ってきたときに試す */ }
+    };
+
+    claim();
+    const onShow = () => { void claim(); };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => {
+      finished = true;
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+    };
+  }, [onSuccess]);
+
+  /** LINEへ送り出す。合言葉を作ってから移動する */
+  async function goLine(mode: "login" | "register", ticket?: string) {
+    window.location.href = await lineStartUrl(mode, ticket);
+  }
+
   const pc = pwChecks(pw);
   const nameOk = isKatakanaClient(name);
   const nameTouched = name.trim().length > 0;
@@ -495,7 +545,7 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
       const d = await res.json().catch(() => ({}));
       if (res.ok && d?.ok && d.token) {
         // ここでLINEへ移動する。戻ってこないので busy は戻さない
-        window.location.href = `/api/line/start?mode=register&t=${encodeURIComponent(d.token)}`;
+        await goLine("register", d.token);
         return;
       }
       if (res.status === 429) setError("試行回数が多すぎます。しばらく待ってからお試しください。");
@@ -840,9 +890,14 @@ function LoginGate({ onSuccess }: { onSuccess: () => void }) {
 
               {isLogin ? (
                 /* 連携済み・LINEで登録した人が入れる。それ以外は案内を出して戻される */
-                <a href="/api/line/start?mode=login" style={lineBtn}>
+                <button
+                  type="button"
+                  onClick={() => { setBusy(true); void goLine("login"); }}
+                  disabled={busy}
+                  style={{ ...lineBtn, border: "none", cursor: busy ? "wait" : "pointer" }}
+                >
                   <LineMark />LINEでログイン
-                </a>
+                </button>
               ) : (
                 /* 氏名だけで登録できる。押すとLINEの同意画面へ移動する */
                 <button

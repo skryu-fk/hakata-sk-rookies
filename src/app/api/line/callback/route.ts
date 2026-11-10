@@ -25,13 +25,14 @@ import {
   lineEnabled, exchangeCode, verifyIdToken, redirectUri, resultPage, verifierFor,
   LINE_STATE_COOKIE, ACCOUNT_LINE_COL,
 } from "@/lib/lineAuth";
+import { saveHandoff } from "@/lib/loginHandoff";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Row = { rowIndex: number; data: string[] };
-type Stash = { mode: string; sub: string; nonce: string };
+type Stash = { mode: string; sub: string; nonce: string; ph?: string; pwa?: boolean };
 
 const SESSION_TTL = 60 * 60 * 24 * 7;   // メンバーのログインと同じ7日
 
@@ -96,18 +97,49 @@ const FALLBACK = {
  * もう1つ開くだけで、ホーム画面のアプリには戻らない。
  * 閉じて開きなおしてもらうのが、いちばん確実で分かりやすい。
  */
-function done(code: string, extraHeaders?: Record<string, string>, id?: string): Response {
+type DoneOpts = {
+  /** 追加で返すヘッダー（ログインのCookieなど） */
+  headers?: Record<string, string>;
+  /** 発行されたユーザーID。登録できたときだけ出す */
+  id?: string;
+  /** ホーム画面アプリから始まった手続きか */
+  fromApp?: boolean;
+  /** 引換券を預けられたか（アプリに戻るだけでログインできるか） */
+  handed?: boolean;
+};
+
+/**
+ * ホーム画面アプリから来た人への文言。
+ *
+ * この画面はSafariで開いている。そこで「アプリをひらく」を押しても、
+ * Safariの中でもう1枚開くだけで、ホーム画面のアプリには戻らない。
+ * やることは1つ、「閉じて戻る」だけにする。
+ */
+function appBody(code: string, handed?: boolean): string {
+  if (code === "linked") return "次からは、ログイン画面の「LINEでログイン」で入れます。";
+  return handed
+    ? "アプリに戻ると、そのままログインされます。"
+    : "お手数ですが、アプリに戻って、ユーザーIDとパスワードでログインしてください。";
+}
+
+function done(code: string, opts: DoneOpts = {}): Response {
   const m = MESSAGES[code] ?? FALLBACK;
+  const fromApp = !!opts.fromApp;
   const res = resultPage({
     ...m,
-    // ログインできたときだけ、そのままアプリへ進める
-    auto: code === "login_ok",
-    closeOnly: code === "linked" || code === "registered",
-    id,
+    body: fromApp && m.ok ? appBody(code, opts.handed) : m.body,
+    // Safariで始めた人は、そのままアプリへ進める。
+    // アプリから来た人を進めてはいけない（Safariの中で動いてしまう）
+    auto: !fromApp && code === "login_ok",
+    closeOnly: fromApp || code === "linked" || code === "registered",
+    closeText: fromApp && opts.handed
+      ? "この画面を閉じて、アプリに戻ってください。"
+      : undefined,
+    id: opts.id,
   });
   const headers = new Headers(res.headers);
   headers.append("Set-Cookie", buildRoundTripCookie(LINE_STATE_COOKIE, "", 0));
-  for (const [k, v] of Object.entries(extraHeaders ?? {})) headers.append(k, v);
+  for (const [k, v] of Object.entries(opts.headers ?? {})) headers.append(k, v);
   return new Response(res.body, { status: res.status, headers });
 }
 
@@ -123,41 +155,61 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
 
-  // ユーザーが同意画面で「キャンセル」したとき
-  if (url.searchParams.get("error")) return done("canceled");
-
-  // state は署名付き。改ざんされていれば読めない＝こちらが始めた手続きではない
+  // state は署名付き。改ざんされていれば読めない＝こちらが始めた手続きではない。
+  // キャンセルされたときも state は返ってくるので、文言を決めるために先に読む
   const state = url.searchParams.get("state") ?? "";
   const stash = readValue<Stash>(state);
-  if (!stash?.nonce) return done("expired");
+
+  // どこから始まった手続きか。戻り先の案内を変えるのに使う
+  const app = !!stash?.pwa;
+
+  // ユーザーが同意画面で「キャンセル」したとき
+  if (url.searchParams.get("error")) return done("canceled", { fromApp: app });
+  if (!stash?.nonce) return done("expired", { fromApp: app });
 
   const code = url.searchParams.get("code") ?? "";
-  if (!code) return done("expired");
+  if (!code) return done("expired", { fromApp: app });
+
+  /**
+   * ログインを成立させる。
+   *
+   * Safariで始めた人には、この応答のCookieでそのまま入ってもらう。
+   * ホーム画面アプリから来た人には、そのCookieは届かない（保管庫が別）。
+   * 代わりに引換券を預けて、アプリに戻ったときに取りに来てもらう。
+   */
+  async function signIn(codeName: string, accountId: string, id?: string) {
+    const handed = stash?.ph ? await saveHandoff(stash.ph, accountId) : false;
+    const session = issueSession("member", SESSION_TTL, accountId);
+    return done(codeName, {
+      headers: { "Set-Cookie": buildSetCookie(MEMBER_COOKIE, session, SESSION_TTL) },
+      id, fromApp: app, handed,
+    });
+  }
 
   const token = await exchangeCode(code, verifierFor(state), redirectUri(request));
-  if (!token.ok) return done("token_failed");
+  if (!token.ok) return done("token_failed", { fromApp: app });
 
   const verified = verifyIdToken(token.idToken, stash.nonce);
   if (!verified.ok) {
     console.error("[line] id token rejected:", verified.error);
-    return done("bad_token");
+    return done("bad_token", { fromApp: app });
   }
   const lineUserId = verified.sub;
 
   const list = await callAppsScript({ op: "list", sheet: "accounts" });
-  if (!list.ok) return done("server_error");
+  if (!list.ok) return done("server_error", { fromApp: app });
   const rows = (list.data as { rows?: Row[] }).rows ?? [];
 
   if (stash.mode === "link") {
     const target = rows.find(r => (r.data[0] ?? "") === stash.sub);
-    if (!target) return done("no_account");
+    if (!target) return done("no_account", { fromApp: app });
 
     // 1つのLINEアカウントを複数のメンバーに紐づけさせない。
     // 紐づけられると、他人になりすましてログインできてしまう
     const taken = rows.find(
       r => (r.data[ACCOUNT_LINE_COL] ?? "") === lineUserId && (r.data[0] ?? "") !== stash.sub,
     );
-    if (taken) return done("already_used");
+    if (taken) return done("already_used", { fromApp: app });
 
     const next = target.data.slice();
     while (next.length <= ACCOUNT_LINE_COL) next.push("");
@@ -167,29 +219,29 @@ export async function GET(request: Request) {
     });
     if (!saved.ok) {
       console.error("[line] link save failed:", saved.error);
-      return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed");
+      return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed", { fromApp: app });
     }
-    return done("linked");
+    return done("linked", { fromApp: app });
   }
 
   if (stash.mode === "register") {
     // 1つのLINEアカウントで2人分は作らせない
-    if (rows.some(r => (r.data[ACCOUNT_LINE_COL] ?? "") === lineUserId)) return done("already_used");
+    if (rows.some(r => (r.data[ACCOUNT_LINE_COL] ?? "") === lineUserId)) return done("already_used", { fromApp: app });
     // 送り出したあとに本人が別の端末で登録していた場合に備えて、ここでも見る
     if (rows.some(r => (r.data[7] ?? "") === stash.sub && (r.data[5] ?? "") !== "rejected")) {
-      return done("already_registered");
+      return done("already_registered", { fromApp: app });
     }
 
     // 氏名はURLに乗せていないので、名簿から引き直す
     const mList = await callAppsScript({ op: "list", sheet: "members" });
-    if (!mList.ok) return done("server_error");
+    if (!mList.ok) return done("server_error", { fromApp: app });
     const members = (mList.data as { rows?: Row[] }).rows ?? [];
     // members 列: [id, name, nickname, jerseyNumber, position, joinedDate, active, kana]
     const me = members.find(r => (r.data[0] ?? "") === stash.sub);
-    if (!me) return done("no_account");
+    if (!me) return done("no_account", { fromApp: app });
     // アカウントの氏名はカタカナでそろえる（IDとパスワードで登録した人と同じ形）
     const name = ((me.data[7] ?? "").trim() || (me.data[1] ?? "").trim());
-    if (!name) return done("no_account");
+    if (!name) return done("no_account", { fromApp: app });
 
     const used = new Set(rows.map(r => (r.data[8] ?? "").toUpperCase()).filter(Boolean));
     let userId = "";
@@ -197,7 +249,7 @@ export async function GET(request: Request) {
       const cand = genUserId();
       if (!used.has(cand.toUpperCase())) { userId = cand; break; }
     }
-    if (!userId) return done("server_error");
+    if (!userId) return done("server_error", { fromApp: app });
 
     /*
      * パスワードの欄（hash・salt）は空にする。
@@ -215,28 +267,19 @@ export async function GET(request: Request) {
     const saved = await callAppsScript({ op: "append", sheet: "accounts", row });
     if (!saved.ok) {
       console.error("[line] register failed:", saved.error);
-      return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed");
+      return done(/line_user_id|列がありません/.test(saved.error) ? "no_column" : "save_failed", { fromApp: app });
     }
 
-    // そのままログインさせる。Safariに戻ってきている場合は、すぐ使える
-    const session = issueSession("member", SESSION_TTL, accountId);
-    return done(
-      "registered",
-      { "Set-Cookie": buildSetCookie(MEMBER_COOKIE, session, SESSION_TTL) },
-      userId,
-    );
+    return signIn("registered", accountId, userId);
   }
 
   // mode === "login"
   const acc = rows.find(r => (r.data[ACCOUNT_LINE_COL] ?? "") === lineUserId);
-  if (!acc) return done("not_linked");
+  if (!acc) return done("not_linked", { fromApp: app });
 
   const status = (acc.data[5] ?? "").trim();
-  if (status === "pending") return done("pending");
-  if (status !== "approved") return done("rejected");
+  if (status === "pending") return done("pending", { fromApp: app });
+  if (status !== "approved") return done("rejected", { fromApp: app });
 
-  const session = issueSession("member", SESSION_TTL, acc.data[0] ?? "");
-  return done("login_ok", {
-    "Set-Cookie": buildSetCookie(MEMBER_COOKIE, session, SESSION_TTL),
-  });
+  return signIn("login_ok", acc.data[0] ?? "");
 }

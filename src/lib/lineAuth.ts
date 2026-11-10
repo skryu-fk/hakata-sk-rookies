@@ -189,6 +189,8 @@ export function resultPage(opts: {
   ok: boolean; title: string; body: string; auto?: boolean; closeOnly?: boolean;
   /** 発行されたユーザーID。登録できたときだけ、控えてもらうために出す */
   id?: string;
+  /** 閉じてもらう案内の文言を差し替える */
+  closeText?: string;
 }): Response {
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -220,7 +222,7 @@ export function resultPage(opts: {
       + "<em>LINEで入れるので、ふだんは使いません。LINEが使えなくなったときのために、控えておいてください。</em></div>"
     : ""}
   ${opts.closeOnly
-    ? '<div class="close">この画面を閉じて、アプリを開きなおしてください。</div>'
+    ? `<div class="close">${escapeHtml(opts.closeText ?? "この画面を閉じて、アプリを開きなおしてください。")}</div>`
     : '<a href="/stats">アプリをひらく</a>'}
 </div>${opts.auto ? '<script>setTimeout(function(){location.replace("/stats")},600)</script>' : ""}
 </body></html>`;

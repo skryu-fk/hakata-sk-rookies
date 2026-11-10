@@ -11,8 +11,17 @@
  */
 export type ChangeLogEntry = { version: string; date: string; items: string[] };
 
-export const APP_VERSION = "2.2";
+export const APP_VERSION = "2.3";
 export const CHANGELOG: ChangeLogEntry[] = [
+  {
+    version: "2.3",
+    date: "2026-11-11",
+    items: [
+      "📱 ホーム画面に追加したアプリから、LINEでログインできるようになりました",
+      "　（Safariが開いてアプリ側に戻ってこない問題を直しました）",
+      "💬 LINEから戻ったときの案内を、アプリから来た人向けに変えました",
+    ],
+  },
   {
     version: "2.2",
     date: "2026-11-11",

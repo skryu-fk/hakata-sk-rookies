@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { lineStartUrl } from "@/lib/handoffClient";
 
 /**
  * マイページの「LINEでログイン」
@@ -100,14 +101,16 @@ export default function LineLinkCard() {
           連携を解除する
         </button>
       ) : state === "unlinked" ? (
-        <a href="/api/line/start?mode=link"
+        /* ホーム画面アプリから来たかを伝えて、戻り方の案内を正しく出す */
+        <button type="button" disabled={busy}
+          onClick={async () => { setBusy(true); window.location.href = await lineStartUrl("link"); }}
           style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
+            display: "inline-flex", alignItems: "center", gap: 8, border: "none",
             padding: "13px 22px", borderRadius: 10, background: "#06c755",
-            color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 800,
+            color: "#fff", fontSize: 14, fontWeight: 800, cursor: busy ? "wait" : "pointer",
           }}>
           LINEと連携する →
-        </a>
+        </button>
       ) : null}
     </div>
   );

@@ -37,6 +37,16 @@ export async function GET(request: Request) {
   const mode = asked === "login" || asked === "register" ? asked : "link";
 
   /*
+   * ホーム画面アプリ用の受け渡し（src/lib/loginHandoff.ts）。
+   *   ph  … アプリが作った合言葉の指紋。指紋だけでは引き出せないので往復に載せてよい
+   *   pwa … ホーム画面アプリから来たか。戻り先の案内文を変えるのに使う
+   * どちらも無くても動く（そのときは今までどおりSafariの中で完結する）。
+   */
+  const ph = params.get("ph") ?? "";
+  const handoff = /^[0-9a-f]{64}$/.test(ph) ? ph : "";
+  const fromApp = params.get("pwa") === "1";
+
+  /*
    * sub には「誰の手続きか」を入れる。
    *   link     … ログイン中のアカウントID
    *   register … 名簿のメンバーID（引換券から取り出す）
@@ -72,7 +82,7 @@ export async function GET(request: Request) {
 
   const nonce = randomToken();
   // state は base64url と「.」だけでできているので、URLエンコードは不要
-  const state = signValue({ mode, sub, nonce }, ROUND_TRIP_SECONDS);
+  const state = signValue({ mode, sub, nonce, ph: handoff, pwa: fromApp }, ROUND_TRIP_SECONDS);
 
   return new Response(null, {
     status: 302,

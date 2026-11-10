@@ -12,6 +12,7 @@ import { ensureAuth } from "@/lib/admin-shared";
 import { rateLimit, clientIp, tooMany } from "@/lib/rate-limit";
 import { MAINTENANCE, inMaintenance } from "@/lib/maintenance";
 import { supabaseEnabled, columnExists } from "@/lib/supabaseData";
+import { selfTestHandoff } from "@/lib/loginHandoff";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,6 +109,15 @@ export async function GET(request: Request) {
       note: lineCol
         ? "あります。"
         : "ありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。これが無いとLINEの連携が保存されません。",
+    });
+    // ホーム画面アプリでLINEログインできるかは、ここが動くかで決まる
+    const handoff = await selfTestHandoff();
+    checks.push({
+      key: "login-handoff", label: "アプリへのログイン引き渡し",
+      ok: handoff.ok, level: "推奨",
+      note: handoff.ok
+        ? handoff.note
+        : `${handoff.note} これが動かないと、ホーム画面に追加したアプリではLINEログインできず、IDとパスワードでの案内に切り替わります。`,
     });
     checks.push({
       key: "consents", label: "規約同意のテーブル",
